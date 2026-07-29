@@ -1,0 +1,18 @@
+{{define "content"}}
+{{/* Registration wizard, rendered by join.tsx into #join-root. The whole
+     crypto ceremony (Secret Phrase generation, key derivation, keypair,
+     vault key) runs client-side before the register API is called. */}}
+<div class="min-h-screen flex flex-col bg-background">
+  <div class="px-6 pt-8 max-w-2xl mx-auto w-full flex items-center justify-between">
+    <a href="/" class="hover:opacity-80 transition-opacity">{{template "wordmark" .}}</a>
+    <a href="/login" class="text-sm text-muted-foreground hover:text-foreground transition-colors">Already sealed? <span class="text-accent font-medium">Unlock</span></a>
+  </div>
+
+  <div class="flex-1 flex items-start justify-center px-6 py-12">
+    <div class="w-full max-w-2xl relative">
+      <div class="glow-orb" style="width:480px;height:480px;top:-200px;right:-220px;opacity:0.55"></div>
+      <div class="relative" id="join-root"></div>
+    </div>
+  </div>
+</div>
+{{end}}

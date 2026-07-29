@@ -1,0 +1,18 @@
+{{define "content"}}
+{{/* Vault invite accept page. invite.tsx reads the URL fragment (token +
+     invite key — never sent to the server), previews the vault, and on
+     accept re-wraps the vault key under the visitor's own key-encryption
+     key. Signed-out visitors get a sign-in prompt (optional_auth). */}}
+<div class="min-h-screen flex flex-col overflow-x-hidden">
+    <div class="site-canvas site-canvas-app" aria-hidden="true">
+        <div class="glow-orb glow-orb-a" style="--orb:var(--accent-glow);width:46vw;height:34vw;top:-18vw;right:-10vw;opacity:0.5"></div>
+        <div class="glow-orb glow-orb-b" style="--orb:var(--accent-2-glow);width:36vw;height:28vw;bottom:-14vw;left:-10vw;opacity:0.4"></div>
+    </div>
+    {{if .Viewer}}{{template "appHeader" .}}{{else}}
+    <header class="relative z-10 max-w-2xl mx-auto w-full px-4 sm:px-6 pt-8">
+        <a href="/" class="hover:opacity-80 transition-opacity">{{template "wordmark" .}}</a>
+    </header>
+    {{end}}
+    <div class="flex-1 relative z-10 max-w-xl mx-auto w-full px-4 sm:px-6 py-12" id="invite-root"></div>
+</div>
+{{end}}

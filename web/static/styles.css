@@ -1,0 +1,812 @@
+/* Page-specific styles. All design tokens live in theme.css: never redeclare
+   a token here, because this sheet loads after theme.css at equal
+   specificity and would silently win over :root. */
+
+/* ════════════════════════════════════════════════════════════════════ */
+/* Landing page                                                          */
+/* ════════════════════════════════════════════════════════════════════ */
+
+/* Hero cipher scramble: landing.ts flips characters through a cipher
+   alphabet before resolving each into place. The element just needs stable
+   metrics so the text doesn't jitter while scrambling. */
+.cipher-text {
+  font-variant-ligatures: none;
+  font-feature-settings: "tnum";
+}
+.cipher-char {
+  display: inline-block;
+}
+/* The floor is only needed while glyphs are still swapping — holding it
+   afterwards pads narrow letters and visibly splits the settled word. */
+.cipher-char.is-scrambling {
+  min-width: 0.32em;
+  opacity: 0.85;
+}
+
+/* ════════════════════════════════════════════════════════════════════ */
+/* Ambient background                                                    */
+/* Public pages sit on a lit surface rather than flat paint: a faint     */
+/* engineering grid, film grain, and slow-drifting colour. The canvas is */
+/* one fixed layer behind everything (z-index -1, above the body paint), */
+/* so no section needs its own backdrop and nothing reflows on scroll.   */
+/* ════════════════════════════════════════════════════════════════════ */
+
+.site-canvas {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* Grid: masked to a soft ellipse so it never reaches the page edges. */
+.site-canvas::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 72px 72px;
+  -webkit-mask-image: radial-gradient(ellipse 105% 95% at 50% 38%, #000 25%, transparent 100%);
+  mask-image: radial-gradient(ellipse 105% 95% at 50% 38%, #000 25%, transparent 100%);
+}
+
+/* Grain: kills the banding that big blurred gradients produce on dark
+   backgrounds, and gives the surface a texture. */
+.site-canvas::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.5;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.09'/%3E%3C/svg%3E");
+}
+
+/* App surfaces take the same canvas at half strength on a wider cell: the
+   vault is a working surface, so the grid must never compete with content. */
+.site-canvas-app::before {
+  opacity: 0.5;
+  background-size: 104px 104px;
+}
+.site-canvas-app::after { opacity: 0.3; }
+
+/* Ambient colour. Size and placement are set inline per instance; --orb
+   picks the hue from the spectrum tokens. */
+.glow-orb {
+  position: absolute;
+  pointer-events: none;
+  border-radius: 50%;
+  filter: blur(90px);
+  background: radial-gradient(circle, var(--orb, var(--accent-glow)) 0%, transparent 70%);
+}
+
+/* Two drift paths, deliberately different lengths so the orbs never
+   settle into a visible loop together. */
+@keyframes orb-drift-a {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to { transform: translate3d(6%, 8%, 0) scale(1.12); }
+}
+@keyframes orb-drift-b {
+  from { transform: translate3d(0, 0, 0) scale(1.08); }
+  to { transform: translate3d(-7%, -5%, 0) scale(0.94); }
+}
+.glow-orb-a { animation: orb-drift-a 19s var(--ease-in-out) infinite alternate; }
+.glow-orb-b { animation: orb-drift-b 24s var(--ease-in-out) infinite alternate; }
+
+/* Encryption pipeline visual: plaintext travels through the keyhole and
+   leaves as ciphertext. Dots are positioned/timed inline per instance. */
+@keyframes pipeline-dot {
+  0% { opacity: 0; transform: translateX(0); }
+  12% { opacity: 1; }
+  46% { opacity: 1; transform: translateX(var(--travel, 120px)); }
+  54% { opacity: 1; }
+  88% { opacity: 1; transform: translateX(calc(var(--travel, 120px) * 2)); }
+  100% { opacity: 0; transform: translateX(calc(var(--travel, 120px) * 2.15)); }
+}
+.pipeline-dot {
+  position: absolute;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  animation-name: pipeline-dot;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+/* Keyhole mark: the ring pulses; used in the hero and the lock screen. */
+@keyframes keyhole-ring {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.045); }
+}
+.keyhole-ring { animation: keyhole-ring 3.4s var(--ease-in-out) infinite; transform-origin: center; }
+
+/* Marquee of "what a breach would see": an endless drift of ciphertext.
+   Two lanes run in opposite directions and both fade out at the rails, so
+   the strip reads as a window onto a stream rather than a ticker. */
+@keyframes drift {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+@keyframes drift-reverse {
+  from { transform: translateX(-50%); }
+  to { transform: translateX(0); }
+}
+.cipher-drift {
+  display: inline-block;
+  white-space: nowrap;
+  animation: drift 42s linear infinite;
+}
+.cipher-drift-reverse { animation: drift-reverse 58s linear infinite; }
+
+.marquee-mask {
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+}
+
+/* ════════════════════════════════════════════════════════════════════ */
+/* Marketing sections (landing + security)                               */
+/* ════════════════════════════════════════════════════════════════════ */
+
+/* Eyebrow: a short gradient rule, then the label. Replaces the plain
+   uppercase line that opened every section. */
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: var(--letter-widest);
+  color: var(--accent);
+}
+.eyebrow::before {
+  content: "";
+  width: 34px;
+  height: 2px;
+  border-radius: 2px;
+  background-image: var(--gradient-brand);
+}
+
+/* Numbered step tile inside a .panel — the digit sits in a gradient chip. */
+.step-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: var(--radius-lg);
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--accent-foreground);
+  background-image: var(--gradient-brand);
+  box-shadow: var(--shadow-accent);
+}
+
+/* Icon tile for feature cards: a soft accent well, not a bare glyph. */
+.icon-tile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--radius-md);
+  color: var(--accent);
+  background: var(--accent-subtle);
+  border: 1px solid var(--accent-border);
+  transition: color var(--duration-base) var(--ease-out),
+    background-color var(--duration-base) var(--ease-out);
+}
+/* Feature grids cycle the tile through the spectrum so a wall of cards
+   reads as one family rather than one colour repeated. */
+.icon-tile-cool {
+  color: var(--accent-2);
+  background: var(--accent-2-subtle);
+  border-color: var(--accent-2-border);
+}
+.icon-tile-warm {
+  color: var(--accent-3);
+  background: var(--accent-3-subtle);
+  border-color: var(--accent-3-border);
+}
+.icon-tile-danger {
+  color: var(--danger-fg);
+  background: var(--danger-subtle);
+  border-color: var(--danger);
+}
+.panel-interactive:hover .icon-tile {
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+.panel-interactive:hover .icon-tile-cool {
+  background: var(--accent-2-subtle);
+  color: var(--accent-2);
+}
+.panel-interactive:hover .icon-tile-warm {
+  background: var(--accent-3-subtle);
+  color: var(--accent-3);
+}
+
+/* The rail that threads the three "how it works" steps together on wide
+   screens: plaintext entering at one end, ciphertext leaving at the other. */
+.step-rail {
+  position: absolute;
+  top: 3.4rem;
+  left: 12%;
+  right: 12%;
+  height: 2px;
+  background-image: var(--gradient-brand);
+  opacity: 0.35;
+}
+
+/* Stat band figure. */
+.stat-value {
+  font-family: var(--font-mono);
+  font-weight: 800;
+  letter-spacing: var(--letter-tight);
+  font-size: var(--text-3xl);
+  background-image: var(--gradient-brand);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Full-bleed CTA slab: the gradient sits behind a dark scrim so the
+   copy keeps its contrast while the panel still reads as brand colour. */
+.cta-slab {
+  position: relative;
+  isolation: isolate;
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--accent-border);
+  background-color: var(--card);
+  overflow: hidden;
+}
+.cta-slab::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image: var(--gradient-brand);
+  opacity: 0.16;
+}
+
+/* ════════════════════════════════════════════════════════════════════ */
+/* Tile figures (landing + security)                                     */
+/*                                                                       */
+/* The feature grids on / and /security do not repeat one icon-and-text  */
+/* template. Every tile carries a small figure of the claim it makes —   */
+/* redacted item titles, the nine words, an authenticator counting down, */
+/* the actual response headers — so the grid reads as six arguments      */
+/* rather than six squares.                                              */
+/*                                                                       */
+/* What follows are the *parts* those figures are assembled from, small  */
+/* and combinable on purpose: no two tiles use the same combination, and */
+/* a new tile should compose a new figure rather than reuse a finished   */
+/* one. Every figure is decorative (aria-hidden) — the copy beside it    */
+/* always carries the meaning on its own.                                */
+/* ════════════════════════════════════════════════════════════════════ */
+
+/* The well a figure sits in: recessed, so it reads as a specimen inside
+   the card rather than as a second card stacked on it. */
+.fig {
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background-color: var(--muted);
+  padding: 0.85rem 0.95rem;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: var(--line-normal);
+}
+/* The variant for material that is ciphertext: the same well, sealed. */
+.fig-sealed {
+  border-color: var(--accent-border);
+  background-color: var(--accent-subtle);
+}
+.fig-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: var(--letter-widest);
+  color: var(--muted-foreground);
+}
+
+/* A redacted value: the shape of a title, never the title. The sheen
+   travels so the bar reads as sealed material rather than a loading
+   skeleton; --w sets the length and --delay staggers a stack of them. */
+.seal-bar {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  width: var(--w, 60%);
+  height: 0.5rem;
+  border-radius: 999px;
+  background-image: var(--gradient-brand);
+  opacity: 0.6;
+}
+.seal-bar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.45), transparent);
+  animation: seal-sheen 3.4s var(--ease-in-out) infinite;
+  animation-delay: var(--delay, 0s);
+}
+@keyframes seal-sheen {
+  0% { transform: translateX(-100%); }
+  55%, 100% { transform: translateX(240%); }
+}
+
+/* A stack of item rows: kind on the left, sealed title on the right. */
+.stack-row {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.42rem 0;
+}
+.stack-row + .stack-row { border-top: 1px solid var(--border-subtle); }
+.stack-kind {
+  flex: none;
+  width: 4.1rem;
+  color: var(--muted-foreground);
+}
+
+/* The nine words in the slots the app itself lays them out in (see
+   components/auth/phrase-grid.tsx) — the marketing figure and the real
+   ceremony should be recognisably the same thing. */
+.phrase-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+.phrase-word {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background-color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.phrase-word > i {
+  font-style: normal;
+  font-size: 10px;
+  color: var(--accent);
+}
+
+/* Two devices and the signal between them. The dot is the revision
+   crossing the wire; the wire itself is the page's gradient hairline. */
+.wire-row {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+.wire-node {
+  display: inline-flex;
+  flex: none;
+  padding: 0.6rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--accent-2-border);
+  background: var(--accent-2-subtle);
+  color: var(--accent-2);
+}
+.wire {
+  position: relative;
+  flex: 1;
+  height: 2px;
+  background-image: var(--gradient-edge);
+}
+.wire-dot {
+  position: absolute;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  margin-top: -3.5px;
+  border-radius: 50%;
+  background: var(--accent-2);
+  box-shadow: 0 0 12px var(--accent-2);
+  animation: wire-run 3s var(--ease-in-out) infinite;
+}
+@keyframes wire-run {
+  0% { left: 0; opacity: 0; }
+  15% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { left: calc(100% - 7px); opacity: 0; }
+}
+
+/* Entropy meter under a generated password. */
+.meter {
+  height: 6px;
+  border-radius: 999px;
+  background-color: var(--border);
+  overflow: hidden;
+}
+.meter > i {
+  display: block;
+  height: 100%;
+  width: var(--fill, 70%);
+  border-radius: 999px;
+  background-image: var(--gradient-brand);
+}
+/* Character tints match SecretText in the app: letters neutral, digits
+   cyan, symbols magenta — a password looks the same everywhere. */
+.cc-digit { color: var(--accent-2); }
+.cc-symbol { color: var(--accent-3); }
+
+/* An authenticator code and the thirty seconds it has left. */
+.otp {
+  display: flex;
+  gap: 0.3rem;
+}
+.otp-digit {
+  flex: 1;
+  min-width: 0;
+  height: 2.3rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background-color: var(--background);
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 15px;
+}
+.otp-digit.is-live {
+  border-color: var(--accent-border);
+  background-color: var(--accent-subtle);
+  color: var(--accent);
+}
+.otp-timer {
+  height: 3px;
+  border-radius: 999px;
+  background-color: var(--border);
+  overflow: hidden;
+}
+.otp-timer > i {
+  display: block;
+  height: 100%;
+  transform-origin: left;
+  background-image: var(--gradient-brand);
+  animation: otp-drain 30s linear infinite;
+}
+@keyframes otp-drain {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+
+/* Alert rows as the bell drops them: the newest one still unread. */
+.feed { list-style: none; margin: 0; padding: 0; }
+.feed li {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+}
+.feed li + li { margin-top: 0.2rem; }
+.feed .is-new { background-color: var(--accent-subtle); }
+.feed-dot {
+  flex: none;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background-color: var(--border-strong);
+}
+.feed .is-new .feed-dot {
+  background-color: var(--accent);
+  box-shadow: 0 0 10px var(--accent-glow);
+}
+.feed time {
+  margin-left: auto;
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+
+/* The same events as a history rather than an inbox: one thread, newest
+   first, each dot pinned to the accent line running behind them. */
+.trail {
+  position: relative;
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 1.15rem;
+}
+.trail::before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 0.95rem;
+  bottom: 1.4rem;
+  width: 2px;
+  border-radius: 2px;
+  background-image: linear-gradient(to bottom, var(--accent), var(--accent-2));
+  opacity: 0.5;
+}
+.trail li {
+  position: relative;
+  padding: 0.28rem 0;
+  font-size: var(--text-sm);
+}
+.trail li::before {
+  content: "";
+  position: absolute;
+  left: -1.15rem;
+  top: 0.72rem;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--accent);
+}
+.trail li:first-child::before { box-shadow: 0 0 0 4px var(--accent-subtle); }
+.trail span {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+
+/* A field and what the database holds instead of it. */
+.kv {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.36rem 0;
+}
+.kv + .kv { border-top: 1px solid var(--border-subtle); }
+.kv > span { color: var(--muted-foreground); }
+.cipher-chip {
+  padding: 1px 7px;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-sm);
+  background-color: var(--accent-subtle);
+  color: var(--accent);
+  font-size: 11px;
+  word-break: break-all;
+}
+
+/* Session rows: the device you recognise, the hash we actually keep. */
+.sess + .sess { margin-top: 0.7rem; }
+.sess-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+.sess-hash {
+  margin-top: 0.15rem;
+  color: var(--accent-2);
+  font-size: 11px;
+  word-break: break-all;
+}
+.sess-gone { color: var(--muted-foreground); text-decoration: line-through; }
+
+/* Auto-lock dial: the ring is the idle window, the hole is the card. */
+.dial {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 4.75rem;
+  height: 4.75rem;
+  border-radius: 50%;
+  color: var(--accent);
+  background: conic-gradient(from 180deg, var(--accent) var(--sweep, 72%), var(--border) 0);
+}
+.dial::before {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border-radius: 50%;
+  background-color: var(--card);
+}
+.dial > svg { position: relative; }
+
+/* Response headers, quoted verbatim from what the server sends. Smaller
+   than the other figures so a full header fits on one line. */
+.term { font-size: 11px; line-height: 1.75; }
+.term-prompt { color: var(--accent-3); }
+.term-key { color: var(--accent-2); }
+.term-val { color: var(--muted-foreground); word-break: break-all; }
+
+/* An artefact that does not exist: the reset button we cannot offer. */
+.mock-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.9rem;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-md);
+  color: var(--muted-foreground);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-decoration: line-through;
+  text-decoration-color: var(--danger);
+  text-decoration-thickness: 2px;
+  cursor: not-allowed;
+}
+
+/* What a database dump actually yields, line by line. */
+.loot { list-style: none; margin: 0; padding: 0; }
+.loot li {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.28rem 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.loot li:last-child { color: var(--foreground); }
+.loot svg { flex: none; }
+
+/* ════════════════════════════════════════════════════════════════════ */
+/* Security page                                                         */
+/* ════════════════════════════════════════════════════════════════════ */
+
+/* Key-derivation diagram. The connectors are drawn with borders so the
+   whole figure is plain HTML — no SVG to keep in sync with the layout. */
+/* Nodes sit inside a .panel, so they take the page background rather than
+   the card colour — otherwise card-on-card leaves them with no edge. */
+.flow-node {
+  position: relative;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background-color: var(--background);
+  background-image: var(--surface-raised);
+  padding: 1.1rem 1.25rem;
+}
+.flow-node-accent {
+  border-color: var(--accent-border);
+  box-shadow: var(--shadow-accent);
+}
+.flow-node-cool {
+  border-color: var(--accent-2-border);
+}
+
+/* Vertical connector between diagram rows. */
+.flow-link {
+  width: 2px;
+  height: 1.75rem;
+  margin-inline: auto;
+  background-image: linear-gradient(to bottom, var(--accent-border), var(--accent-2-border));
+}
+
+/* Brackets that join a pair of nodes to the single node below (merge) or
+   below to a pair (split). Hidden when the grid stacks to one column. */
+.flow-merge,
+.flow-split {
+  height: 1.5rem;
+  margin-inline: 25%;
+  border-left: 2px solid var(--accent-border);
+  border-right: 2px solid var(--accent-border);
+}
+.flow-merge {
+  border-bottom: 2px solid var(--accent-border);
+  border-end-start-radius: var(--radius-lg);
+  border-end-end-radius: var(--radius-lg);
+}
+.flow-split {
+  border-top: 2px solid var(--accent-2-border);
+  border-left-color: var(--accent-2-border);
+  border-right-color: var(--accent-2-border);
+  border-start-start-radius: var(--radius-lg);
+  border-start-end-radius: var(--radius-lg);
+}
+
+/* The two panes of the "what you see / what we store" comparison. */
+.compare-pane {
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background-color: var(--muted);
+  padding: 1rem 1.15rem;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: var(--line-relaxed);
+}
+.compare-pane-sealed {
+  border-color: var(--accent-border);
+  background-color: var(--accent-subtle);
+  color: var(--accent);
+  word-break: break-all;
+}
+
+/* "What this makes impossible": a struck-through claim in a red-lined
+   card. The mark is decorative — the copy carries the meaning. */
+.deny-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  flex-shrink: 0;
+  border-radius: var(--radius-full);
+  background: var(--danger-subtle);
+  color: var(--danger-fg);
+}
+
+/* Footer colophon: the credit line and the source link, sitting under the
+   footer's brand blurb. Quieter than the navigation around it, but legible
+   on purpose — it comes up to full contrast on hover. */
+.colophon {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 12px;
+  color: var(--muted-foreground);
+  opacity: 0.6;
+  transition: opacity var(--duration-slow) var(--ease-out);
+}
+.colophon:hover,
+.colophon:focus-within { opacity: 1; }
+.colophon a { color: inherit; text-decoration: none; }
+.colophon a:hover { color: var(--accent); }
+.colophon svg { display: block; }
+
+/* ════════════════════════════════════════════════════════════════════ */
+/* App (vault)                                                           */
+/* ════════════════════════════════════════════════════════════════════ */
+
+/* Item rows get a staggered rise on first paint; vault.tsx sets
+   --stagger-i per row. */
+.item-row-enter {
+  animation: rise var(--duration-slow) var(--ease-out) both;
+  animation-delay: calc(var(--stagger-i, 0) * 28ms);
+}
+
+/* A row that wants attention — unread in the notifications centre, selected
+   in the vault list — carries an accent edge and a wash that fades out
+   across it. Everything else recedes to plain. */
+.row-accent {
+  position: relative;
+  background-image: linear-gradient(90deg, var(--accent-subtle), transparent 45%);
+}
+.row-accent::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 2px;
+  background-image: linear-gradient(to bottom, var(--accent), var(--accent-2));
+}
+
+/* An icon tile for content that has been dealt with. */
+.icon-tile-muted {
+  color: var(--muted-foreground);
+  background: var(--muted);
+  border-color: var(--border);
+}
+
+/* Copy feedback flash on secret fields. */
+@keyframes copied-flash {
+  0% { background-color: var(--accent-subtle); }
+  100% { background-color: transparent; }
+}
+.copied-flash { animation: copied-flash 700ms ease-out; }
+
+/* Lock screen backdrop: the vault content stays visible but sealed. */
+.lock-veil {
+  backdrop-filter: blur(18px) saturate(0.8);
+  background: color-mix(in srgb, var(--background) 55%, transparent);
+}
+
+ul { margin: 0.5rem 0; padding-left: 1.25rem; }
+
+/* Legal documents typography. */
+.legal-prose h2 { font-size: var(--text-xl); font-weight: 700; margin: 2rem 0 0.75rem; letter-spacing: var(--letter-tight); }
+.legal-prose h3 { font-size: var(--text-lg); font-weight: 600; margin: 1.5rem 0 0.5rem; }
+.legal-prose p { margin: 0 0 1rem; color: var(--muted-foreground); }
+.legal-prose li { margin: 0.35rem 0; color: var(--muted-foreground); }
+.legal-prose strong { color: var(--foreground); }
+.legal-prose a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+.legal-prose a:hover { color: var(--accent-active); }
+.legal-prose code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  background: var(--muted);
+  padding: 0.1em 0.4em;
+  border-radius: var(--radius-sm);
+}

@@ -1,0 +1,12 @@
+{{define "content"}}
+{{/* Email verification: redeem (?token=…) or resend. Rendered by
+     verify-email.tsx into #verify-root. */}}
+<div class="min-h-screen flex flex-col bg-background">
+  <div class="px-6 pt-8 max-w-xl mx-auto w-full">
+    <a href="/" class="hover:opacity-80 transition-opacity">{{template "wordmark" .}}</a>
+  </div>
+  <div class="flex-1 flex items-center justify-center px-6 py-12">
+    <div class="w-full max-w-md" id="verify-root"></div>
+  </div>
+</div>
+{{end}}

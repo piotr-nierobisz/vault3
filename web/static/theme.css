@@ -1,0 +1,658 @@
+/**
+ * Vault3 Design System — CSS variables.
+ *
+ * The single source of truth for all design tokens. Never hardcode colour
+ * values in templates or views; use the tokens (or the utility classes
+ * below, which resolve to them).
+ *
+ * Vault3 renders in one theme: dark. There is no light mode and no theme
+ * switch — the palette below is the palette, so a token can be read as a
+ * literal colour and never needs a per-theme counterpart.
+ */
+
+:root {
+  /* ── Core colors ── */
+  --background: #0a0a10;
+  --foreground: #f2f1f8;
+  --card: #12121c;
+  --card-foreground: #f2f1f8;
+  --popover: #15151f;
+  --popover-foreground: #f2f1f8;
+  --border-subtle: #191925;
+  --border: #24243a;
+  --border-strong: #34344e;
+  --input: #24243a;
+  --ring: oklch(62% 0.21 288 / 0.6);
+
+  /* ── Primary (Vault violet) ── */
+  --primary: oklch(56% 0.22 288);
+  --primary-foreground: #f7f6fc;
+  --primary-hover: oklch(64% 0.22 288);
+
+  /* ── Secondary ── */
+  --secondary: #191926;
+  --secondary-foreground: #f2f1f8;
+
+  /* ── Muted ── */
+  --muted: #1a1a28;
+  --muted-foreground: #9d9ab6;
+
+  /* ── Accent (violet scale) ── */
+  --accent: oklch(62% 0.21 288);
+  --accent-foreground: #0a0a10;
+  --accent-active: oklch(70% 0.19 288);
+  --accent-hover: oklch(70% 0.19 288);
+  --accent-subtle: oklch(62% 0.21 288 / 0.14);
+  --accent-border: oklch(62% 0.21 288 / 0.4);
+  --accent-glow: oklch(62% 0.21 288 / 0.3);
+
+  /* ── Spectrum ──
+     Violet is the brand. These two are its companions: they exist for
+     gradients, ambient light and accent-on-accent detail, and are never
+     used alone as a second brand colour. Cyan reads "signal / verified",
+     magenta reads "sealed". */
+  --accent-2: oklch(76% 0.13 205);
+  --accent-2-subtle: oklch(76% 0.13 205 / 0.14);
+  --accent-2-border: oklch(76% 0.13 205 / 0.38);
+  --accent-2-glow: oklch(72% 0.14 205 / 0.28);
+
+  --accent-3: oklch(68% 0.21 332);
+  --accent-3-subtle: oklch(68% 0.21 332 / 0.14);
+  --accent-3-border: oklch(68% 0.21 332 / 0.38);
+  --accent-3-glow: oklch(66% 0.21 332 / 0.26);
+
+  --gradient-brand: linear-gradient(115deg, var(--accent-3) 0%, var(--accent) 48%, var(--accent-2) 100%);
+  --gradient-edge: linear-gradient(90deg, transparent, var(--accent-border) 20%, var(--accent-2-border) 80%, transparent);
+
+  /* Ambient background layers (see .site-canvas in styles.css). */
+  --grid-line: rgba(190, 185, 255, 0.045);
+  --surface-raised: linear-gradient(165deg, oklch(62% 0.21 288 / 0.09), transparent 58%);
+
+  /* ── Semantic colors ── */
+  --success: oklch(66% 0.15 160);
+  --success-fg: oklch(66% 0.15 160);
+  --success-subtle: oklch(66% 0.15 160 / 0.13);
+  --warning: #e6a23c;
+  --warning-fg: #e6a23c;
+  --warning-subtle: rgba(230, 162, 60, 0.13);
+  --danger: #e56a70;
+  --danger-fg: #e56a70;
+  --danger-subtle: rgba(229, 106, 112, 0.13);
+  --destructive: #dd5157;
+  --destructive-foreground: #ffffff;
+
+  /* ── Typography ── */
+  --font-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+
+  --text-xs: clamp(0.75rem, 0.7rem + 0.25vw, 0.875rem);
+  --text-sm: clamp(0.875rem, 0.8rem + 0.375vw, 1rem);
+  --text-base: clamp(1rem, 0.9rem + 0.5vw, 1.0625rem);
+  --text-lg: clamp(1.125rem, 1rem + 0.625vw, 1.25rem);
+  --text-xl: clamp(1.25rem, 1.1rem + 0.75vw, 1.5rem);
+  --text-2xl: clamp(1.5rem, 1.3rem + 1vw, 1.875rem);
+  --text-3xl: clamp(1.875rem, 1.6rem + 1.375vw, 2.25rem);
+  --text-4xl: clamp(2.25rem, 1.9rem + 1.75vw, 3rem);
+  --text-5xl: clamp(3rem, 2.4rem + 3vw, 4.25rem);
+
+  --line-tight: 1.1;
+  --line-snug: 1.25;
+  --line-normal: 1.5;
+  --line-relaxed: 1.65;
+
+  --letter-tighter: -0.045em;
+  --letter-tight: -0.02em;
+  --letter-wide: 0.03em;
+  --letter-widest: 0.12em;
+
+  /* ── Spacing ── */
+  --space-xs: clamp(0.25rem, 0.2rem + 0.25vw, 0.375rem);
+  --space-sm: clamp(0.5rem, 0.4rem + 0.5vw, 0.75rem);
+  --space-md: clamp(0.75rem, 0.6rem + 0.75vw, 1rem);
+  --space-lg: clamp(1rem, 0.8rem + 1vw, 1.5rem);
+  --space-xl: clamp(1.5rem, 1.2rem + 1.5vw, 2rem);
+  --space-2xl: clamp(2rem, 1.6rem + 2vw, 3rem);
+  --space-3xl: clamp(3rem, 2.4rem + 3vw, 4rem);
+  --space-4xl: clamp(4rem, 3.2rem + 4vw, 6rem);
+
+  /* ── Border radius ── */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 18px;
+  --radius-full: 9999px;
+  --radius: 0.5rem;
+
+  /* ── Motion ── */
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --duration-slow: 320ms;
+  --duration-slower: 480ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* ── Shadows ── */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.5), 0 2px 4px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.6), 0 4px 10px rgba(0, 0, 0, 0.4);
+  --shadow-xl: 0 24px 64px rgba(0, 0, 0, 0.65), 0 10px 20px rgba(0, 0, 0, 0.45);
+  --shadow-glow: 0 0 32px var(--accent-glow);
+  --shadow-accent: 0 24px 60px -16px var(--accent-glow), 0 8px 24px -10px var(--accent-2-glow);
+}
+
+/* ══════════════════════════════════════════════════════════════════ */
+/* Base styles                                                         */
+/* ══════════════════════════════════════════════════════════════════ */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-padding-top: 5rem;
+  color-scheme: dark;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--line-normal);
+  color: var(--foreground);
+  background: var(--background);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Secret material is always monospace: it reads unambiguously and signals
+   "this is the sensitive bit". */
+.font-mono,
+input[data-secret] {
+  font-family: var(--font-mono);
+}
+
+/* ══════════════════════════════════════════════════════════════════ */
+/* Token utility classes (coexist with the Tailwind runtime)           */
+/* ══════════════════════════════════════════════════════════════════ */
+
+.bg-background { background-color: var(--background); }
+.bg-card { background-color: var(--card); }
+.bg-popover { background-color: var(--popover); }
+.bg-primary { background-color: var(--primary); }
+.bg-secondary { background-color: var(--secondary); }
+.bg-muted { background-color: var(--muted); }
+.bg-accent { background-color: var(--accent); }
+.bg-accent-subtle { background-color: var(--accent-subtle); }
+ .bg-success { background-color: var(--success); }
+.bg-warning { background-color: var(--warning); }
+.bg-danger { background-color: var(--danger); }
+
+.text-foreground { color: var(--foreground); }
+.text-card-foreground { color: var(--card-foreground); }
+.text-primary { color: var(--primary); }
+.text-primary-foreground { color: var(--primary-foreground); }
+.text-secondary-foreground { color: var(--secondary-foreground); }
+.text-muted-foreground { color: var(--muted-foreground); }
+.text-accent { color: var(--accent); }
+.text-accent-2 { color: var(--accent-2); }
+.text-accent-3 { color: var(--accent-3); }
+.text-accent-foreground { color: var(--accent-foreground); }
+.text-accent-active { color: var(--accent-active); }
+.text-success { color: var(--success-fg); }
+.text-warning { color: var(--warning-fg); }
+.text-danger { color: var(--danger-fg); }
+
+.border-border { border-color: var(--border); }
+.border-border-subtle { border-color: var(--border-subtle); }
+.border-border-strong { border-color: var(--border-strong); }
+.border-input { border-color: var(--input); }
+.border-accent { border-color: var(--accent); }
+.border-accent-border { border-color: var(--accent-border); }
+.border-danger { border-color: var(--danger); }
+
+.ring-ring { --tw-ring-color: var(--ring); }
+
+.shadow-glow { box-shadow: var(--shadow-glow); }
+.shadow-accent { box-shadow: var(--shadow-accent); }
+
+/* ── Gradient primitives ──
+   The brand gradient is magenta → violet → cyan. Use it for emphasis
+   (a headline word, a rule, a number), never for body text. */
+.bg-gradient-brand { background-image: var(--gradient-brand); }
+
+.text-gradient {
+  background-image: var(--gradient-brand);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  /* A clipped background has no glyph antialiasing fallback; keep the
+     text visible to selection and screen readers regardless. */
+  -webkit-text-fill-color: transparent;
+}
+
+/* A 1px gradient hairline: replaces flat section borders. */
+.rule-gradient {
+  height: 1px;
+  border: 0;
+  background-image: var(--gradient-edge);
+}
+
+/* The wordmark's hex glyph casts a little of its own light. */
+.v3-mark { filter: drop-shadow(0 2px 9px var(--accent-glow)); }
+
+/* ══════════════════════════════════════════════════════════════════ */
+/* Component primitives                                                */
+/* ══════════════════════════════════════════════════════════════════ */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  font-size: var(--text-sm);
+  border-radius: var(--radius-md);
+  padding: 0.625rem 1.25rem;
+  transition: all var(--duration-base) var(--ease-out);
+  cursor: pointer;
+  border: 1px solid transparent;
+  outline: none;
+  text-decoration: none;
+}
+.btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* The primary button carries a shallow slice of the brand gradient —
+   the violet shifts warm-to-cool across its face rather than sitting
+   flat. Deliberately narrow: this button also appears in dense app UI. */
+.btn-primary {
+  background-color: var(--primary);
+  background-image: linear-gradient(
+    135deg,
+    color-mix(in oklab, var(--primary) 86%, var(--accent-3) 14%),
+    color-mix(in oklab, var(--primary) 84%, var(--accent-2) 16%)
+  );
+  color: var(--primary-foreground);
+}
+.btn-primary:hover:not(:disabled) {
+  background-color: var(--primary-hover);
+  background-image: linear-gradient(
+    135deg,
+    color-mix(in oklab, var(--primary-hover) 86%, var(--accent-3) 14%),
+    color-mix(in oklab, var(--primary-hover) 84%, var(--accent-2) 16%)
+  );
+  box-shadow: var(--shadow-accent);
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background-color: var(--secondary);
+  color: var(--secondary-foreground);
+  border-color: var(--border);
+}
+.btn-secondary:hover:not(:disabled) { border-color: var(--border-strong); }
+
+.btn-ghost { background: transparent; color: var(--foreground); }
+.btn-ghost:hover:not(:disabled) { background-color: var(--muted); }
+
+.btn-danger { background-color: var(--danger); color: #fff; }
+.btn-danger:hover:not(:disabled) { filter: brightness(1.08); }
+
+.card {
+  background-color: var(--card);
+  background-image: var(--surface-raised);
+  color: var(--card-foreground);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-md);
+}
+
+/* Panel — the marketing-weight surface. A card lit from the top-left by
+   the accent, with a gradient hairline along its upper edge so it reads
+   as raised rather than as a rectangle drawn on the background. */
+.panel {
+  position: relative;
+  isolation: isolate;
+  background-color: var(--card);
+  background-image: var(--surface-raised);
+  color: var(--card-foreground);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+}
+.panel::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background-image: var(--gradient-edge);
+  opacity: 0.75;
+  pointer-events: none;
+}
+
+/* Adds a hover response to a .card or .panel that is a link or feature
+   tile: it rises, its edge picks up the accent, and the glow warms. */
+.panel-interactive {
+  transition: transform var(--duration-base) var(--ease-out),
+    border-color var(--duration-base) var(--ease-out),
+    box-shadow var(--duration-base) var(--ease-out);
+}
+.panel-interactive:hover {
+  transform: translateY(-4px);
+  border-color: var(--accent-border);
+  box-shadow: var(--shadow-accent);
+}
+.panel-interactive:hover::before { opacity: 1; }
+
+/* A panel whose contents are irreversible: the edge states it before the
+   copy does. */
+.panel-danger {
+  border-color: var(--danger);
+  background-image: linear-gradient(165deg, var(--danger-subtle), transparent 55%);
+}
+.panel-danger::before {
+  background-image: linear-gradient(90deg, transparent, var(--danger), transparent);
+}
+
+.input {
+  width: 100%;
+  padding: 0.625rem 0.875rem;
+  background-color: var(--background);
+  color: var(--foreground);
+  border: 1px solid var(--input);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-family: inherit;
+  transition: border-color var(--duration-base) var(--ease-out), box-shadow var(--duration-base) var(--ease-out);
+}
+.input:hover:not(:focus):not(:disabled) { border-color: var(--border-strong); }
+.input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-subtle);
+}
+.input::placeholder { color: var(--muted-foreground); opacity: 0.7; }
+
+/* Checkbox: a real <input type=checkbox> painted with appearance:none, so it
+   keeps native keyboard and label semantics. The tick is a sibling SVG
+   (.checkbox-tick) rather than a pseudo-element, because ::before/::after do
+   not render on <input> in Firefox. --check-tint lets a caller theme a box
+   to the thing it toggles (the generator tints each character class); it
+   falls back to the brand accent, and the tick paints in --background so it
+   stays legible against every tint in both themes. */
+.checkbox-wrap {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+.checkbox-tick {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 0.8rem;
+  height: 0.8rem;
+  color: var(--background);
+  /* Overrides the icon set's presentation attribute: at 0.8rem a 2px stroke
+     reads as grey rather than as a tick. */
+  stroke-width: 3.25;
+  pointer-events: none;
+  opacity: 0;
+  transform: scale(0.7);
+  transition: opacity var(--duration-fast, 120ms) var(--ease-out),
+    transform var(--duration-fast, 120ms) var(--ease-out);
+}
+.checkbox:checked + .checkbox-tick {
+  opacity: 1;
+  transform: scale(1);
+}
+.checkbox {
+  appearance: none;
+  -webkit-appearance: none;
+  flex-shrink: 0;
+  width: 1.125rem;
+  height: 1.125rem;
+  margin: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background-color: var(--background);
+  cursor: pointer;
+  position: relative;
+  transition: background-color var(--duration-base) var(--ease-out),
+    border-color var(--duration-base) var(--ease-out),
+    box-shadow var(--duration-base) var(--ease-out);
+}
+.checkbox:hover:not(:disabled) { border-color: var(--check-tint, var(--accent)); }
+.checkbox:checked {
+  background-color: var(--check-tint, var(--accent));
+  border-color: var(--check-tint, var(--accent));
+}
+.checkbox:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--check-tint-subtle, var(--accent-subtle));
+}
+.checkbox:active:not(:disabled) { transform: scale(0.92); }
+.checkbox:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Range slider. The filled portion is painted by a gradient stop at
+   --slider-pct, which the component sets inline from the current value —
+   the one approach that fills identically in WebKit and Firefox (::-moz-
+   range-progress has no WebKit counterpart). Track and thumb must be
+   declared per-engine: a selector list containing an unknown pseudo-element
+   is dropped whole, so these rules cannot be merged. */
+.slider {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  height: 1.5rem;
+  background: transparent;
+  cursor: pointer;
+  --slider-track: linear-gradient(
+    to right,
+    var(--accent) var(--slider-pct, 50%),
+    var(--border) var(--slider-pct, 50%)
+  );
+}
+.slider::-webkit-slider-runnable-track {
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--slider-track);
+}
+.slider::-moz-range-track {
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--slider-track);
+}
+.slider::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-top: -0.375rem; /* centres the thumb on a 0.5rem track */
+  border-radius: 999px;
+  background: var(--accent);
+  border: 3px solid var(--background);
+  box-shadow: 0 1px 6px -1px var(--accent-glow);
+  transition: transform var(--duration-base) var(--ease-out), box-shadow var(--duration-base) var(--ease-out);
+}
+.slider::-moz-range-thumb {
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 999px;
+  background: var(--accent);
+  border: 3px solid var(--background);
+  box-shadow: 0 1px 6px -1px var(--accent-glow);
+  transition: transform var(--duration-base) var(--ease-out), box-shadow var(--duration-base) var(--ease-out);
+}
+.slider:hover::-webkit-slider-thumb { transform: scale(1.12); }
+.slider:hover::-moz-range-thumb { transform: scale(1.12); }
+.slider:active::-webkit-slider-thumb { transform: scale(1.04); }
+.slider:active::-moz-range-thumb { transform: scale(1.04); }
+.slider:focus-visible { outline: none; }
+.slider:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 4px var(--accent-subtle); }
+.slider:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px var(--accent-subtle); }
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  padding: 3px 8px;
+  line-height: 1.2;
+}
+.badge-accent { background: var(--accent-subtle); color: var(--accent); }
+.badge-accent-2 { background: var(--accent-2-subtle); color: var(--accent-2); }
+/* Eyebrow badge for marketing sections: a pill with a gradient rim. */
+.badge-rim {
+  background: var(--accent-subtle);
+  color: var(--accent);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-full);
+  padding: 5px 12px;
+  font-weight: 600;
+  letter-spacing: var(--letter-wide);
+}
+.badge-success { background: var(--success-subtle); color: var(--success-fg); }
+.badge-warning { background: var(--warning-subtle); color: var(--warning-fg); }
+.badge-danger { background: var(--danger-subtle); color: var(--danger-fg); }
+
+/* ══════════════════════════════════════════════════════════════════ */
+/* Brand motion language                                               */
+/* The Vault3 metaphor is sealing and unsealing: content resolves from */
+/* blur/scramble into clarity, and the accent breathes as a soft glow. */
+/* Every animation respects prefers-reduced-motion (bottom of file).   */
+/* ══════════════════════════════════════════════════════════════════ */
+
+/* Scroll reveal — sections fade up as they enter the viewport. */
+.scroll-reveal {
+  opacity: 0;
+  transform: translateY(26px);
+  transition: opacity 0.6s var(--ease-out), transform 0.6s var(--ease-out);
+}
+.scroll-reveal.is-visible { opacity: 1; transform: translateY(0); }
+.scroll-reveal-child {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.5s var(--ease-out), transform 0.5s var(--ease-out);
+}
+.scroll-reveal.is-visible .scroll-reveal-child { opacity: 1; transform: translateY(0); }
+.scroll-reveal.is-visible .scroll-reveal-child:nth-child(2) { transition-delay: 90ms; }
+.scroll-reveal.is-visible .scroll-reveal-child:nth-child(3) { transition-delay: 180ms; }
+.scroll-reveal.is-visible .scroll-reveal-child:nth-child(4) { transition-delay: 270ms; }
+
+/* Unseal — the vault's unlock: blur and dimness resolving into focus. */
+@keyframes unseal {
+  0% { opacity: 0; filter: blur(9px); transform: scale(0.985); }
+  100% { opacity: 1; filter: blur(0); transform: scale(1); }
+}
+.animate-unseal { animation: unseal var(--duration-slower) var(--ease-out) both; }
+
+/* Seal — the reverse, used when locking. */
+@keyframes sealaway {
+  0% { opacity: 1; filter: blur(0); }
+  100% { opacity: 0; filter: blur(9px); }
+}
+.animate-seal { animation: sealaway var(--duration-slow) var(--ease-in-out) both; }
+
+/* Glow pulse — the accent breathing on keyhole glyphs and live status. */
+@keyframes glowpulse {
+  0%, 100% { box-shadow: 0 0 10px var(--accent-glow); }
+  50% { box-shadow: 0 0 30px var(--accent-glow), 0 0 60px var(--accent-glow); }
+}
+.animate-glow { animation: glowpulse 3.2s var(--ease-in-out) infinite; }
+
+@keyframes glowpulse-text {
+  0%, 100% { text-shadow: 0 0 12px var(--accent-glow); }
+  50% { text-shadow: 0 0 26px var(--accent-glow); }
+}
+
+/* Rise — list items entering (staggered via inline animation-delay). */
+@keyframes rise {
+  0% { opacity: 0; transform: translateY(10px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.animate-rise { animation: rise var(--duration-slow) var(--ease-out) both; }
+
+/* Pop — dialogs and popovers springing open. */
+@keyframes pop {
+  0% { opacity: 0; transform: scale(0.96) translateY(6px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+.animate-pop { animation: pop var(--duration-base) var(--ease-spring) both; }
+
+/* Shake — a wrong password/code answer. */
+@keyframes headshake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-7px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(2px); }
+}
+.animate-shake { animation: headshake 380ms var(--ease-in-out); }
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.animate-fade { animation: fadeIn var(--duration-slow) ease both; }
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.animate-spin { animation: spin 1s linear infinite; }
+
+/* Reveal-blur — secrets are blurred until hovered/toggled. */
+.secret-blur {
+  filter: blur(6px);
+  transition: filter var(--duration-base) var(--ease-out);
+  user-select: none;
+}
+.secret-blur.is-revealed,
+.secret-blur:focus-visible {
+  filter: blur(0);
+  user-select: text;
+}
+
+/* ══════════════════════════════════════════════════════════════════ */
+/* Misc                                                                */
+/* ══════════════════════════════════════════════════════════════════ */
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: var(--radius-sm); }
+::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .secret-blur { filter: blur(6px); }
+  .secret-blur.is-revealed { filter: blur(0); }
+}

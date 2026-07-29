@@ -1,0 +1,31 @@
+# Vault3 — the marketing and trust pages are meant to be found; everything
+# behind the vault door is not. /login, /join, /recover and /verify-email
+# stay crawlable so the noindex meta they carry can actually be read.
+
+User-agent: *
+Allow: /
+Disallow: /app
+Disallow: /api/
+Disallow: /share
+
+# Answer engines and AI crawlers are explicitly welcome on the public pages.
+# The security explainer is the page we most want quoted, and quoted right:
+# a product whose whole claim is "we cannot read your data" is better served
+# by machines that have read the design than by ones guessing at it.
+
+User-agent: GPTBot
+User-agent: OAI-SearchBot
+User-agent: ChatGPT-User
+User-agent: ClaudeBot
+User-agent: Claude-User
+User-agent: Claude-SearchBot
+User-agent: PerplexityBot
+User-agent: Google-Extended
+User-agent: Applebot-Extended
+User-agent: CCBot
+Allow: /
+Disallow: /app
+Disallow: /api/
+Disallow: /share
+
+Sitemap: https://vault3.com/sitemap.xml

@@ -1,0 +1,560 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <link rel="icon" type="image/svg+xml" href="{{.Site.Favicon}}" />
+
+    <title>{{.PageTitle}}</title>
+    <meta name="description" content="{{.PageDescription}}" />
+    <link rel="canonical" href="{{.CanonicalURL}}" />
+    {{/* Indexable pages opt into full snippets and large image previews —
+         the defaults truncate both, and a zero-knowledge explainer is only
+         useful in search if it can be quoted. Authenticated and
+         token-bearing pages set .NoIndex and get the opposite. */}}
+    {{if .NoIndex}}<meta name="robots" content="noindex, nofollow" />{{else}}<meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />{{end}}
+    <meta name="theme-color" content="#0a0a10" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="application-name" content="{{.Site.Name}}" />
+    <link rel="alternate" hreflang="en" href="{{.CanonicalURL}}" />
+    <link rel="alternate" hreflang="x-default" href="{{.CanonicalURL}}" />
+    <link rel="sitemap" type="application/xml" href="{{.Site.URL}}/sitemap.xml" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="{{.Site.Name}}" />
+    <meta property="og:url" content="{{.CanonicalURL}}" />
+    <meta property="og:title" content="{{.OGTitle}}" />
+    <meta property="og:description" content="{{.OGDescription}}" />
+    <meta property="og:image" content="{{.OGImage}}" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="{{.Site.Tagline}}" />
+    <meta property="og:locale" content="en_GB" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="{{.OGTitle}}" />
+    <meta name="twitter:description" content="{{.OGDescription}}" />
+    <meta name="twitter:image" content="{{.OGImage}}" />
+    <meta name="twitter:image:alt" content="{{.Site.Tagline}}" />
+
+    {{/* Site-wide structured data, on every page: the site itself, the
+         brand behind it, and the company that operates it. Page-specific
+         entities (the SoftwareApplication on the landing page) reference
+         these by @id rather than redeclaring them. Answer engines read
+         this before they read the copy. */}}
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "WebSite",
+          "@id": "{{.Site.URL}}/#website",
+          "url": "{{.Site.URL}}",
+          "name": "{{.Site.Name}}",
+          "description": "{{.Site.Description}}",
+          "inLanguage": "en-GB",
+          "publisher": { "@id": "{{.Site.URL}}/#organization" }
+        },
+        {
+          "@type": "Organization",
+          "@id": "{{.Site.URL}}/#organization",
+          "name": "{{.Site.Name}}",
+          "url": "{{.Site.URL}}",
+          "logo": "{{.Site.URL}}{{.Site.Favicon}}",
+          "email": "{{.Site.ContactEmail}}",
+          "sameAs": ["{{.Site.RepoURL}}", "{{.Site.CompanyURL}}"],
+          "parentOrganization": {
+            "@type": "Organization",
+            "name": "{{.Site.CompanyLegalName}}",
+            "alternateName": "{{.Site.CompanyName}}",
+            "url": "{{.Site.CompanyURL}}"
+          }
+        },
+        {
+          "@type": "WebPage",
+          "@id": "{{.CanonicalURL}}/#webpage",
+          "url": "{{.CanonicalURL}}",
+          "name": "{{.PageTitle}}",
+          "description": "{{.PageDescription}}",
+          "isPartOf": { "@id": "{{.Site.URL}}/#website" },
+          "about": { "@id": "{{.Site.URL}}/#organization" },
+          "inLanguage": "en-GB"
+        }
+      ]
+    }
+    </script>
+
+    <script src="/static/tailwind.js"></script>
+    <link rel="stylesheet" href="/static/theme.css" />
+    <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+    {{/* Paint servers for the wordmark. Defined once per document because
+         the mark renders more than once per page (header and footer) and
+         SVG gradients are referenced by id. Never rendered itself. */}}
+    <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
+        <defs>
+            <linearGradient id="v3-edge" x1="7" y1="5" x2="57" y2="59" gradientUnits="userSpaceOnUse">
+                <stop offset="0" stop-color="var(--accent-3)"/>
+                <stop offset="0.5" stop-color="var(--accent)"/>
+                <stop offset="1" stop-color="var(--accent-2)"/>
+            </linearGradient>
+            <radialGradient id="v3-core" cx="32" cy="29" r="27" gradientUnits="userSpaceOnUse">
+                <stop offset="0" stop-color="var(--accent)" stop-opacity="0.38"/>
+                <stop offset="1" stop-color="var(--accent-2)" stop-opacity="0"/>
+            </radialGradient>
+        </defs>
+    </svg>
+    <div id="root">{{block "content" .}}{{end}}</div>
+    {{template "cookieNotice" .}}
+</body>
+</html>
+
+{{/* wordmark: the vault door lit from within. The hex is stroked with the
+     brand gradient, the interior carries a radial wash so the mark reads as
+     a sealed door with something behind it, and the keyhole picks up the
+     same gradient. Paint servers live in the hidden defs above. */}}
+{{define "wordmark"}}
+<span class="inline-flex items-center gap-2.5 select-none">
+    <svg class="h-7 w-7 v3-mark" viewBox="0 0 64 64" aria-hidden="true">
+        <path d="M32 3.5 55.5 17v30L32 60.5 8.5 47V17Z" fill="url(#v3-core)"/>
+        <path d="M32 3.5 55.5 17v30L32 60.5 8.5 47V17Z" fill="none" stroke="url(#v3-edge)" stroke-width="5" stroke-linejoin="round"/>
+        <circle cx="32" cy="27.5" r="6.6" fill="url(#v3-edge)"/>
+        <path d="M28.8 32.6h6.4l1.7 12.6h-9.8Z" fill="url(#v3-edge)"/>
+    </svg>
+    <span class="text-[22px] font-extrabold text-foreground" style="letter-spacing:-0.04em">vault<span class="text-gradient">3</span></span>
+</span>
+{{end}}
+
+{{/* cookieNotice: a notice, not a consent gate. Vault3's only cookie is the
+     strictly necessary session cookie, which requires no consent under UK
+     and EU law — so there is nothing to accept or reject, and the panel
+     says what we do rather than asking permission. Rendered on every page
+     from base.gohtml; shown once per browser. */}}
+{{define "cookieNotice"}}
+{{/* Anchored bottom-right: the landing hero's CTA is left-aligned, and a
+     first-visit notice must never sit on top of the primary action. */}}
+<div data-cookie-notice role="region" aria-label="Cookie notice"
+     class="hidden fixed bottom-5 left-5 right-5 sm:left-auto sm:w-[22rem] z-[55] panel p-5 shadow-accent">
+    <div class="flex items-center gap-3 mb-3">
+        <span class="icon-tile icon-tile-cool flex-shrink-0" aria-hidden="true">
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 8.5h.01"/><path d="M15.5 9.5h.01"/><path d="M9.5 15.5h.01"/><path d="M14.5 14.5h.01"/></svg>
+        </span>
+        <p class="font-semibold leading-snug">One cookie. No trackers.</p>
+    </div>
+    <p class="text-sm text-muted-foreground leading-relaxed mb-4">
+        Vault3 sets a single strictly necessary cookie to keep you signed in. No analytics, no advertising, no third parties.
+    </p>
+    <div class="flex items-center gap-4">
+        <button type="button" data-cookie-dismiss class="btn btn-primary text-sm">Got it</button>
+        <a href="/legal/cookies" class="text-sm text-muted-foreground hover:text-accent transition-colors">Cookie Policy &rarr;</a>
+    </div>
+</div>
+<script>
+(function () {
+  // Shown once per browser, remembered locally — nothing about this notice
+  // reaches the server. If localStorage is unavailable (private browsing),
+  // the notice stays hidden rather than reappearing on every navigation:
+  // no consent depends on it, so silence is the kinder failure.
+  var KEY = 'v3.cookieNotice';
+  var panel = document.querySelector('[data-cookie-notice]');
+  if (!panel) return;
+  var seen = '1';
+  try { seen = localStorage.getItem(KEY); } catch (_) {}
+  if (seen) return;
+
+  panel.classList.remove('hidden');
+  panel.classList.add('animate-rise');
+
+  var dismiss = panel.querySelector('[data-cookie-dismiss]');
+  if (!dismiss) return;
+  dismiss.addEventListener('click', function () {
+    try { localStorage.setItem(KEY, '1'); } catch (_) {}
+    panel.classList.remove('animate-rise');
+    panel.classList.add('animate-seal');
+    window.setTimeout(function () { panel.classList.add('hidden'); }, 320);
+  });
+})();
+</script>
+{{end}}
+
+{{define "publicHeader"}}
+{{/* The marketing header — the only header the public site renders, signed in
+     or not. Pages that pair optional_auth with load_viewer get .Viewer, and a
+     signed-in visitor's sign-up pair collapses into one way back into /app.
+     The app header never appears out here: the two surfaces stay distinct. */}}
+<header class="sticky top-0 z-30 w-full bg-background/70" style="backdrop-filter:blur(14px) saturate(1.4)">
+    <div class="max-w-5xl mx-auto flex items-center justify-between px-6 py-4">
+        <a href="/" class="hover:opacity-80 transition-opacity">{{template "wordmark" .}}</a>
+        <nav class="flex items-center gap-2 sm:gap-5">
+            <a href="/security" class="hidden sm:block text-sm text-muted-foreground hover:text-foreground transition-colors">Security</a>
+            <a href="/contact" class="hidden sm:block text-sm text-muted-foreground hover:text-foreground transition-colors">Contact</a>
+            {{if .Viewer}}
+            <a href="/app" class="btn btn-primary text-sm px-3 sm:px-4 py-2">Open your vault</a>
+            {{else}}
+            <a href="/login" class="hidden sm:inline-flex text-sm text-muted-foreground hover:text-foreground border border-border hover:border-border-strong px-4 py-2 rounded-md transition-colors">Unlock</a>
+            <a href="/join" class="btn btn-primary text-sm px-3 sm:px-4 py-2">Create your vault</a>
+            {{end}}
+            {{/* Below sm there is no room for the nav beside the CTA, so it
+                 collapses in here rather than disappearing — Security is the
+                 page the whole product argument rests on. */}}
+            <div class="relative sm:hidden" data-site-menu>
+                <button type="button" data-site-menu-trigger aria-label="Menu" aria-haspopup="menu" aria-expanded="false"
+                        class="flex p-2 -mr-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                    <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/></svg>
+                </button>
+                <div role="menu" aria-label="Site" data-site-menu-panel
+                     class="hidden animate-pop absolute right-0 top-full mt-2 w-52 rounded-xl border border-border bg-popover shadow-lg py-1 z-50">
+                    <a role="menuitem" href="/security" class="block px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors">Security</a>
+                    <a role="menuitem" href="/contact" class="block px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors">Contact</a>
+                    {{if not .Viewer}}
+                    <div class="border-t border-border my-1"></div>
+                    <a role="menuitem" href="/login" class="block px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors">Unlock your vault</a>
+                    {{end}}
+                </div>
+            </div>
+        </nav>
+    </div>
+    <div class="rule-gradient"></div>
+</header>
+<script>
+(function () {
+  // Mobile nav disclosure: same behaviour as the app's account menu —
+  // click toggles, outside click and Escape close.
+  var wrapper = document.querySelector('[data-site-menu]');
+  if (!wrapper) return;
+  var trigger = wrapper.querySelector('[data-site-menu-trigger]');
+  var panel = wrapper.querySelector('[data-site-menu-panel]');
+  if (!trigger || !panel) return;
+
+  function setOpen(open) {
+    trigger.setAttribute('aria-expanded', String(open));
+    panel.classList.toggle('hidden', !open);
+  }
+  trigger.addEventListener('click', function (e) {
+    e.stopPropagation();
+    setOpen(trigger.getAttribute('aria-expanded') !== 'true');
+  });
+  document.addEventListener('click', function (e) {
+    if (!wrapper.contains(e.target)) setOpen(false);
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') setOpen(false);
+  });
+})();
+</script>
+{{end}}
+
+{{define "siteFooter"}}
+<footer class="relative mt-auto pt-10 pb-8 sm:pt-12 sm:pb-10 px-6 overflow-hidden">
+    <div class="rule-gradient absolute inset-x-0 top-0"></div>
+    <div class="glow-orb" style="--orb:var(--accent-glow);width:640px;height:340px;bottom:-240px;left:50%;transform:translateX(-50%);opacity:0.5"></div>
+    <div class="relative max-w-5xl mx-auto">
+        <div class="flex flex-col md:flex-row md:justify-between gap-8 md:gap-10">
+            <div class="space-y-4 max-w-sm">
+                {{template "wordmark" .}}
+                <p class="text-sm text-muted-foreground leading-relaxed">Everything you store is encrypted on your device before it reaches us. We could not read your vault if we tried — and neither could anyone who breached us.</p>
+                {{/* Colophon: who built it, what with, and where the source
+                     is. Quiet, but not hidden — it sits with the brand it
+                     credits rather than trailing off the bottom edge. */}}
+                <div class="colophon">
+                    <span>Made by <a href="{{.Site.CompanyURL}}" target="_blank" rel="noopener noreferrer">{{.Site.CompanyName}}</a>, using BunGo</span>
+                    <span aria-hidden="true">·</span>
+                    <a href="{{.Site.RepoURL}}" target="_blank" rel="noopener noreferrer" aria-label="{{.Site.Name}} on GitHub" title="{{.Site.Name}} on GitHub">
+                        <svg class="h-4 w-4" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+                    </a>
+                </div>
+            </div>
+            <div class="flex gap-10 sm:gap-14">
+                <div class="space-y-3">
+                    <h4 class="text-sm font-bold text-foreground">Product</h4>
+                    <ul class="space-y-2 text-sm text-muted-foreground" style="list-style:none;padding:0">
+                        <li><a href="/security" class="hover:text-accent transition-colors">How Vault3 protects you</a></li>
+                        <li><a href="/join" class="hover:text-accent transition-colors">Create your vault</a></li>
+                        <li><a href="/contact" class="hover:text-accent transition-colors">Contact us</a></li>
+                    </ul>
+                </div>
+                <div class="space-y-3">
+                    <h4 class="text-sm font-bold text-foreground">Legal</h4>
+                    <ul class="space-y-2 text-sm text-muted-foreground" style="list-style:none;padding:0">
+                        <li><a href="/legal/terms" class="hover:text-accent transition-colors">Terms of Service</a></li>
+                        <li><a href="/legal/privacy" class="hover:text-accent transition-colors">Privacy Policy</a></li>
+                        <li><a href="/legal/cookies" class="hover:text-accent transition-colors">Cookie Policy</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="rule-gradient mt-8 sm:mt-10 opacity-70"></div>
+        <div class="pt-6 sm:pt-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-muted-foreground">
+            <p>&copy; {{.Year}} {{.Site.Name}}. All rights reserved.</p>
+            <p class="font-mono text-xs">
+                <span class="text-accent-3">zero knowledge</span> ·
+                <span class="text-accent">AES-256-GCM</span> ·
+                <span class="text-accent-2">end-to-end</span>
+            </p>
+        </div>
+    </div>
+</footer>
+{{end}}
+
+{{define "appHeader"}}
+{{/* Header for /app/*. Reads .Viewer (built by load_viewer from the
+     UserFull set by require_auth). The lock button seals the tab's key
+     store locally — it never waits on the network.
+
+     The wordmark leaves the app for the marketing site; nothing in here
+     links to a public page other than that, so the app never doubles as a
+     way to browse marketing. In-app destinations and account actions all
+     live in the nav row itself at every width — below sm they collapse to
+     their icons rather than moving into a menu. */}}
+<nav class="sticky top-0 z-50 bg-background/75" style="padding-top:env(safe-area-inset-top);backdrop-filter:blur(14px) saturate(1.4)">
+    <div class="max-w-6xl mx-auto px-3 sm:px-4 lg:px-8">
+        <div class="flex justify-between items-center h-16">
+            <div class="flex items-center gap-2 sm:gap-6">
+                <a href="/" class="hover:opacity-80 transition-opacity">{{template "wordmark" .}}</a>
+                {{/* Both destinations are visible at every width: below sm the
+                     labels drop and the icons carry them. */}}
+                <div class="flex items-center gap-1">
+                    <a href="/app" title="Vault" class="inline-flex items-center text-sm font-medium rounded-lg px-2 sm:px-3.5 py-1.5 {{if eq .ActiveNav "vault"}}bg-accent-subtle text-accent border border-accent-border pointer-events-none{{else}}text-muted-foreground border border-transparent hover:bg-muted hover:text-foreground transition-colors{{end}}">
+                        <svg class="h-4 w-4 sm:hidden" viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="M32 3.5 55.5 17v30L32 60.5 8.5 47V17Z" stroke="currentColor" stroke-width="5" stroke-linejoin="round"/><circle cx="32" cy="28" r="7" fill="currentColor"/><path d="M28.6 33.5h6.8L37 46h-10Z" fill="currentColor"/></svg>
+                        <span class="hidden sm:inline">Vault</span>
+                    </a>
+                    <a href="/app/settings" title="Settings" class="inline-flex items-center text-sm font-medium rounded-lg px-2 sm:px-3.5 py-1.5 {{if eq .ActiveNav "settings"}}bg-accent-subtle text-accent border border-accent-border pointer-events-none{{else}}text-muted-foreground border border-transparent hover:bg-muted hover:text-foreground transition-colors{{end}}">
+                        <svg class="h-4 w-4 sm:hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                        <span class="hidden sm:inline">Settings</span>
+                    </a>
+                </div>
+            </div>
+            <div class="flex items-center gap-1 sm:gap-3">
+                {{/* Lock now: clears the tab's unlocked keys and reloads into
+                     the lock screen. Locking is local-only by design. */}}
+                <button type="button" data-lock-vault title="Lock vault"
+                        class="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-md hover:bg-muted transition-colors">
+                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    <span class="hidden sm:inline">Lock</span>
+                </button>
+
+                {{/* Notifications bell: badge + dropdown populated from
+                     GET /api/v1/notifications by the script below. */}}
+                <div class="relative" data-notif-menu>
+                    <button type="button" data-notif-trigger aria-label="Notifications" aria-haspopup="menu" aria-expanded="false"
+                            class="relative p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                        <span data-notif-badge class="hidden absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-accent text-accent-foreground text-[10px] font-bold leading-none inline-flex items-center justify-center"></span>
+                    </button>
+                    <div role="menu" aria-label="Notifications" data-notif-panel
+                         class="hidden animate-pop absolute right-0 top-full mt-2 w-[calc(100vw-1.5rem)] max-w-[380px] rounded-xl border border-border bg-popover shadow-lg overflow-hidden z-50">
+                        <div class="flex items-center justify-between px-4 py-3 border-b border-border">
+                            <span class="text-sm font-semibold text-foreground">Notifications</span>
+                            <button type="button" data-notif-markall disabled
+                                    class="text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40">Mark all as read</button>
+                        </div>
+                        <div data-notif-list class="max-h-[360px] overflow-y-auto divide-y divide-border"></div>
+                        <div data-notif-empty class="hidden flex-col items-center justify-center py-10 px-4 text-center">
+                            <p class="text-sm text-muted-foreground">Nothing yet — quiet is good.</p>
+                        </div>
+                        <div class="border-t border-border px-4 py-2.5">
+                            <a href="/app/notifications" class="block w-full text-center text-sm font-medium text-accent hover:text-accent-active transition-colors">View all notifications</a>
+                        </div>
+                    </div>
+                </div>
+
+                {{/* Sign out: like Lock, it wipes this tab's keys first — the
+                     server call is what ends the session, not what locks it. */}}
+                <button type="button" data-sign-out title="Sign out as {{.Viewer.Email}}"
+                        class="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-md hover:bg-muted transition-colors">
+                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                    <span class="hidden sm:inline">Sign out</span>
+                </button>
+            </div>
+        </div>
+    </div>
+    <div class="rule-gradient"></div>
+</nav>
+{{if .Viewer.EmailUnverified}}
+<div style="background:var(--warning-subtle)">
+    <div class="max-w-6xl mx-auto px-3 sm:px-4 lg:px-8 py-2.5 flex items-center gap-2.5 text-sm" style="color:var(--warning-fg)">
+        <svg class="h-4 w-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+        <span>Confirm your email address so account alerts can reach you. <a href="/verify-email" class="font-semibold underline">Resend verification email</a></span>
+    </div>
+</div>
+{{end}}
+<script>
+(function () {
+  // Lock now: wipe this tab's unlocked keys and reload into the lock
+  // screen. Local-only — never waits on the network.
+  var lockBtn = document.querySelector('[data-lock-vault]');
+  if (lockBtn) {
+    lockBtn.addEventListener('click', function () {
+      try {
+        sessionStorage.removeItem('v3.keys');
+        sessionStorage.removeItem('v3.lastActivity');
+      } catch (_) {}
+      window.location.assign('/app');
+    });
+  }
+
+  // Sign out: same local wipe first, then end the server session. Clearing
+  // the keys never depends on the server answering.
+  var outBtn = document.querySelector('[data-sign-out]');
+  if (outBtn) {
+    outBtn.addEventListener('click', function () {
+      try { sessionStorage.clear(); } catch (_) {}
+      fetch('/api/v1/auth/logout', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' }, body: '{}'
+      }).finally(function () { window.location.assign('/'); });
+    });
+  }
+})();
+</script>
+<script>
+(function () {
+  // Notifications bell: populates badge and dropdown from
+  // GET /api/v1/notifications, refreshing on open and on a light poll.
+  var wrapper = document.querySelector('[data-notif-menu]');
+  if (!wrapper) return;
+  var trigger = wrapper.querySelector('[data-notif-trigger]');
+  var panel = wrapper.querySelector('[data-notif-panel]');
+  var badge = wrapper.querySelector('[data-notif-badge]');
+  var list = wrapper.querySelector('[data-notif-list]');
+  var empty = wrapper.querySelector('[data-notif-empty]');
+  var markAllBtn = wrapper.querySelector('[data-notif-markall]');
+  if (!trigger || !panel) return;
+  var MAX_ITEMS = 6;
+
+  var ICONS = {
+    device: '<rect x="2" y="4" width="20" height="14" rx="2"/><path d="M8 22h8"/><path d="M12 18v4"/>',
+    shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+    seal: '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>',
+    sparkle: '<path d="M12 3l1.9 5.8L20 10.7l-5 3.9 1.7 6.1L12 17l-4.7 3.7L9 14.6l-5-3.9 6.1-.9z"/>',
+    bell: '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>'
+  };
+  function iconFor(token) { return ICONS[token] || ICONS.bell; }
+
+  function setOpen(open) {
+    trigger.setAttribute('aria-expanded', String(open));
+    panel.classList.toggle('hidden', !open);
+    if (open) refresh();
+  }
+  trigger.addEventListener('click', function (e) {
+    e.stopPropagation();
+    setOpen(trigger.getAttribute('aria-expanded') !== 'true');
+  });
+  document.addEventListener('click', function (e) { if (!wrapper.contains(e.target)) setOpen(false); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') setOpen(false); });
+
+  function setBadge(count) {
+    if (count > 0) {
+      badge.textContent = count > 9 ? '9+' : String(count);
+      badge.classList.remove('hidden');
+    } else {
+      badge.classList.add('hidden');
+    }
+    if (markAllBtn) markAllBtn.disabled = count === 0;
+  }
+
+  function markRead(id) {
+    fetch('/api/v1/notifications/read', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: id }), keepalive: true
+    }).catch(function () {});
+  }
+
+  function buildRow(n) {
+    var row = document.createElement('div');
+    row.className = 'flex items-start gap-3 px-4 py-3 transition-colors hover:bg-muted ' + (n.href ? 'cursor-pointer' : 'cursor-default');
+
+    var chip = document.createElement('div');
+    chip.className = 'flex-shrink-0 w-8 h-8 rounded-lg bg-muted flex items-center justify-center mt-0.5';
+    chip.style.color = 'var(--accent)';
+    chip.innerHTML = '<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + iconFor(n.icon) + '</svg>';
+
+    var main = document.createElement('div');
+    main.className = 'flex-1 min-w-0';
+    var top = document.createElement('div');
+    top.className = 'flex items-start justify-between gap-2';
+    var title = document.createElement('p');
+    title.className = 'text-sm font-semibold leading-snug truncate ' + (n.isRead ? 'text-muted-foreground' : 'text-foreground');
+    title.textContent = n.title;
+    var time = document.createElement('span');
+    time.className = 'flex-shrink-0 text-xs text-muted-foreground whitespace-nowrap mt-0.5';
+    time.textContent = n.timeLabel;
+    top.appendChild(title); top.appendChild(time);
+    var body = document.createElement('p');
+    body.className = 'text-xs text-muted-foreground mt-0.5 truncate leading-snug';
+    body.textContent = n.body;
+    main.appendChild(top); main.appendChild(body);
+
+    row.appendChild(chip); row.appendChild(main);
+    if (!n.isRead) {
+      var dot = document.createElement('div');
+      dot.className = 'flex-shrink-0 w-2 h-2 rounded-full bg-accent mt-1.5';
+      row.appendChild(dot);
+    }
+    row.addEventListener('click', function () {
+      if (!n.isRead) markRead(n.id);
+      if (n.href) window.location.assign(n.href);
+    });
+    return row;
+  }
+
+  function render(items) {
+    list.innerHTML = '';
+    var shown = items.slice(0, MAX_ITEMS);
+    if (shown.length === 0) {
+      list.classList.add('hidden');
+      empty.classList.remove('hidden');
+      empty.classList.add('flex');
+      return;
+    }
+    empty.classList.add('hidden');
+    empty.classList.remove('flex');
+    list.classList.remove('hidden');
+    shown.forEach(function (n) { list.appendChild(buildRow(n)); });
+  }
+
+  function refresh() {
+    fetch('/api/v1/notifications', { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+      .then(function (res) { return res.ok ? res.json() : null; })
+      .then(function (data) {
+        if (!data) return;
+        setBadge(data.unreadCount || 0);
+        render(data.items || []);
+      })
+      .catch(function () {});
+  }
+
+  if (markAllBtn) {
+    markAllBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      fetch('/api/v1/notifications/read-all', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' }, body: '{}'
+      }).then(function () { refresh(); }).catch(function () {});
+    });
+  }
+
+  refresh();
+  setInterval(refresh, 60000);
+})();
+</script>
+{{end}}
+
+{{/* legalSidebar: shared by the legal docs and the security page. Document
+     navigation only — the way back into the app is the header's single
+     "Open your vault", not a second link here. */}}
+{{define "legalSidebar"}}
+<div class="pb-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground select-none">Trust</div>
+<div class="space-y-0.5 mb-6">
+    <a href="/security" class="block w-full text-left px-3 py-1.5 rounded-md text-sm transition-colors{{if eq .LegalSlug "security"}} bg-muted text-foreground font-semibold{{else}} text-muted-foreground hover:bg-muted{{end}}">Security</a>
+</div>
+<div class="pb-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground select-none">Legal</div>
+<div class="space-y-0.5">
+    <a href="/legal/terms" class="block w-full text-left px-3 py-1.5 rounded-md text-sm transition-colors{{if eq .LegalSlug "terms"}} bg-muted text-foreground font-semibold{{else}} text-muted-foreground hover:bg-muted{{end}}">Terms of Service</a>
+    <a href="/legal/privacy" class="block w-full text-left px-3 py-1.5 rounded-md text-sm transition-colors{{if eq .LegalSlug "privacy"}} bg-muted text-foreground font-semibold{{else}} text-muted-foreground hover:bg-muted{{end}}">Privacy Policy</a>
+    <a href="/legal/cookies" class="block w-full text-left px-3 py-1.5 rounded-md text-sm transition-colors{{if eq .LegalSlug "cookies"}} bg-muted text-foreground font-semibold{{else}} text-muted-foreground hover:bg-muted{{end}}">Cookie Policy</a>
+</div>
+{{end}}

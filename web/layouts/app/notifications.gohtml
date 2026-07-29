@@ -1,0 +1,12 @@
+{{define "content"}}
+{{/* Notifications centre. Server-rendered page 1 via __BUNGO_DATA__;
+     notifications.tsx renders the list. */}}
+<div class="min-h-screen flex flex-col overflow-x-hidden">
+    <div class="site-canvas site-canvas-app" aria-hidden="true">
+        <div class="glow-orb glow-orb-a" style="--orb:var(--accent-glow);width:46vw;height:34vw;top:-18vw;right:-10vw;opacity:0.5"></div>
+        <div class="glow-orb glow-orb-b" style="--orb:var(--accent-2-glow);width:36vw;height:28vw;bottom:-14vw;left:-10vw;opacity:0.4"></div>
+    </div>
+    {{template "appHeader" .}}
+    <div class="flex-1 max-w-2xl mx-auto w-full px-4 sm:px-6 py-10" id="notifications-root"></div>
+</div>
+{{end}}

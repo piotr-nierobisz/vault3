@@ -1,0 +1,40 @@
+{{define "content"}}
+<div class="min-h-screen flex flex-col bg-background">
+    {{template "publicHeader" .}}
+    <div class="flex-1 max-w-5xl mx-auto w-full px-6 py-10 md:grid md:gap-10" style="grid-template-columns:220px minmax(0,1fr)">
+        <aside class="hidden md:block">{{template "legalSidebar" .}}</aside>
+        <article class="legal-prose max-w-2xl">
+            <h1 class="text-3xl font-extrabold tracking-tighter text-foreground mb-2">Cookie Policy</h1>
+            <p class="text-sm text-muted-foreground mb-8">Last updated: 24 July 2026</p>
+
+            <p>This is a short policy, because Vault3 sets exactly one cookie.</p>
+
+            <h2>1. The one cookie</h2>
+            <p>When you sign in, we set a single first-party cookie named <code>vault3_session</code>. It contains an opaque token — a random value with no meaning outside our servers, where only a hash of it is stored. It is strictly necessary: without it, you could not stay signed in.</p>
+            <ul>
+                <li><strong>Name:</strong> <code>vault3_session</code></li>
+                <li><strong>Purpose:</strong> keeping you signed in to your account</li>
+                <li><strong>Lifetime:</strong> 30 days, or until you sign out</li>
+                <li><strong>Attributes:</strong> <code>HttpOnly</code>, <code>Secure</code> (in production), <code>SameSite=Lax</code></li>
+            </ul>
+            <p>That is the only cookie Vault3 sets. There are no analytics cookies, no advertising cookies, and no third-party cookies of any kind.</p>
+
+            <h2>2. Storage on your device</h2>
+            <p>The Vault3 app also keeps a small amount of data in your browser's localStorage and sessionStorage. This data lives on your device only and is never sent to our servers:</p>
+            <ul>
+                <li><strong>Remembered device</strong> — your email address and Secret Phrase, kept locally so you do not have to re-enter them on a device you trust.</li>
+                <li><strong>Unlocked keys</strong> — while your vault is unlocked, the derived encryption keys are held in sessionStorage so the app can decrypt your items; they are discarded when the session ends.</li>
+            </ul>
+            <p>Clearing your browser's site data for vault3.com removes all of this. You would simply need to sign in and unlock your vault again.</p>
+
+            <h2>3. Why we tell you rather than ask you</h2>
+            <p>Consent banners exist because most websites track their visitors. We do not. Our single cookie is strictly necessary for the service to function, which under UK and EU law requires no consent — so there is nothing to ask you about.</p>
+            <p>The short notice you see on your first visit says exactly that, and it is the whole of it: one button to acknowledge it, no choices to configure, nothing recorded on our servers. Dismissing it stores a single flag in your browser's localStorage so it does not come back.</p>
+
+            <h2>4. Questions</h2>
+            <p>Vault3 is made and operated by {{.Site.CompanyLegalName}}, trading as {{.Site.CompanyName}} (<a href="{{.Site.CompanyURL}}" rel="noopener noreferrer">octa.sh</a>). If anything here is unclear, email us at hello@vault3.com.</p>
+        </article>
+    </div>
+    {{template "siteFooter" .}}
+</div>
+{{end}}

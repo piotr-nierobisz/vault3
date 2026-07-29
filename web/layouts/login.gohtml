@@ -1,0 +1,65 @@
+{{define "content"}}
+{{/* Unlock page. The form is rendered by login.tsx into #login-root. All key
+     derivation happens in the browser; the server sees only the derived
+     auth key. */}}
+<div class="min-h-screen flex relative bg-background">
+
+  {{/* Glowing vertical seam between the brand panel and the form. */}}
+  <div class="hidden md:block absolute top-0 bottom-0 pointer-events-none"
+       style="left:calc(42% - 1px); width:2px; z-index:1; filter:blur(1px);
+              background:linear-gradient(to bottom, transparent 0%, var(--accent-border) 15%, var(--accent) 40%, var(--accent) 60%, var(--accent-border) 85%, transparent 100%);"></div>
+  <div class="hidden md:block absolute top-0 bottom-0 pointer-events-none"
+       style="left:calc(42% - 150px); width:300px; z-index:1;
+              background:radial-gradient(ellipse 110px 42% at 50% 50%, var(--accent-subtle) 0%, transparent 100%);"></div>
+
+  {{/* ───────── Left brand panel (md+) ───────── */}}
+  <div class="hidden md:flex md:w-[42%] relative flex-col p-10 overflow-hidden">
+    <div class="glow-orb" style="width:420px;height:420px;bottom:-160px;left:-140px;opacity:0.5"></div>
+    <div class="relative z-10 ml-auto w-full max-w-sm">
+      <a href="/" class="hover:opacity-80 transition-opacity">{{template "wordmark" .}}</a>
+    </div>
+    <div class="relative z-10 flex flex-col justify-center flex-1 ml-auto w-full max-w-sm">
+      <svg class="h-9 w-9 text-accent keyhole-ring mb-8" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+        <path d="M32 3.5 55.5 17v30L32 60.5 8.5 47V17Z" stroke="currentColor" stroke-width="5" stroke-linejoin="round"/>
+        <circle cx="32" cy="28" r="7" fill="currentColor"/>
+        <path d="M28.6 33.5h6.8L37 46h-10Z" fill="currentColor"/>
+      </svg>
+      <h2 class="text-3xl font-bold leading-snug mb-5 tracking-tight">
+        The key never<br /><span class="text-accent">leaves your hands.</span>
+      </h2>
+      <p class="text-sm leading-relaxed text-muted-foreground">
+        Your Master Password and Secret Phrase combine into your key right here, in this browser. What travels to Vault3 can prove who you are — and decrypt nothing.
+      </p>
+    </div>
+  </div>
+
+  {{/* ───────── Right panel ───────── */}}
+  <div class="flex-1 flex flex-col min-h-screen">
+    <div class="px-8 md:pl-14 md:pr-8 pt-10 pb-0 flex">
+      <div class="w-full max-w-md flex items-center">
+        <a href="/" class="md:hidden">{{template "wordmark" .}}</a>
+        <a href="/" class="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors ml-auto">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+          Back to home
+        </a>
+      </div>
+    </div>
+
+    <div class="flex-1 flex items-center justify-center px-8 md:justify-start md:pl-14 md:pr-8 py-10">
+      <div class="w-full max-w-md space-y-6">
+        <div>
+          <h1 class="text-4xl font-extrabold tracking-tighter mb-2">Unlock your vault.</h1>
+          <p class="text-sm text-muted-foreground">Derived locally. Verified remotely. Decrypted only here.</p>
+        </div>
+
+        <div id="login-root"></div>
+
+        <p class="text-sm pt-2 text-muted-foreground">
+          New to Vault3?
+          <a href="/join" class="text-accent hover:text-accent-active transition-colors font-medium">Create your vault</a>
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+{{end}}

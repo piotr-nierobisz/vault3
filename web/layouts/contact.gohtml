@@ -1,0 +1,19 @@
+{{define "content"}}
+<div class="min-h-screen flex flex-col overflow-x-hidden">
+    {{/* Same ambient canvas as the landing and security pages: contact is
+         part of the marketing surface, not a document. */}}
+    <div class="site-canvas" aria-hidden="true">
+        <div class="glow-orb glow-orb-a" style="--orb:var(--accent-glow);width:52vw;height:52vw;top:-24vw;right:-14vw"></div>
+        <div class="glow-orb glow-orb-b" style="--orb:var(--accent-2-glow);width:44vw;height:44vw;bottom:-22vw;left:-14vw"></div>
+    </div>
+    {{template "publicHeader" .}}
+    <div class="flex-1 px-6 py-16">
+        <div class="max-w-xl mx-auto">
+            <h1 class="text-4xl font-extrabold tracking-tighter mb-3">Talk to <span class="text-gradient">us.</span></h1>
+            <p class="text-muted-foreground mb-10">Questions, feedback, security reports — we read everything. You can also email <a href="mailto:{{.Site.ContactEmail}}" class="text-accent hover:text-accent-active">{{.Site.ContactEmail}}</a>.</p>
+            <div id="contact-root"></div>
+        </div>
+    </div>
+    {{template "siteFooter" .}}
+</div>
+{{end}}

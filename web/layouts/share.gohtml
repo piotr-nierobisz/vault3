@@ -1,0 +1,17 @@
+{{define "content"}}
+{{/* Public share viewer. share.tsx reads the URL fragment (token + share
+     key — never sent to the server), fetches the ciphertext, and decrypts
+     in the browser. */}}
+<div class="min-h-screen flex flex-col overflow-x-hidden">
+    <div class="site-canvas" aria-hidden="true">
+        <div class="glow-orb glow-orb-a" style="--orb:var(--accent-glow);width:52vw;height:38vw;top:-16vw;right:-10vw;opacity:0.6"></div>
+        <div class="glow-orb glow-orb-b" style="--orb:var(--accent-3-glow);width:40vw;height:30vw;bottom:-14vw;left:-12vw;opacity:0.45"></div>
+    </div>
+    <header class="relative z-10 max-w-2xl mx-auto w-full px-4 sm:px-6 pt-8 flex items-center justify-between">
+        <a href="/" class="hover:opacity-80 transition-opacity">{{template "wordmark" .}}</a>
+        <a href="/join" class="btn btn-ghost text-sm">Get your own vault</a>
+    </header>
+    <div class="flex-1 relative z-10 max-w-2xl mx-auto w-full px-4 sm:px-6 py-10" id="share-root"></div>
+    {{template "siteFooter" .}}
+</div>
+{{end}}

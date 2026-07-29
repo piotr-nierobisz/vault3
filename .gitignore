@@ -1,0 +1,6 @@
+# Environment and local state — .env carries secrets and never leaves this machine.
+.env
+.vault3.log
+bin/
+.idea/
+.DS_Store

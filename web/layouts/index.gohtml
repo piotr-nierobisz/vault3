@@ -1,0 +1,330 @@
+{{define "content"}}
+{{/* The product itself, as structured data. The site, brand and operating
+     company live in base.gohtml's graph and are referenced by @id from
+     here rather than redeclared. Every claim below must stay true of
+     docs/product.md — this is the machine-readable copy of the pitch. */}}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "@id": "{{.Site.URL}}/#app",
+  "name": "{{.Site.Name}}",
+  "url": "{{.Site.URL}}",
+  "applicationCategory": "SecurityApplication",
+  "applicationSubCategory": "Password Manager",
+  "operatingSystem": "Web",
+  "browserRequirements": "Requires a modern browser with WebCrypto support",
+  "description": "{{.Site.Description}}",
+  "featureList": [
+    "Zero-knowledge, end-to-end encrypted vault (logins, secure notes, payment cards, identities)",
+    "Keys derived in the browser from a Master Password and a nine-word Secret Phrase",
+    "AES-256-GCM per-item encryption; item titles encrypted too",
+    "Live cross-device sync",
+    "Password and passphrase generator with an entropy meter",
+    "Two-factor authentication and per-device session revocation",
+    "Shared vaults and single-item share links"
+  ],
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "GBP" },
+  "isPartOf": { "@id": "{{.Site.URL}}/#website" },
+  "publisher": { "@id": "{{.Site.URL}}/#organization" }
+}
+</script>
+<div class="min-h-screen flex flex-col text-foreground overflow-x-hidden">
+    {{/* Fixed ambient layer: grid, grain and slow colour. Everything else
+         sits on top of it, so no section needs its own backdrop. */}}
+    <div class="site-canvas" aria-hidden="true">
+        <div class="glow-orb glow-orb-a" style="--orb:var(--accent-glow);width:60vw;height:60vw;top:-24vw;right:-14vw"></div>
+        <div class="glow-orb glow-orb-b" style="--orb:var(--accent-2-glow);width:46vw;height:46vw;bottom:-20vw;left:-12vw"></div>
+    </div>
+
+    {{template "publicHeader" .}}
+
+    {{/* ───────── Hero ───────── */}}
+    <section class="relative px-6 pt-12 pb-12 sm:pt-24 sm:pb-16">
+        <div class="glow-orb" style="--orb:var(--accent-3-glow);width:420px;height:420px;top:-120px;left:38%;opacity:0.7"></div>
+
+        <div class="relative max-w-5xl mx-auto grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
+            <div>
+                <div class="badge badge-rim mb-7 animate-fade">
+                    <span class="w-1.5 h-1.5 rounded-full bg-accent animate-glow"></span>
+                    Zero-knowledge by design
+                </div>
+                <h1 class="text-5xl font-extrabold tracking-tighter leading-tight mb-6">
+                    Your secrets,<br />
+                    <span class="text-gradient cipher-text" data-cipher-target>sealed.</span>
+                </h1>
+                <p class="text-lg text-muted-foreground leading-relaxed max-w-md mb-9">
+                    Vault3 encrypts every password, note and card <em class="not-italic text-foreground">on your device</em> before anything touches the network. What reaches our servers is ciphertext — unreadable to hackers, to governments, and to us.
+                </p>
+                <div class="flex flex-wrap items-center gap-4">
+                    <a href="/join" class="btn btn-primary text-base px-7 py-3">Create your vault</a>
+                    <a href="/security" class="btn btn-ghost text-base">How it works &rarr;</a>
+                </div>
+                <div class="mt-7 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs font-mono text-muted-foreground">
+                    <span class="inline-flex items-center gap-1.5">
+                        <svg class="h-3.5 w-3.5 text-accent-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+                        free while in beta
+                    </span>
+                    <span class="inline-flex items-center gap-1.5">
+                        <svg class="h-3.5 w-3.5 text-accent-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+                        no card required
+                    </span>
+                </div>
+            </div>
+
+            {{/* Live sealing demo: landing.ts animates plaintext → ciphertext. */}}
+            <div class="relative">
+                <div class="glow-orb" style="--orb:var(--accent-glow);width:120%;height:110%;top:-5%;left:-10%;opacity:0.75"></div>
+                <div class="relative panel p-6 shadow-accent animate-unseal" data-seal-demo>
+                    <div class="flex items-center justify-between mb-5">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full" style="background:var(--danger)"></span>
+                            <span class="w-2.5 h-2.5 rounded-full" style="background:var(--warning)"></span>
+                            <span class="w-2.5 h-2.5 rounded-full" style="background:var(--success)"></span>
+                        </div>
+                        <span class="badge badge-accent font-mono text-[11px]" data-seal-state>sealing…</span>
+                    </div>
+                    <div class="space-y-4 font-mono text-sm">
+                        <div>
+                            <p class="text-xs text-muted-foreground mb-1">item · on your device</p>
+                            <div class="rounded-lg border border-border bg-muted px-4 py-3 leading-relaxed">
+                                <p><span class="text-muted-foreground">site&nbsp;&nbsp;&nbsp;&nbsp;</span><span data-seal-plain="site">acme-bank.com</span></p>
+                                <p><span class="text-muted-foreground">user&nbsp;&nbsp;&nbsp;&nbsp;</span><span data-seal-plain="user">nora@fastmail.com</span></p>
+                                <p><span class="text-muted-foreground">password&nbsp;</span><span data-seal-plain="pass">tr7#Vk-pearl-9Q</span></p>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-center gap-3 text-muted-foreground">
+                            <span class="h-px flex-1" style="background-image:linear-gradient(90deg,transparent,var(--accent-border))"></span>
+                            <svg class="h-6 w-6 text-accent keyhole-ring" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+                                <path d="M32 3.5 55.5 17v30L32 60.5 8.5 47V17Z" stroke="currentColor" stroke-width="5" stroke-linejoin="round"/>
+                                <circle cx="32" cy="28" r="7" fill="currentColor"/>
+                                <path d="M28.6 33.5h6.8L37 46h-10Z" fill="currentColor"/>
+                            </svg>
+                            <span class="h-px flex-1" style="background-image:linear-gradient(90deg,var(--accent-2-border),transparent)"></span>
+                        </div>
+                        <div>
+                            <p class="text-xs text-muted-foreground mb-1">what our servers store</p>
+                            <div class="rounded-lg border border-accent-border bg-accent-subtle px-4 py-3 leading-relaxed break-all text-accent text-xs" data-seal-cipher>
+                                gTf3JqXo9dLmWzPa41RkbNc8vHyEsQ2u…
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <span class="absolute -bottom-3 -right-2 badge badge-accent-2 font-mono text-[11px] shadow-md" style="background:var(--card);border:1px solid var(--accent-2-border)">AES-256-GCM</span>
+            </div>
+        </div>
+    </section>
+
+    {{/* ───────── Ciphertext drift strip ─────────
+         Two lanes running against each other: this is the view from the
+         database side. */}}
+    <section class="relative py-6 overflow-hidden" aria-hidden="true">
+        <div class="rule-gradient absolute inset-x-0 top-0 opacity-70"></div>
+        <div class="marquee-mask space-y-1.5">
+            <div class="cipher-drift font-mono text-xs text-muted-foreground opacity-45" data-cipher-drift>
+                &nbsp;A256GCM&nbsp;·&nbsp;pYx82hQm4LcTr9…&nbsp;·&nbsp;n:VfK73wZs…&nbsp;·&nbsp;c:M0dTye5RqJ1uHkAb…&nbsp;·&nbsp;A256GCM&nbsp;·&nbsp;kR4tW8zNvC2m…&nbsp;·&nbsp;n:Jd6Fq1Xp…&nbsp;·&nbsp;c:Bh9YsE3wLrG7iTnO…&nbsp;·&nbsp;
+            </div>
+            <div class="cipher-drift cipher-drift-reverse font-mono text-xs opacity-30" style="color:var(--accent-2)">
+                &nbsp;c:Qw7RmZ2xTb…&nbsp;·&nbsp;HKDF-SHA256&nbsp;·&nbsp;n:Lp0Ge9Vd…&nbsp;·&nbsp;c:Xa5NuI8kYcF3jSpM…&nbsp;·&nbsp;PBKDF2&nbsp;·&nbsp;t:Rz1Cv6Bn…&nbsp;·&nbsp;c:Ok4WdA7hLmE2qYzX…&nbsp;·&nbsp;HKDF-SHA256&nbsp;·&nbsp;
+            </div>
+        </div>
+        <div class="rule-gradient absolute inset-x-0 bottom-0 opacity-70"></div>
+    </section>
+
+    {{/* ───────── How it works ───────── */}}
+    <section class="px-6 py-12 sm:py-16 scroll-reveal">
+        <div class="max-w-5xl mx-auto">
+            <p class="eyebrow mb-4">How it works</p>
+            <h2 class="text-3xl font-bold tracking-tight mb-8 sm:mb-12 max-w-xl">Two secrets. One key.<br/>Zero copies anywhere else.</h2>
+            <div class="relative grid md:grid-cols-3 gap-5 sm:gap-6">
+                {{/* Threads the three steps together; the panels paint over
+                     it, so it only shows in the gutters. */}}
+                <div class="step-rail hidden md:block" aria-hidden="true"></div>
+                <div class="panel panel-interactive p-6 sm:p-7 scroll-reveal-child">
+                    <div class="step-chip mb-4 sm:mb-5">01</div>
+                    <h3 class="font-semibold text-lg mb-2">Two secrets, yours alone</h3>
+                    <p class="text-sm text-muted-foreground leading-relaxed">Your Master Password lives in your head. Your Secret Phrase — nine memorable words minted on your device — lives in your Emergency Kit. Neither is ever transmitted.</p>
+                </div>
+                <div class="panel panel-interactive p-6 sm:p-7 scroll-reveal-child">
+                    <div class="step-chip mb-4 sm:mb-5">02</div>
+                    <h3 class="font-semibold text-lg mb-2">Keys derived in your browser</h3>
+                    <p class="text-sm text-muted-foreground leading-relaxed">The two secrets are combined into your master key with 650,000 rounds of PBKDF2 — locally. The server only ever meets a one-way proof that can't decrypt anything.</p>
+                </div>
+                <div class="panel panel-interactive p-6 sm:p-7 scroll-reveal-child">
+                    <div class="step-chip mb-4 sm:mb-5">03</div>
+                    <h3 class="font-semibold text-lg mb-2">Only ciphertext leaves</h3>
+                    <p class="text-sm text-muted-foreground leading-relaxed">Every item is sealed with AES-256-GCM under its own key before upload. A breach of our database yields exactly what you saw above: noise.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    {{/* ───────── Features ───────── */}}
+    <section class="px-6 py-12 sm:py-16 scroll-reveal">
+        <div class="max-w-5xl mx-auto">
+            <p class="eyebrow mb-4">Everything a vault should do</p>
+            <h2 class="text-3xl font-bold tracking-tight mb-8 sm:mb-12 max-w-xl">Serious cryptography.<br/>Effortless everyday.</h2>
+            {{/* A bento grid rather than six identical squares: each tile is
+                 sized to the figure it carries, and each figure shows the
+                 thing the tile claims. The figures are decorative — the
+                 copy beside each one says it all on its own. */}}
+            <div class="grid sm:grid-cols-2 lg:grid-cols-6 gap-5 sm:gap-6">
+                {{/* Four items, four unreadable titles. */}}
+                <div class="panel panel-interactive p-6 scroll-reveal-child lg:col-span-2 flex flex-col justify-center">
+                    <div class="fig mb-5" aria-hidden="true">
+                        <p class="fig-label mb-2.5">4 items · what we store</p>
+                        <div class="stack-row"><span class="stack-kind">login</span><span class="seal-bar" style="--w:74%"></span></div>
+                        <div class="stack-row"><span class="stack-kind">note</span><span class="seal-bar" style="--w:52%;--delay:0.4s"></span></div>
+                        <div class="stack-row"><span class="stack-kind">card</span><span class="seal-bar" style="--w:66%;--delay:0.8s"></span></div>
+                        <div class="stack-row"><span class="stack-kind">identity</span><span class="seal-bar" style="--w:44%;--delay:1.2s"></span></div>
+                    </div>
+                    <h3 class="font-semibold mb-1.5">End-to-end encrypted items</h3>
+                    <p class="text-sm text-muted-foreground leading-relaxed">Logins, secure notes, cards and identities — titles included. The server can count your items; it cannot name one.</p>
+                </div>
+
+                {{/* The nine words, laid out the way the Emergency Kit prints them. */}}
+                <div class="panel panel-interactive p-6 scroll-reveal-child lg:col-span-4 flex flex-col">
+                    <h3 class="font-semibold mb-1.5">A Secret Phrase you can say</h3>
+                    <p class="text-sm text-muted-foreground leading-relaxed max-w-md">Nine plain words instead of a wall of hex. Easy to write down, possible to remember, ~99 bits of entropy underneath.</p>
+                    <div class="mt-auto pt-6" aria-hidden="true">
+                        <div class="phrase-grid">
+                            <span class="phrase-word"><i>1</i>harbor</span>
+                            <span class="phrase-word"><i>2</i>velvet</span>
+                            <span class="phrase-word"><i>3</i>anchor</span>
+                            <span class="phrase-word"><i>4</i>meadow</span>
+                            <span class="phrase-word"><i>5</i>copper</span>
+                            <span class="phrase-word"><i>6</i>orbit</span>
+                            <span class="phrase-word"><i>7</i>silent</span>
+                            <span class="phrase-word"><i>8</i>marble</span>
+                            <span class="phrase-word"><i>9</i>ridge</span>
+                        </div>
+                        <p class="fig-label mt-3">minted on your device · never transmitted</p>
+                    </div>
+                </div>
+
+                {{/* A revision crossing the wire, laptop to desktop. */}}
+                <div class="panel panel-interactive p-6 scroll-reveal-child lg:col-span-3 flex flex-col justify-center">
+                    <h3 class="font-semibold mb-4">Live sync between devices</h3>
+                    <div class="wire-row mb-4" aria-hidden="true">
+                        <span class="wire-node">
+                            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M2 20h20"/></svg>
+                        </span>
+                        <span class="wire"><i class="wire-dot"></i></span>
+                        <span class="wire-node">
+                            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>
+                        </span>
+                    </div>
+                    <p class="text-sm text-muted-foreground leading-relaxed">Add a login on your laptop and it appears on your desktop the same second — pushed over an encrypted signal channel, not polled hours later.</p>
+                </div>
+
+                {{/* A real password from the generator, tinted by character
+                     class exactly as the app renders it. */}}
+                <div class="panel panel-interactive p-6 scroll-reveal-child lg:col-span-3 flex flex-col justify-center">
+                    <h3 class="font-semibold mb-1.5">A generator worth trusting</h3>
+                    <p class="text-sm text-muted-foreground leading-relaxed mb-5">Strong random passwords or speakable passphrases, with an honest entropy meter. Uniform sampling, CSPRNG, no shortcuts.</p>
+                    <div class="fig" aria-hidden="true">
+                        <p class="text-sm mb-3" style="letter-spacing:0.04em">zP<span class="cc-digit">4</span><span class="cc-symbol">$</span>rune<span class="cc-symbol">-</span>Kx<span class="cc-digit">9</span><span class="cc-symbol">!</span>tvq</p>
+                        <div class="meter mb-2"><i style="--fill:77%"></i></div>
+                        <p class="fig-label">16 chars · 98 bits of entropy</p>
+                    </div>
+                </div>
+
+                {{/* Six digits and the thirty seconds they last. */}}
+                <div class="panel panel-interactive p-6 scroll-reveal-child lg:col-span-2 flex flex-col justify-center">
+                    <h3 class="font-semibold mb-1.5">Two-factor sign-in</h3>
+                    <p class="text-sm text-muted-foreground leading-relaxed mb-5">Authenticator-app codes on top of your two secrets. Sessions are listed per device and revocable with one click.</p>
+                    <div aria-hidden="true">
+                        <div class="otp mb-2.5">
+                            <span class="otp-digit">4</span>
+                            <span class="otp-digit">8</span>
+                            <span class="otp-digit">1</span>
+                            <span class="otp-digit is-live">2</span>
+                            <span class="otp-digit is-live">0</span>
+                            <span class="otp-digit is-live">7</span>
+                        </div>
+                        <div class="otp-timer"><i></i></div>
+                    </div>
+                </div>
+
+                {{/* The bell, mid-conversation. */}}
+                <div class="panel panel-interactive p-6 scroll-reveal-child lg:col-span-4">
+                    <div class="lg:flex lg:items-center lg:gap-8">
+                        <div class="lg:w-2/5">
+                            <h3 class="font-semibold mb-1.5">Alerts that matter</h3>
+                            <p class="text-sm text-muted-foreground leading-relaxed">A sign-in from a new device, a changed Master Password, 2FA switched off — you hear about it immediately, in-app and by email.</p>
+                        </div>
+                        <ul class="feed mt-5 lg:mt-0 lg:flex-1" aria-hidden="true">
+                            <li class="is-new"><span class="feed-dot"></span>New device signed in<time>now</time></li>
+                            <li><span class="feed-dot"></span>Master Password changed<time>3d</time></li>
+                            <li><span class="feed-dot"></span>Two-factor enabled<time>2w</time></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    {{/* ───────── Numbers band ───────── */}}
+    <section class="px-6 pb-12 sm:pb-16 scroll-reveal">
+        <div class="max-w-5xl mx-auto panel p-7 sm:p-12">
+            {{/* No column gap: the cells sit flush and carry their own px-3, so a
+                 cell's right border lands exactly halfway between the two
+                 figures it separates. With gap-x the rule hugs the left
+                 column instead and every stat reads off-centre. */}}
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-y-8 sm:gap-y-10 text-center">
+                <div class="scroll-reveal-child px-3 lg:border-r lg:border-border">
+                    <p class="stat-value">AES-256</p>
+                    <p class="text-sm text-muted-foreground mt-2 max-w-[13rem] mx-auto">GCM authenticated encryption on every blob</p>
+                </div>
+                <div class="scroll-reveal-child px-3 lg:border-r lg:border-border">
+                    <p class="stat-value">650,000</p>
+                    <p class="text-sm text-muted-foreground mt-2 max-w-[13rem] mx-auto">PBKDF2 rounds between a guess and your key</p>
+                </div>
+                <div class="scroll-reveal-child px-3 lg:border-r lg:border-border">
+                    <p class="stat-value">2 secrets</p>
+                    <p class="text-sm text-muted-foreground mt-2 max-w-[13rem] mx-auto">password &times; phrase — neither alone unlocks anything</p>
+                </div>
+                <div class="scroll-reveal-child px-3">
+                    <p class="stat-value">0</p>
+                    <p class="text-sm text-muted-foreground mt-2 max-w-[13rem] mx-auto">vault bytes stored in plaintext. Not one.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    {{/* ───────── Honesty section ───────── */}}
+    <section class="px-6 py-12 sm:py-16 scroll-reveal">
+        <div class="max-w-3xl mx-auto panel p-7 sm:p-14 text-center">
+            <div class="glow-orb" style="--orb:var(--accent-3-glow);width:380px;height:260px;top:-90px;left:50%;transform:translateX(-50%);opacity:0.7"></div>
+            <div class="relative">
+                <svg class="h-11 w-11 text-accent mx-auto mb-6 keyhole-ring" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+                    <path d="M32 3.5 55.5 17v30L32 60.5 8.5 47V17Z" stroke="currentColor" stroke-width="5" stroke-linejoin="round"/>
+                    <circle cx="32" cy="28" r="7" fill="currentColor"/>
+                    <path d="M28.6 33.5h6.8L37 46h-10Z" fill="currentColor"/>
+                </svg>
+                <h2 class="text-3xl font-bold tracking-tight mb-5">Zero-knowledge cuts both ways.</h2>
+                <p class="text-muted-foreground leading-relaxed mb-4">
+                    Because we can't read your vault, we also can't reset it. If you lose both your Master Password and your Secret Phrase, your data is gone — for everyone, forever. That is not a limitation we apologise for; it is the proof the encryption is real.
+                </p>
+                <p class="text-muted-foreground leading-relaxed">
+                    Your Emergency Kit exists for exactly this reason. Print it. Keep it somewhere that isn't your computer.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    {{/* ───────── Final CTA ───────── */}}
+    <section class="px-6 pt-12 pb-16 sm:pt-16 sm:pb-20 scroll-reveal">
+        <div class="max-w-4xl mx-auto cta-slab px-5 py-14 sm:px-6 sm:py-20 text-center overflow-hidden">
+            <div class="glow-orb" style="--orb:var(--accent-glow);width:560px;height:360px;top:-160px;left:50%;transform:translateX(-50%)"></div>
+            <div class="relative">
+                <h2 class="text-4xl font-extrabold tracking-tighter mb-5">Seal your first secret<br/>in under a minute.</h2>
+                <p class="text-muted-foreground mb-9 max-w-md mx-auto">One password to remember. Nine words to keep safe. Everything else, encrypted.</p>
+                <a href="/join" class="btn btn-primary text-base px-8 py-3.5">Create your vault</a>
+            </div>
+        </div>
+    </section>
+
+    {{template "siteFooter" .}}
+</div>
+{{end}}

@@ -1,0 +1,73 @@
+{{define "content"}}
+<div class="min-h-screen flex flex-col bg-background">
+    {{template "publicHeader" .}}
+    <div class="flex-1 max-w-5xl mx-auto w-full px-6 py-10 md:grid md:gap-10" style="grid-template-columns:220px minmax(0,1fr)">
+        <aside class="hidden md:block">{{template "legalSidebar" .}}</aside>
+        <article class="legal-prose max-w-2xl">
+            <h1 class="text-3xl font-extrabold tracking-tighter text-foreground mb-2">Privacy Policy</h1>
+            <p class="text-sm text-muted-foreground mb-8">Last updated: 24 July 2026</p>
+
+            <p>Vault3 is built so that we know as little about you as possible. This policy explains exactly what we can and cannot see, what we process and why, how long we keep it, and the rights you have. The data controller is <strong>{{.Site.CompanyLegalName}}</strong>, trading as <a href="{{.Site.CompanyURL}}" rel="noopener noreferrer">{{.Site.CompanyName}}</a> — the company that makes and operates Vault3 — reachable at hello@vault3.com.</p>
+
+            <h2>1. Zero knowledge, by design</h2>
+            <p>Everything you store in your vault — logins, notes, cards, identities, including item titles — is encrypted on your device before it is sent to us. The encryption keys are derived from your Master Password and your nine-word Secret Phrase, neither of which ever leaves your device in a usable form. Our servers store only ciphertext.</p>
+            <p>This is not a policy choice we could quietly reverse; it is how the system works. We cannot read your vault, we cannot hand it to anyone else in readable form, and no change of ownership, request, or order can alter what mathematics allows.</p>
+
+            <h2>2. What we cannot see</h2>
+            <ul>
+                <li>The contents of your vault: every login, note, card, and identity, including item titles.</li>
+                <li>Your Master Password and your Secret Phrase.</li>
+                <li>The decryption keys for any of the above.</li>
+            </ul>
+
+            <h2>3. What we do process</h2>
+            <p>Running an account-based service requires a small amount of data. Here is the complete list.</p>
+            <ul>
+                <li><strong>Account email address</strong> — stored in plaintext, because we need it to sign you in and to send you account and security emails.</li>
+                <li><strong>Display name</strong> — encrypted at rest on our servers.</li>
+                <li><strong>Session IP address and user agent</strong> — recorded when you sign in so you can recognise your own sessions and spot ones that are not yours; encrypted at rest.</li>
+                <li><strong>Two-factor authentication (TOTP) secrets</strong> — if you enable 2FA; encrypted at rest.</li>
+                <li><strong>Security notifications and an audit log</strong> — a record of security-relevant events on your account (for example new-device sign-ins, password changes, 2FA changes); encrypted at rest.</li>
+                <li><strong>Metadata</strong> — timestamps (such as when items were created or changed) and item counts. These reveal how much you store and when, but never what.</li>
+            </ul>
+            <p>That is everything. We collect no analytics, run no advertising, and embed no third-party trackers of any kind.</p>
+
+            <h2>4. Why we process it (lawful bases)</h2>
+            <ul>
+                <li><strong>Performance of a contract</strong> — your email address, display name, TOTP secrets, and vault ciphertext are processed because they are necessary to provide the service you signed up for.</li>
+                <li><strong>Legitimate interest</strong> — session IP addresses, user agents, the audit log, and security notifications are processed in our shared interest in keeping your account secure and detecting unauthorised access. This processing is narrow, security-only, and encrypted at rest.</li>
+            </ul>
+
+            <h2>5. How long we keep it</h2>
+            <ul>
+                <li><strong>Sessions</strong> — expire after 30 days, or immediately when you sign out or revoke them.</li>
+                <li><strong>Trashed items</strong> — retained for 30 days after you delete them, then purged permanently.</li>
+                <li><strong>Audit log and security notifications</strong> — kept while your account exists, so you can review the history of your account.</li>
+                <li><strong>Account deletion</strong> — available self-serve from Settings, and takes effect immediately and permanently. Your vault ciphertext, account data, and audit log are erased.</li>
+            </ul>
+
+            <h2>6. Your rights</h2>
+            <p>Under the UK and EU GDPR you have the right to access, rectify, and erase your personal data, to restrict or object to processing, and to data portability. Most of these you can exercise yourself, instantly: your vault is editable and exportable in the app, and account deletion is in Settings. For anything else, email hello@vault3.com and we will respond within one month.</p>
+            <p>One honest caveat: for vault contents, we can only ever act on ciphertext. We can delete it, but we cannot read, correct, or disclose it — by design, nobody but you can. You also have the right to complain to your data protection authority; in the UK, that is the Information Commissioner's Office.</p>
+
+            <h2>7. Who else touches your data</h2>
+            <p>We use exactly one third-party processor:</p>
+            <ul>
+                <li><strong>Mailgun</strong> — delivers our transactional email only: address verification and security alerts. Mailgun processes your email address for that purpose and nothing more.</li>
+            </ul>
+            <p>There are no other integrations. We do not sell personal data, we do not share it for advertising, and we never will.</p>
+
+            <h2>8. Security notifications</h2>
+            <p>We tell you when something security-relevant happens on your account — a sign-in from a new device, a password change, a change to two-factor authentication — by email and in-app. These notifications are part of the service and cannot be fully disabled, because their absence is exactly what an attacker would want.</p>
+
+            <h2>9. If something goes wrong</h2>
+            <p>If we suffer a breach affecting your personal data, we will notify the relevant supervisory authority within 72 hours where required, and notify you directly without undue delay, telling you plainly what happened and what it means for you. Because your vault is ciphertext to us, a breach of our servers does not expose its contents — but we would still tell you.</p>
+
+            <h2>10. Changes and contact</h2>
+            <p>If we change this policy in a way that matters, we will notify you by email or in-app before the change takes effect. The one thing that will not change is the zero-knowledge design.</p>
+            <p>Questions, requests, or concerns: hello@vault3.com.</p>
+        </article>
+    </div>
+    {{template "siteFooter" .}}
+</div>
+{{end}}

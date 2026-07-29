@@ -1,0 +1,17 @@
+{{define "content"}}
+{{/* The vault. Server renders the shell + header; vault.tsx does the rest:
+     unlock, client-side decryption, list/detail, mutations, live sync. The
+     encrypted payload rides in __BUNGO_DATA__ (Keyset + Items are all
+     ciphertext — exactly what a database dump would contain). */}}
+<div class="min-h-screen flex flex-col overflow-x-hidden">
+    {{/* The app canvas: the marketing ambient layer at half strength — enough
+         to lift the page off flat paint, not enough to compete with vault
+         content. */}}
+    <div class="site-canvas site-canvas-app" aria-hidden="true">
+        <div class="glow-orb glow-orb-a" style="--orb:var(--accent-glow);width:48vw;height:36vw;top:-18vw;right:-8vw;opacity:0.55"></div>
+        <div class="glow-orb glow-orb-b" style="--orb:var(--accent-2-glow);width:38vw;height:30vw;bottom:-16vw;left:-10vw;opacity:0.45"></div>
+    </div>
+    {{template "appHeader" .}}
+    <div class="flex-1" id="vault-root"></div>
+</div>
+{{end}}
