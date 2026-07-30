@@ -240,7 +240,7 @@ input[data-secret] {
   background-image: var(--gradient-edge);
 }
 
-/* The wordmark's hex glyph casts a little of its own light. */
+/* The wordmark's glyph casts a little of its own light. */
 .v3-mark { filter: drop-shadow(0 2px 9px var(--accent-glow)); }
 
 /* ══════════════════════════════════════════════════════════════════ */
@@ -558,7 +558,7 @@ input[data-secret] {
 }
 .animate-seal { animation: sealaway var(--duration-slow) var(--ease-in-out) both; }
 
-/* Glow pulse — the accent breathing on keyhole glyphs and live status. */
+/* Glow pulse — the accent breathing on the mark and live status. */
 @keyframes glowpulse {
   0%, 100% { box-shadow: 0 0 10px var(--accent-glow); }
   50% { box-shadow: 0 0 30px var(--accent-glow), 0 0 60px var(--accent-glow); }

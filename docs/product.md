@@ -53,7 +53,7 @@ Vault3 (vault3.com) is a zero-knowledge password manager for individuals. A user
 
 ## Brand and motion language
 
-- Wordmark: lowercase **vault** + **3** in the brand gradient; mark: rounded hexagon with keyhole, stroked in the gradient over a radial interior wash — a vault door lit from within. One theme, dark. There is no light mode and no theme switch — the palette in [frontend.md](./frontend.md) is the palette.
+- Wordmark: lowercase **vault** + **3** in the brand gradient; mark: a rounded tile carrying the brand gradient with a triangle cut out of it — three sides for the three, and the cut goes all the way through. The cutout is the `v3-cut` mask in `base.gohtml`'s hidden defs, never a background-coloured stroke, so the mark keeps its hole on the page, on a panel or on a tinted surface; in monochrome contexts the tile takes `currentColor`. The favicon is the same drawing with the cut painted `--background` instead of masked, because a standalone image has no surface to show through. One theme, dark. There is no light mode and no theme switch — the palette in [frontend.md](./frontend.md) is the palette.
 - Violet is the brand colour. It has two companions — a signal cyan and a sealed magenta — used only for gradients, ambient light and accent-on-accent detail, never alone as a second brand colour. See the spectrum tokens in [frontend.md](./frontend.md).
 - The motion metaphor is **sealing/unsealing**: content resolves from scramble/blur into clarity (hero cipher scramble, `animate-unseal`), the accent breathes as a glow, wrong credentials shake. All motion respects `prefers-reduced-motion`. Tokens and keyframes live in `web/static/theme.css`.
 

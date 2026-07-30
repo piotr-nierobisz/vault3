@@ -93,7 +93,7 @@
 .glow-orb-a { animation: orb-drift-a 19s var(--ease-in-out) infinite alternate; }
 .glow-orb-b { animation: orb-drift-b 24s var(--ease-in-out) infinite alternate; }
 
-/* Encryption pipeline visual: plaintext travels through the keyhole and
+/* Encryption pipeline visual: plaintext travels through the mark and
    leaves as ciphertext. Dots are positioned/timed inline per instance. */
 @keyframes pipeline-dot {
   0% { opacity: 0; transform: translateX(0); }
@@ -112,12 +112,12 @@
   animation-iteration-count: infinite;
 }
 
-/* Keyhole mark: the ring pulses; used in the hero and the lock screen. */
-@keyframes keyhole-ring {
+/* The mark breathes; used in the hero and the lock screen. */
+@keyframes mark-pulse {
   0%, 100% { opacity: 0.55; transform: scale(1); }
   50% { opacity: 1; transform: scale(1.045); }
 }
-.keyhole-ring { animation: keyhole-ring 3.4s var(--ease-in-out) infinite; transform-origin: center; }
+.mark-pulse { animation: mark-pulse 3.4s var(--ease-in-out) infinite; transform-origin: center; }
 
 /* Marquee of "what a breach would see": an endless drift of ciphertext.
    Two lanes run in opposite directions and both fade out at the rails, so

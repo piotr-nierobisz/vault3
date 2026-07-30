@@ -134,7 +134,7 @@ function InviteApp() {
     return (
       <Shell>
         <div className="panel p-10 text-center animate-pop">
-          <VaultMark className="h-11 w-11 text-accent mx-auto mb-5 keyhole-ring" />
+          <VaultMark className="h-11 w-11 text-accent mx-auto mb-5 mark-pulse" />
           <h1 className="text-xl font-bold tracking-tight mb-2">You've been invited to a shared vault</h1>
           <p className="text-sm text-muted-foreground leading-relaxed max-w-sm mx-auto mb-6">
             Sign in to see the invitation. If you don't have a Vault3 account yet, create one first — then open this
@@ -167,7 +167,7 @@ function InviteApp() {
     return (
       <Shell>
         <div className="panel p-12 text-center">
-          <VaultMark className="h-11 w-11 text-accent mx-auto mb-4 keyhole-ring" />
+          <VaultMark className="h-11 w-11 text-accent mx-auto mb-4 mark-pulse" />
           <p className="text-sm text-muted-foreground font-mono">unsealing the invitation…</p>
         </div>
       </Shell>

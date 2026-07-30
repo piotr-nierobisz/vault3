@@ -261,10 +261,11 @@ export const SettingsIcon = ({ className }: IconProps) => (
   </Icon>
 );
 
+// The triangle is cut by #v3-cut, the mask base.gohtml puts in every document
+// alongside the gradient paint servers — so the hole shows whatever surface the
+// mark sits on, and the tile takes currentColor like any other icon here.
 export const VaultMark = ({ className }: IconProps) => (
-  <svg className={className} viewBox="0 0 64 64" fill="none" aria-hidden="true">
-    <path d="M32 3.5 55.5 17v30L32 60.5 8.5 47V17Z" stroke="currentColor" strokeWidth={5} strokeLinejoin="round" />
-    <circle cx="32" cy="28" r="7" fill="currentColor" />
-    <path d="M28.6 33.5h6.8L37 46h-10Z" fill="currentColor" />
+  <svg className={className} viewBox="0 0 64 64" aria-hidden="true">
+    <rect width={64} height={64} rx={15} fill="currentColor" mask="url(#v3-cut)" />
   </svg>
 );

@@ -196,7 +196,7 @@ function JoinWizard() {
 
       {step === "sealing" && (
         <div className="card p-12 text-center">
-          <VaultMark className="h-12 w-12 text-accent mx-auto mb-6 keyhole-ring" />
+          <VaultMark className="h-12 w-12 text-accent mx-auto mb-6 mark-pulse" />
           <h1 className="text-2xl font-bold tracking-tight mb-2">Sealing your vault…</h1>
           <p className="text-sm text-muted-foreground font-mono">
             deriving keys · 650,000 rounds · generating keypair · wrapping vault key

@@ -50,7 +50,7 @@ function VerifyEmail() {
     <div className="card p-9 text-center animate-unseal">
       {state.kind === "verifying" && (
         <>
-          <VaultMark className="h-10 w-10 text-accent mx-auto mb-5 keyhole-ring" />
+          <VaultMark className="h-10 w-10 text-accent mx-auto mb-5 mark-pulse" />
           <h1 className="text-2xl font-bold tracking-tight mb-2">Confirming…</h1>
           <p className="text-sm text-muted-foreground">One moment.</p>
         </>

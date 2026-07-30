@@ -1,22 +1,22 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <!-- Vault3 mark: a hex vault door, lit from within, with a keyhole.
-       Colours are literal here — a favicon is loaded as an image, so the
-       page's theme tokens never reach it — and track the dark-theme
-       spectrum: magenta, violet, cyan. -->
+  <!-- Vault3 mark: three strokes that close a triangle without touching.
+       At tab size the outline thins out and has to hold on a light tab bar
+       as well as a dark one, so the favicon inverts the mark — the gradient
+       becomes the tile and the triangle is knocked out of it. Colours are
+       literal here — a favicon is loaded as an image, so the page's theme
+       tokens never reach it — and track the dark-theme spectrum: magenta,
+       violet, cyan. -->
   <defs>
-    <linearGradient id="edge" x1="7" y1="5" x2="57" y2="59" gradientUnits="userSpaceOnUse">
+    <linearGradient id="edge" x1="4" y1="2" x2="60" y2="62" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#ec5fc6"/>
       <stop offset="0.5" stop-color="#8b5cf6"/>
       <stop offset="1" stop-color="#4fd6e6"/>
     </linearGradient>
-    <radialGradient id="core" cx="32" cy="29" r="27" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#8b5cf6" stop-opacity="0.45"/>
-      <stop offset="1" stop-color="#4fd6e6" stop-opacity="0"/>
-    </radialGradient>
   </defs>
-  <path d="M32 3.5 55.5 17v30L32 60.5 8.5 47V17Z" fill="#12121c"/>
-  <path d="M32 3.5 55.5 17v30L32 60.5 8.5 47V17Z" fill="url(#core)"/>
-  <path d="M32 3.5 55.5 17v30L32 60.5 8.5 47V17Z" fill="none" stroke="url(#edge)" stroke-width="4.5" stroke-linejoin="round"/>
-  <circle cx="32" cy="27.5" r="6.6" fill="url(#edge)"/>
-  <path d="M28.8 32.6h6.4l1.7 12.6h-9.8Z" fill="url(#edge)"/>
+  <rect width="64" height="64" rx="15" fill="url(#edge)"/>
+  <g fill="none" stroke="#0a0a10" stroke-width="6.4" stroke-linecap="round">
+    <path d="M34.1 18.14 48.09 42.36"/>
+    <path d="M45.99 46H18.01"/>
+    <path d="M15.91 42.36 29.9 18.14"/>
+  </g>
 </svg>

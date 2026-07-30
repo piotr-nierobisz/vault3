@@ -48,7 +48,7 @@ function ShareApp() {
   if (state.phase === "loading") {
     return (
       <div className="panel p-12 text-center animate-unseal">
-        <VaultMark className="h-11 w-11 text-accent mx-auto mb-4 keyhole-ring" />
+        <VaultMark className="h-11 w-11 text-accent mx-auto mb-4 mark-pulse" />
         <p className="text-sm text-muted-foreground font-mono">unsealing the shared item…</p>
       </div>
     );

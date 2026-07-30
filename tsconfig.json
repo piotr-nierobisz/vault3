@@ -7,7 +7,16 @@
     "strict": true,
     "isolatedModules": true,
     "skipLibCheck": true,
-    "allowJs": true
+    "allowJs": true,
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "react": ["./web/types/vendor/react"],
+      "react/*": ["./web/types/vendor/react/*"],
+      "csstype": ["./web/types/vendor/csstype"],
+      "prop-types": ["./web/types/vendor/prop-types"]
+    }
   },
-  "include": ["web/views/**/*", "web/types/**/*", "web/lib/**/*", "bungo-env.d.ts"]
+  "include": ["web/views/**/*", "web/types/**/*", "web/lib/**/*", "bungo-env.d.ts"],
+  "exclude": ["web/types/vendor"]
 }

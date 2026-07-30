@@ -14,6 +14,22 @@ Vault3 does **not** use a separate Node/Vite app. React is compiled by BunGo (em
 - Third-party client dependencies would use Deno-style URL imports (`https://esm.sh/...`) wrapped once under `web/lib/` — but Vault3 currently has **zero** of them, and the CSP (`script-src`/`connect-src` allow esm.sh only) is the only door. Prefer keeping it that way: a password manager's bundle should be auditable.
 - BunGo injects view scripts and `window.__BUNGO_DATA__` automatically — see [bungo.md](./bungo.md).
 
+## Type checking
+
+BunGo strips types without checking them, so `tsc` is a separate, optional gate — nothing
+depends on it at runtime. Because there is no `node_modules`, React's declarations are
+vendored under `web/types/vendor/` and wired in through `compilerOptions.paths`; a fresh
+clone type-checks with no install step. See that directory's README for versions and how
+to refresh them.
+
+- Run it with any available TypeScript: `npx --package typescript tsc -p tsconfig.json`.
+  The config is `noEmit`, so a clean run prints nothing.
+- The vendored declarations are `exclude`d from the program roots and load only when a
+  file imports `react`. They are invisible to esbuild, which will not take a `.d.ts` as a
+  bundle input — so `paths` cannot redirect the React that BunGo actually ships.
+- Keep `@types/react` on the 18.x line to match the embedded React 18.2. Do not add npm
+  packages to satisfy the type checker; vendor the declarations instead.
+
 ## Stack
 
 | Layer | Choice |
@@ -35,6 +51,7 @@ web/
     legal/        terms, privacy, cookies, security (server-rendered prose)
   views/          one .tsx/.ts entry per page
   types/          one file per view, named to match it (see "Type files")
+    vendor/       vendored React/csstype declarations for tsc only (see "Type checking")
   components/
     icons.tsx     shared lucide-matched icon set (see "Shared icons")
     ui/           token primitives: password-input, copy-button, dialog, toast, field-error
@@ -76,7 +93,7 @@ Patterns to preserve:
 
 All `.gohtml` files live in `web/layouts/`. Full rules: [bungo.md](./bungo.md).
 
-- Every `PageRoute` requires a `Template`; `base.gohtml` is the default Layout (head, SEO/OG/robots meta, the site-wide JSON-LD graph, the wordmark's gradient paint servers) and holds the shared defines: `wordmark`, `publicHeader` (with its below-`sm` nav disclosure), `siteFooter` (with the colophon), `appHeader` (nav row, bell, lock and sign-out buttons — all inline scripts by design), `legalSidebar`, `cookieNotice`.
+- Every `PageRoute` requires a `Template`; `base.gohtml` is the default Layout (head, SEO/OG/robots meta, the site-wide JSON-LD graph, the mark's shared gradient paint servers and its `v3-cut` cutout mask) and holds the shared defines: `wordmark`, `publicHeader` (with its below-`sm` nav disclosure), `siteFooter` (with the colophon), `appHeader` (nav row, bell, lock and sign-out buttons — all inline scripts by design), `legalSidebar`, `cookieNotice`.
 - **The public site and `/app` are two surfaces, and their chrome never mixes.** Public pages render `publicHeader` + `siteFooter` for everyone, signed in or not; `/app/*` renders `appHeader` and links to no public page but the wordmark, which leaves for `/`. Each surface offers exactly one door to the other: `publicHeader` swaps its sign-up pair for "Open your vault" when `.Viewer` is set, and the app wordmark goes to `/`. Do not add a second crossing (a marketing link in the app header, a back-to-vault link in a sidebar) — that is the mixing this rule exists to prevent. The compliance-driven `cookieNotice` is the one exception, and it is a notice rather than navigation.
 - `appHeader` has no account menu: every destination and account action sits in the bar itself at all widths, collapsing to icon-only below `sm` (label spans are `hidden sm:inline`). Anything added there must survive that collapse — a phone shows the icons, not a menu — so keep the bar to items that earn a permanent slot.
 - Do **not** manually inject BunGo script tags or `window.__BUNGO_DATA__`.

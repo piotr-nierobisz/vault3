@@ -90,20 +90,28 @@
     <link rel="stylesheet" href="/static/styles.css" />
 </head>
 <body>
-    {{/* Paint servers for the wordmark. Defined once per document because
-         the mark renders more than once per page (header and footer) and
-         SVG gradients are referenced by id. Never rendered itself. */}}
+    {{/* Paint servers and the mark's cutout. Defined once per document because
+         the mark renders many times per page and SVG gradients and masks are
+         referenced by id; both resolve in the referencing SVG's own 0–64 user
+         space, so one definition serves the mark at every size. The triangle
+         is a mask rather than a background-coloured stroke so the cut is a
+         real hole — the mark sits on the page, on a panel or on a tinted
+         surface without its knockout ever mismatching. Never rendered. */}}
     <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
         <defs>
-            <linearGradient id="v3-edge" x1="7" y1="5" x2="57" y2="59" gradientUnits="userSpaceOnUse">
+            <linearGradient id="v3-edge" x1="4" y1="2" x2="60" y2="62" gradientUnits="userSpaceOnUse">
                 <stop offset="0" stop-color="var(--accent-3)"/>
                 <stop offset="0.5" stop-color="var(--accent)"/>
                 <stop offset="1" stop-color="var(--accent-2)"/>
             </linearGradient>
-            <radialGradient id="v3-core" cx="32" cy="29" r="27" gradientUnits="userSpaceOnUse">
-                <stop offset="0" stop-color="var(--accent)" stop-opacity="0.38"/>
-                <stop offset="1" stop-color="var(--accent-2)" stop-opacity="0"/>
-            </radialGradient>
+            <mask id="v3-cut" maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64">
+                <rect width="64" height="64" fill="#fff"/>
+                <g fill="none" stroke="#000" stroke-width="6.4" stroke-linecap="round">
+                    <path d="M34.1 18.14 48.09 42.36"/>
+                    <path d="M45.99 46H18.01"/>
+                    <path d="M15.91 42.36 29.9 18.14"/>
+                </g>
+            </mask>
         </defs>
     </svg>
     <div id="root">{{block "content" .}}{{end}}</div>
@@ -111,17 +119,16 @@
 </body>
 </html>
 
-{{/* wordmark: the vault door lit from within. The hex is stroked with the
-     brand gradient, the interior carries a radial wash so the mark reads as
-     a sealed door with something behind it, and the keyhole picks up the
-     same gradient. Paint servers live in the hidden defs above. */}}
+{{/* wordmark: a gradient tile with a triangle cut out of it — three sides for
+     the three, and the cut goes all the way through, so what shows in the
+     middle is whatever the mark is sitting on rather than anything we put
+     there. One rect plus the shared cutout above; the gap is 1.5 rather than
+     2.5 because the tile's edge is hard and needs less air than an outline
+     did. The same two references carry the mark everywhere it appears. */}}
 {{define "wordmark"}}
-<span class="inline-flex items-center gap-2.5 select-none">
+<span class="inline-flex items-center gap-1.5 select-none">
     <svg class="h-7 w-7 v3-mark" viewBox="0 0 64 64" aria-hidden="true">
-        <path d="M32 3.5 55.5 17v30L32 60.5 8.5 47V17Z" fill="url(#v3-core)"/>
-        <path d="M32 3.5 55.5 17v30L32 60.5 8.5 47V17Z" fill="none" stroke="url(#v3-edge)" stroke-width="5" stroke-linejoin="round"/>
-        <circle cx="32" cy="27.5" r="6.6" fill="url(#v3-edge)"/>
-        <path d="M28.8 32.6h6.4l1.7 12.6h-9.8Z" fill="url(#v3-edge)"/>
+        <rect width="64" height="64" rx="15" fill="url(#v3-edge)" mask="url(#v3-cut)"/>
     </svg>
     <span class="text-[22px] font-extrabold text-foreground" style="letter-spacing:-0.04em">vault<span class="text-gradient">3</span></span>
 </span>
@@ -317,7 +324,7 @@
                      labels drop and the icons carry them. */}}
                 <div class="flex items-center gap-1">
                     <a href="/app" title="Vault" class="inline-flex items-center text-sm font-medium rounded-lg px-2 sm:px-3.5 py-1.5 {{if eq .ActiveNav "vault"}}bg-accent-subtle text-accent border border-accent-border pointer-events-none{{else}}text-muted-foreground border border-transparent hover:bg-muted hover:text-foreground transition-colors{{end}}">
-                        <svg class="h-4 w-4 sm:hidden" viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="M32 3.5 55.5 17v30L32 60.5 8.5 47V17Z" stroke="currentColor" stroke-width="5" stroke-linejoin="round"/><circle cx="32" cy="28" r="7" fill="currentColor"/><path d="M28.6 33.5h6.8L37 46h-10Z" fill="currentColor"/></svg>
+                        <svg class="h-4 w-4 sm:hidden" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="15" fill="currentColor" mask="url(#v3-cut)"/></svg>
                         <span class="hidden sm:inline">Vault</span>
                     </a>
                     <a href="/app/settings" title="Settings" class="inline-flex items-center text-sm font-medium rounded-lg px-2 sm:px-3.5 py-1.5 {{if eq .ActiveNav "settings"}}bg-accent-subtle text-accent border border-accent-border pointer-events-none{{else}}text-muted-foreground border border-transparent hover:bg-muted hover:text-foreground transition-colors{{end}}">

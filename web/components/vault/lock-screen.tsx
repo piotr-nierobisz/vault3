@@ -74,7 +74,7 @@ export function LockScreen({
       />
       <div className="relative panel p-9 w-full max-w-md shadow-accent animate-pop">
         <div className="text-center mb-7">
-          <VaultMark className="h-12 w-12 text-accent mx-auto mb-4 keyhole-ring" />
+          <VaultMark className="h-12 w-12 text-accent mx-auto mb-4 mark-pulse" />
           <h1 className="text-2xl font-bold tracking-tight mb-1">
             Vault <span className="text-gradient">locked.</span>
           </h1>

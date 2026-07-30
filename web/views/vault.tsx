@@ -533,7 +533,7 @@ function VaultApp() {
               </div>
             ) : (
               <div className="panel p-12 text-center hidden lg:block">
-                <VaultMark className="h-11 w-11 text-accent mx-auto mb-4 keyhole-ring" />
+                <VaultMark className="h-11 w-11 text-accent mx-auto mb-4 mark-pulse" />
                 <p className="text-sm text-muted-foreground">Select an item to unseal it.</p>
               </div>
             )}
