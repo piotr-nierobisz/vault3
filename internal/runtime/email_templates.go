@@ -25,8 +25,8 @@ var emailTemplates = map[string]emailTemplate{
 		Subject: "Welcome to Vault3",
 		Body: `
 			<h1>Your vault is ready{{if .firstName}}, {{.firstName}}{{end}}.</h1>
-			<p>Vault3 encrypts everything you store on your device before it reaches us. Your Master Password and Secret Phrase never leave your browser, which means only you can open your vault.</p>
-			<p><strong>Keep your Emergency Kit safe.</strong> It holds your Secret Phrase — without it (and your Master Password) your vault cannot be opened by anyone, including us.</p>
+			<p>Everything you save is locked on your device before it reaches us. Your Master Password and Secret Phrase never leave your browser, so you are the only person who can open your vault.</p>
+			<p><strong>Keep your Emergency Kit safe.</strong> It holds your Secret Phrase, and together with your Master Password it is the only way in. Nobody can let you back in without them — us included.</p>
 			<p><a class="btn" href="{{.frontendUrl}}/app">Open your vault</a></p>`,
 	},
 	"EMAIL_VERIFICATION": {
@@ -37,36 +37,27 @@ var emailTemplates = map[string]emailTemplate{
 			<p><a class="btn" href="{{.verifyUrl}}">Confirm email address</a></p>
 			<p class="muted">If you didn't create a Vault3 account, you can ignore this email.</p>`,
 	},
-	"ACCOUNT_RESET": {
-		Subject: "Vault3 account reset requested",
-		Body: `
-			<h1>Account reset requested.</h1>
-			<p>Someone — hopefully you — asked to reset this Vault3 account. Because Vault3 is zero-knowledge, <strong>resetting erases everything stored in the vault</strong>: we hold only ciphertext and cannot recover it without your Master Password and Secret Phrase.</p>
-			<p>If you want to continue, use the link below within one hour.</p>
-			<p><a class="btn" href="{{.resetUrl}}">Reset my account</a></p>
-			<p class="muted">If this wasn't you, no action is needed — your vault is untouched and your credentials still stand.</p>`,
-	},
 	"NEW_DEVICE_LOGIN": {
 		Subject: "New sign-in to your Vault3 account",
 		Body: `
 			<h1>New sign-in detected.</h1>
 			<p>Your Vault3 account was just opened from a device or network we haven't seen before.</p>
 			<p class="detail">{{.loginDetail}}</p>
-			<p>If this was you, there's nothing to do. If not, sign in, change your Master Password, and revoke the session from Settings → Security.</p>
+			<p>If this was you, there's nothing to do. If it wasn't, sign in, change your Master Password, and sign that device out under Settings → Security.</p>
 			<p><a class="btn" href="{{.frontendUrl}}/app/settings">Review sessions</a></p>`,
 	},
 	"PASSWORD_CHANGED": {
 		Subject: "Your Master Password was changed",
 		Body: `
 			<h1>Master Password changed.</h1>
-			<p>The Master Password on your Vault3 account was just changed, and every other session was signed out.</p>
-			<p>If this was you, nothing else is needed. If not, use your Secret Phrase and previous password immediately — or contact <a href="mailto:{{.supportEmail}}">{{.supportEmail}}</a>.</p>`,
+			<p>The Master Password on your Vault3 account was just changed, and every other device was signed out.</p>
+			<p>If this was you, there's nothing else to do. If it wasn't, then whoever did it holds both of your secrets — email <a href="mailto:{{.supportEmail}}">{{.supportEmail}}</a> straight away.</p>`,
 	},
 	"TWO_FACTOR_ENABLED": {
 		Subject: "Two-factor authentication enabled",
 		Body: `
 			<h1>Two-factor authentication is on.</h1>
-			<p>Sign-ins to your Vault3 account now require a code from your authenticator app in addition to your credentials.</p>
+			<p>From now on, signing in to your Vault3 account also needs a code from your authenticator app.</p>
 			<p class="muted">If you didn't enable this, contact <a href="mailto:{{.supportEmail}}">{{.supportEmail}}</a> right away.</p>`,
 	},
 	"TWO_FACTOR_DISABLED": {
@@ -94,7 +85,7 @@ const emailShell = `<!doctype html>
 	<div style="color:#c7c4de;font-size:15px;line-height:1.65;">{{.__body}}</div>
 </td></tr>
 <tr><td style="padding:24px 8px;color:#5d5a78;font-size:12px;line-height:1.6;">
-	Vault3 is end-to-end encrypted: this email never contains vault contents, and we could not include them if we tried.<br>
+	Nothing from your vault ever appears in an email from us — we have no way to read it.<br>
 	Questions? <a href="mailto:{{.supportEmail}}" style="color:#8b7cf6;">{{.supportEmail}}</a>
 </td></tr>
 </table>

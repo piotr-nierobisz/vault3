@@ -7,17 +7,14 @@ import (
 )
 
 // Keyset is everything the browser needs to unlock after deriving the MUK:
-// the account's KDF parameters, the encrypted private key, and each vault's
-// wrapped key. All key material here is ciphertext (or public), so shipping
-// it in window.__BUNGO_DATA__ or a JSON response discloses nothing — it is
-// exactly what a database dump would already contain.
+// the account's KDF parameters and each vault's wrapped key. All key material
+// here is ciphertext, so shipping it in window.__BUNGO_DATA__ or a JSON
+// response discloses nothing — it is exactly what a database dump would
+// already contain.
 type Keyset struct {
-	KdfSalt       string          `json:"kdfSalt"`
-	KdfIterations int             `json:"kdfIterations"`
-	Algo          string          `json:"algo"`
-	PublicKey     json.RawMessage `json:"publicKey"`
-	EncPrivateKey json.RawMessage `json:"encPrivateKey"`
-	Vaults        []KeysetVault   `json:"vaults"`
+	KdfSalt string `json:"kdfSalt"`
+	models.KdfCosts
+	Vaults []KeysetVault `json:"vaults"`
 }
 
 // KeysetVault is one vault the user can unlock: identity plus the wrapped
@@ -56,21 +53,15 @@ func NewKeysetVaults(vaults []models.UserVault) []KeysetVault {
 	return out
 }
 
-// NewKeyset projects a hydrated UserFull into the unlock payload. Returns
-// nil when the auth or keys spokes are missing (an account mid-reset), which
-// the client treats as "cannot unlock".
+// NewKeyset projects a hydrated UserFull into the unlock payload. Returns nil
+// when the auth spoke is missing, which the client treats as "cannot unlock".
 func NewKeyset(uf *models.UserFull) *Keyset {
-	if uf == nil || uf.Auth == nil || uf.Keys == nil {
+	if uf == nil || uf.Auth == nil {
 		return nil
 	}
-	ks := &Keyset{
-		KdfSalt:       uf.Auth.KdfSalt,
-		KdfIterations: uf.Auth.KdfIterations,
-		Algo:          uf.Keys.Algo,
-		PublicKey:     uf.Keys.PublicKey,
-		EncPrivateKey: uf.Keys.EncPrivateKey,
-		Vaults:        make([]KeysetVault, 0, len(uf.Vaults)),
+	return &Keyset{
+		KdfSalt:  uf.Auth.KdfSalt,
+		KdfCosts: uf.Auth.Costs(),
+		Vaults:   NewKeysetVaults(uf.Vaults),
 	}
-	ks.Vaults = NewKeysetVaults(uf.Vaults)
-	return ks
 }

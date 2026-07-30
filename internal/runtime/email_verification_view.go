@@ -2,7 +2,6 @@ package runtime
 
 import (
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"strings"
 
@@ -31,11 +30,9 @@ func (r *Runtime) VerifyEmailPage(req *bungo.Request) (map[string]any, error) {
 // VerifyEmailAPI handles POST /api/v1/auth/verify-email {token}. Single-use:
 // redemption clears the token in the same statement that flips the flag.
 func (r *Runtime) VerifyEmailAPI(req *bungo.Request) (bungo.APIResponse, error) {
-	var payload struct {
-		Token string `json:"token"`
-	}
-	if unmarshalErr := json.Unmarshal(req.Body, &payload); unmarshalErr != nil {
-		return apiError(400, "Invalid request body"), nil
+	payload, deny := decodeBody[tokenPayload](req)
+	if deny != nil {
+		return *deny, nil
 	}
 	token := strings.TrimSpace(payload.Token)
 	if token == "" {
@@ -60,11 +57,9 @@ func (r *Runtime) VerifyEmailAPI(req *bungo.Request) (bungo.APIResponse, error) 
 // probe which addresses hold accounts; a link is actually sent only when an
 // unverified account exists.
 func (r *Runtime) ResendVerificationAPI(req *bungo.Request) (bungo.APIResponse, error) {
-	var payload struct {
-		Email string `json:"email"`
-	}
-	if unmarshalErr := json.Unmarshal(req.Body, &payload); unmarshalErr != nil {
-		return apiError(400, "Invalid request body"), nil
+	payload, deny := decodeBody[emailPayload](req)
+	if deny != nil {
+		return *deny, nil
 	}
 	email := strings.ToLower(strings.TrimSpace(payload.Email))
 	neutral := bungo.APIResponse{

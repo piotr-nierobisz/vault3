@@ -1,5 +1,5 @@
 // The Secret Phrase wordlist: 2048 common English words (the BIP-39
-// English list, public domain). 9 words drawn uniformly with a CSPRNG
+// English list, public domain). 12 words drawn uniformly with a CSPRNG
 // give 9 x 11 = 99 bits of entropy. The list is also used at sign-in to
 // flag typos early — any fixed list works, but it must stay identical
 // across releases or previously issued phrases would fail validation.

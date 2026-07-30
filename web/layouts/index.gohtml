@@ -17,12 +17,13 @@
   "description": "{{.Site.Description}}",
   "featureList": [
     "Zero-knowledge, end-to-end encrypted vault (logins, secure notes, payment cards, identities)",
-    "Keys derived in the browser from a Master Password and a nine-word Secret Phrase",
+    "Keys derived in the browser from a Master Password and a twelve-word Secret Phrase",
     "AES-256-GCM per-item encryption; item titles encrypted too",
     "Live cross-device sync",
     "Password and passphrase generator with an entropy meter",
     "Two-factor authentication and per-device session revocation",
-    "Shared vaults and single-item share links"
+    "Shared vaults and single-item share links",
+    "No analytics, advertising or third-party trackers"
   ],
   "offers": { "@type": "Offer", "price": "0", "priceCurrency": "GBP" },
   "isPartOf": { "@id": "{{.Site.URL}}/#website" },
@@ -47,18 +48,18 @@
             <div>
                 <div class="badge badge-rim mb-7 animate-fade">
                     <span class="w-1.5 h-1.5 rounded-full bg-accent animate-glow"></span>
-                    Zero-knowledge by design
+                    Locked before it leaves your device
                 </div>
                 <h1 class="text-5xl font-extrabold tracking-tighter leading-tight mb-6">
                     Your secrets,<br />
                     <span class="text-gradient cipher-text" data-cipher-target>sealed.</span>
                 </h1>
                 <p class="text-lg text-muted-foreground leading-relaxed max-w-md mb-9">
-                    Vault3 encrypts every password, note and card <em class="not-italic text-foreground">on your device</em> before anything touches the network. What reaches our servers is ciphertext — unreadable to hackers, to governments, and to us.
+                    Vault3 locks every password, note and card <em class="not-italic text-foreground">on your own device</em>, before anything is sent. What arrives here is scrambled, and we have no way to unscramble it — so neither does anyone who steals it from us.
                 </p>
                 <div class="flex flex-wrap items-center gap-4">
-                    <a href="/join" class="btn btn-primary text-base px-7 py-3">Create your vault</a>
-                    <a href="/security" class="btn btn-ghost text-base">How it works &rarr;</a>
+                    <a href="/join" class="btn btn-primary btn-lg px-7 py-3">Create your vault</a>
+                    <a href="/security" class="btn btn-ghost btn-lg">How it works &rarr;</a>
                 </div>
                 <div class="mt-7 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs font-mono text-muted-foreground">
                     <span class="inline-flex items-center gap-1.5">
@@ -68,6 +69,10 @@
                     <span class="inline-flex items-center gap-1.5">
                         <svg class="h-3.5 w-3.5 text-accent-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
                         no card required
+                    </span>
+                    <span class="inline-flex items-center gap-1.5">
+                        <svg class="h-3.5 w-3.5 text-accent-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+                        no ads, no trackers
                     </span>
                 </div>
             </div>
@@ -86,7 +91,7 @@
                     </div>
                     <div class="space-y-4 font-mono text-sm">
                         <div>
-                            <p class="text-xs text-muted-foreground mb-1">item · on your device</p>
+                            <p class="text-xs text-muted-foreground mb-1">what you type, on your device</p>
                             <div class="rounded-lg border border-border bg-muted px-4 py-3 leading-relaxed">
                                 <p><span class="text-muted-foreground">site&nbsp;&nbsp;&nbsp;&nbsp;</span><span data-seal-plain="site">acme-bank.com</span></p>
                                 <p><span class="text-muted-foreground">user&nbsp;&nbsp;&nbsp;&nbsp;</span><span data-seal-plain="user">nora@fastmail.com</span></p>
@@ -101,7 +106,7 @@
                             <span class="h-px flex-1" style="background-image:linear-gradient(90deg,var(--accent-2-border),transparent)"></span>
                         </div>
                         <div>
-                            <p class="text-xs text-muted-foreground mb-1">what our servers store</p>
+                            <p class="text-xs text-muted-foreground mb-1">what we receive, and all we keep</p>
                             <div class="rounded-lg border border-accent-border bg-accent-subtle px-4 py-3 leading-relaxed break-all text-accent text-xs" data-seal-cipher>
                                 gTf3JqXo9dLmWzPa41RkbNc8vHyEsQ2u…
                             </div>
@@ -133,25 +138,31 @@
     <section class="px-6 py-12 sm:py-16 scroll-reveal">
         <div class="max-w-5xl mx-auto">
             <p class="eyebrow mb-4">How it works</p>
-            <h2 class="text-3xl font-bold tracking-tight mb-8 sm:mb-12 max-w-xl">Two secrets. One key.<br/>Zero copies anywhere else.</h2>
+            <h2 class="text-3xl font-bold tracking-tight mb-8 sm:mb-12 max-w-xl">Two secrets only you have.<br/>No spare key, anywhere.</h2>
+            {{/* Each step says the thing in plain words and then shows the
+                 machinery on one mono chip — the reader who wants the
+                 parameters gets them without the sentence carrying them. */}}
             <div class="relative grid md:grid-cols-3 gap-5 sm:gap-6">
                 {{/* Threads the three steps together; the panels paint over
                      it, so it only shows in the gutters. */}}
                 <div class="step-rail hidden md:block" aria-hidden="true"></div>
-                <div class="panel panel-interactive p-6 sm:p-7 scroll-reveal-child">
+                <div class="panel panel-interactive p-6 sm:p-7 scroll-reveal-child flex flex-col">
                     <div class="step-chip mb-4 sm:mb-5">01</div>
-                    <h3 class="font-semibold text-lg mb-2">Two secrets, yours alone</h3>
-                    <p class="text-sm text-muted-foreground leading-relaxed">Your Master Password lives in your head. Your Secret Phrase — nine memorable words minted on your device — lives in your Emergency Kit. Neither is ever transmitted.</p>
+                    <h3 class="font-semibold text-lg mb-2">You hold both secrets</h3>
+                    <p class="text-sm text-muted-foreground leading-relaxed">One you choose and keep in your head: your Master Password. One your browser makes for you: a Secret Phrase of twelve ordinary words, saved in your Emergency Kit. Neither is ever sent to us.</p>
+                    <div class="mt-auto pt-5"><span class="badge badge-accent font-mono text-[11px]">1 password · 12 words</span></div>
                 </div>
-                <div class="panel panel-interactive p-6 sm:p-7 scroll-reveal-child">
+                <div class="panel panel-interactive p-6 sm:p-7 scroll-reveal-child flex flex-col">
                     <div class="step-chip mb-4 sm:mb-5">02</div>
-                    <h3 class="font-semibold text-lg mb-2">Keys derived in your browser</h3>
-                    <p class="text-sm text-muted-foreground leading-relaxed">The two secrets are combined into your master key with 650,000 rounds of PBKDF2 — locally. The server only ever meets a one-way proof that can't decrypt anything.</p>
+                    <h3 class="font-semibold text-lg mb-2">Your key is made in your browser</h3>
+                    <p class="text-sm text-muted-foreground leading-relaxed">Unlocking mixes your two secrets into one key. It takes a moment on purpose — that pause is what makes guessing your password hopeless. All we get is separate proof that you are you, and it opens nothing.</p>
+                    <div class="mt-auto pt-5"><span class="badge badge-accent font-mono text-[11px]">PBKDF2-SHA512 &times; 1,000,000 &rarr; Argon2id · 64 MiB</span></div>
                 </div>
-                <div class="panel panel-interactive p-6 sm:p-7 scroll-reveal-child">
+                <div class="panel panel-interactive p-6 sm:p-7 scroll-reveal-child flex flex-col">
                     <div class="step-chip mb-4 sm:mb-5">03</div>
-                    <h3 class="font-semibold text-lg mb-2">Only ciphertext leaves</h3>
-                    <p class="text-sm text-muted-foreground leading-relaxed">Every item is sealed with AES-256-GCM under its own key before upload. A breach of our database yields exactly what you saw above: noise.</p>
+                    <h3 class="font-semibold text-lg mb-2">Only the locked copy travels</h3>
+                    <p class="text-sm text-muted-foreground leading-relaxed">Every item gets its own lock before it is uploaded. Take our whole database and you get exactly what you saw above: noise.</p>
+                    <div class="mt-auto pt-5"><span class="badge badge-accent font-mono text-[11px]">AES-256-GCM · one key per item</span></div>
                 </div>
             </div>
         </div>
@@ -161,7 +172,7 @@
     <section class="px-6 py-12 sm:py-16 scroll-reveal">
         <div class="max-w-5xl mx-auto">
             <p class="eyebrow mb-4">Everything a vault should do</p>
-            <h2 class="text-3xl font-bold tracking-tight mb-8 sm:mb-12 max-w-xl">Serious cryptography.<br/>Effortless everyday.</h2>
+            <h2 class="text-3xl font-bold tracking-tight mb-8 sm:mb-12 max-w-xl">Serious protection.<br/>Ordinary, everyday use.</h2>
             {{/* A bento grid rather than six identical squares: each tile is
                  sized to the figure it carries, and each figure shows the
                  thing the tile claims. The figures are decorative — the
@@ -170,20 +181,20 @@
                 {{/* Four items, four unreadable titles. */}}
                 <div class="panel panel-interactive p-6 scroll-reveal-child lg:col-span-2 flex flex-col justify-center">
                     <div class="fig mb-5" aria-hidden="true">
-                        <p class="fig-label mb-2.5">4 items · what we store</p>
+                        <p class="fig-label mb-2.5">4 items · as we see them</p>
                         <div class="stack-row"><span class="stack-kind">login</span><span class="seal-bar" style="--w:74%"></span></div>
                         <div class="stack-row"><span class="stack-kind">note</span><span class="seal-bar" style="--w:52%;--delay:0.4s"></span></div>
                         <div class="stack-row"><span class="stack-kind">card</span><span class="seal-bar" style="--w:66%;--delay:0.8s"></span></div>
                         <div class="stack-row"><span class="stack-kind">identity</span><span class="seal-bar" style="--w:44%;--delay:1.2s"></span></div>
                     </div>
-                    <h3 class="font-semibold mb-1.5">End-to-end encrypted items</h3>
-                    <p class="text-sm text-muted-foreground leading-relaxed">Logins, secure notes, cards and identities — titles included. The server can count your items; it cannot name one.</p>
+                    <h3 class="font-semibold mb-1.5">Even the names are hidden</h3>
+                    <p class="text-sm text-muted-foreground leading-relaxed">Logins, notes, cards and identities. We can tell how many things you keep here. We cannot tell what a single one of them is called.</p>
                 </div>
 
-                {{/* The nine words, laid out the way the Emergency Kit prints them. */}}
+                {{/* The twelve words, laid out the way the Emergency Kit prints them. */}}
                 <div class="panel panel-interactive p-6 scroll-reveal-child lg:col-span-4 flex flex-col">
-                    <h3 class="font-semibold mb-1.5">A Secret Phrase you can say</h3>
-                    <p class="text-sm text-muted-foreground leading-relaxed max-w-md">Nine plain words instead of a wall of hex. Easy to write down, possible to remember, ~99 bits of entropy underneath.</p>
+                    <h3 class="font-semibold mb-1.5">Twelve words, not a wall of code</h3>
+                    <p class="text-sm text-muted-foreground leading-relaxed max-w-md">Your second secret is twelve everyday words, drawn at random by your browser. Easy to write down, possible to remember, and far too many combinations to work through — 132 bits of randomness, which stays out of reach even of a quantum computer.</p>
                     <div class="mt-auto pt-6" aria-hidden="true">
                         <div class="phrase-grid">
                             <span class="phrase-word"><i>1</i>harbor</span>
@@ -195,14 +206,17 @@
                             <span class="phrase-word"><i>7</i>silent</span>
                             <span class="phrase-word"><i>8</i>marble</span>
                             <span class="phrase-word"><i>9</i>ridge</span>
+                            <span class="phrase-word"><i>10</i>cobalt</span>
+                            <span class="phrase-word"><i>11</i>thicket</span>
+                            <span class="phrase-word"><i>12</i>lantern</span>
                         </div>
-                        <p class="fig-label mt-3">minted on your device · never transmitted</p>
+                        <p class="fig-label mt-3">made on your device · never sent to us</p>
                     </div>
                 </div>
 
                 {{/* A revision crossing the wire, laptop to desktop. */}}
                 <div class="panel panel-interactive p-6 scroll-reveal-child lg:col-span-3 flex flex-col justify-center">
-                    <h3 class="font-semibold mb-4">Live sync between devices</h3>
+                    <h3 class="font-semibold mb-4">On all your devices, instantly</h3>
                     <div class="wire-row mb-4" aria-hidden="true">
                         <span class="wire-node">
                             <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M2 20h20"/></svg>
@@ -212,25 +226,25 @@
                             <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>
                         </span>
                     </div>
-                    <p class="text-sm text-muted-foreground leading-relaxed">Add a login on your laptop and it appears on your desktop the same second — pushed over an encrypted signal channel, not polled hours later.</p>
+                    <p class="text-sm text-muted-foreground leading-relaxed">Save a login on your laptop and it is on your phone the same second — still locked the whole way across, and sent the moment it changes rather than fetched hours later.</p>
                 </div>
 
                 {{/* A real password from the generator, tinted by character
                      class exactly as the app renders it. */}}
                 <div class="panel panel-interactive p-6 scroll-reveal-child lg:col-span-3 flex flex-col justify-center">
-                    <h3 class="font-semibold mb-1.5">A generator worth trusting</h3>
-                    <p class="text-sm text-muted-foreground leading-relaxed mb-5">Strong random passwords or speakable passphrases, with an honest entropy meter. Uniform sampling, CSPRNG, no shortcuts.</p>
+                    <h3 class="font-semibold mb-1.5">Strong passwords, made for you</h3>
+                    <p class="text-sm text-muted-foreground leading-relaxed mb-5">Random characters, or words you can read down the phone. The meter tells you honestly how much guesswork each one costs an attacker — no flattery, no green ticks for weak passwords.</p>
                     <div class="fig" aria-hidden="true">
                         <p class="text-sm mb-3" style="letter-spacing:0.04em">zP<span class="cc-digit">4</span><span class="cc-symbol">$</span>rune<span class="cc-symbol">-</span>Kx<span class="cc-digit">9</span><span class="cc-symbol">!</span>tvq</p>
                         <div class="meter mb-2"><i style="--fill:77%"></i></div>
-                        <p class="fig-label">16 chars · 98 bits of entropy</p>
+                        <p class="fig-label">16 characters · 98 bits of randomness</p>
                     </div>
                 </div>
 
                 {{/* Six digits and the thirty seconds they last. */}}
                 <div class="panel panel-interactive p-6 scroll-reveal-child lg:col-span-2 flex flex-col justify-center">
-                    <h3 class="font-semibold mb-1.5">Two-factor sign-in</h3>
-                    <p class="text-sm text-muted-foreground leading-relaxed mb-5">Authenticator-app codes on top of your two secrets. Sessions are listed per device and revocable with one click.</p>
+                    <h3 class="font-semibold mb-1.5">One more lock on the door</h3>
+                    <p class="text-sm text-muted-foreground leading-relaxed mb-5">Add a six-digit code from your authenticator app at sign-in. Every device you are signed in on is listed, and you can throw any of them out with one click.</p>
                     <div aria-hidden="true">
                         <div class="otp mb-2.5">
                             <span class="otp-digit">4</span>
@@ -248,8 +262,8 @@
                 <div class="panel panel-interactive p-6 scroll-reveal-child lg:col-span-4">
                     <div class="lg:flex lg:items-center lg:gap-8">
                         <div class="lg:w-2/5">
-                            <h3 class="font-semibold mb-1.5">Alerts that matter</h3>
-                            <p class="text-sm text-muted-foreground leading-relaxed">A sign-in from a new device, a changed Master Password, 2FA switched off — you hear about it immediately, in-app and by email.</p>
+                            <h3 class="font-semibold mb-1.5">You hear about it first</h3>
+                            <p class="text-sm text-muted-foreground leading-relaxed">A new device signing in, a changed Master Password, two-factor switched off — it reaches you the moment it happens, in the app and by email.</p>
                         </div>
                         <ul class="feed mt-5 lg:mt-0 lg:flex-1" aria-hidden="true">
                             <li class="is-new"><span class="feed-dot"></span>New device signed in<time>now</time></li>
@@ -272,23 +286,102 @@
             <div class="grid grid-cols-2 lg:grid-cols-4 gap-y-8 sm:gap-y-10 text-center">
                 <div class="scroll-reveal-child px-3 lg:border-r lg:border-border">
                     <p class="stat-value">AES-256</p>
-                    <p class="text-sm text-muted-foreground mt-2 max-w-[13rem] mx-auto">GCM authenticated encryption on every blob</p>
+                    <p class="text-sm text-muted-foreground mt-2 max-w-[13rem] mx-auto">the lock on every item you save, and on its name</p>
                 </div>
                 <div class="scroll-reveal-child px-3 lg:border-r lg:border-border">
-                    <p class="stat-value">650,000</p>
-                    <p class="text-sm text-muted-foreground mt-2 max-w-[13rem] mx-auto">PBKDF2 rounds between a guess and your key</p>
+                    <p class="stat-value">1,000,000</p>
+                    <p class="text-sm text-muted-foreground mt-2 max-w-[13rem] mx-auto">rounds a single password guess has to survive first</p>
                 </div>
                 <div class="scroll-reveal-child px-3 lg:border-r lg:border-border">
                     <p class="stat-value">2 secrets</p>
-                    <p class="text-sm text-muted-foreground mt-2 max-w-[13rem] mx-auto">password &times; phrase — neither alone unlocks anything</p>
+                    <p class="text-sm text-muted-foreground mt-2 max-w-[13rem] mx-auto">and neither one on its own opens anything</p>
                 </div>
                 <div class="scroll-reveal-child px-3">
                     <p class="stat-value">0</p>
-                    <p class="text-sm text-muted-foreground mt-2 max-w-[13rem] mx-auto">vault bytes stored in plaintext. Not one.</p>
+                    <p class="text-sm text-muted-foreground mt-2 max-w-[13rem] mx-auto">readable words of your vault on our servers. Not one.</p>
                 </div>
             </div>
         </div>
     </section>
+
+    {{/* ───────── Plain answers ─────────
+         The questions a visitor who does not care about cryptography
+         actually arrives with. Native <details>, so it opens with
+         JavaScript off; the FAQPage graph below carries the same six
+         answers for search and answer engines — change one, change both. */}}
+    <section class="px-6 py-12 sm:py-16 scroll-reveal">
+        <div class="max-w-3xl mx-auto">
+            <p class="eyebrow mb-4">Plain answers</p>
+            <h2 class="text-3xl font-bold tracking-tight mb-8 sm:mb-12 max-w-lg">What people ask before they sign up</h2>
+            <div class="faq scroll-reveal-child">
+                <details class="faq-item">
+                    <summary>Do I need to understand any of this to use it?</summary>
+                    <div class="faq-body">No. You choose a Master Password, save the Emergency Kit we hand you, and from then on it works like any other password manager: save things, find things, copy them where you need them. The locking and unlocking happens quietly in your browser.</div>
+                </details>
+                <details class="faq-item">
+                    <summary>What happens if I forget my Master Password?</summary>
+                    <div class="faq-body">Your Emergency Kit is the way back in — it holds your email address and your twelve words. There is no reset email, because we have nothing to reset: we never see your password, so we cannot replace it. If both the password and the phrase are lost, the vault stays shut for everyone, including us.</div>
+                </details>
+                <details class="faq-item">
+                    <summary>What would a hacker actually get?</summary>
+                    <div class="faq-body">Scrambled text. Your items, their names, even the names of your vaults are locked before they reach us, and the key that opens them was never here to be stolen. That is the whole point of locking things before they leave you.</div>
+                </details>
+                <details class="faq-item">
+                    <summary>What can you see about me?</summary>
+                    <div class="faq-body">Your email address, because that is how you sign in and how we send security alerts. Everything else is either locked or a count: how many items you keep and when they last changed — never what they are.</div>
+                </details>
+                <details class="faq-item">
+                    <summary>Is it really free?</summary>
+                    <div class="faq-body">It is free while Vault3 is in beta — no card, no countdown, no upgrade nag. We run no ads and no analytics, and we have nothing to sell on: the only thing we hold is text we cannot read.</div>
+                </details>
+                <details class="faq-item">
+                    <summary>Does it work on my phone as well as my laptop?</summary>
+                    <div class="faq-body">Yes — anything with an up-to-date browser. Sign in on each device and your vault stays in step across all of them, updating the second something changes.</div>
+                </details>
+            </div>
+        </div>
+    </section>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "@id": "{{.Site.URL}}/#faq",
+      "isPartOf": { "@id": "{{.Site.URL}}/#website" },
+      "about": { "@id": "{{.Site.URL}}/#app" },
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Do I need to understand any of this to use it?",
+          "acceptedAnswer": { "@type": "Answer", "text": "No. You choose a Master Password, save the Emergency Kit Vault3 hands you, and from then on it works like any other password manager. The locking and unlocking happens in your browser." }
+        },
+        {
+          "@type": "Question",
+          "name": "What happens if I forget my Master Password?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Your Emergency Kit is the way back in: it holds your email address and your twelve-word Secret Phrase. There is no reset email, because Vault3 never sees your Master Password and cannot replace it. If both the password and the phrase are lost, the vault stays shut for everyone, Vault3 included." }
+        },
+        {
+          "@type": "Question",
+          "name": "What would a hacker actually get?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Scrambled text. Items, item names and vault names are all encrypted on your device before they reach the server, and the key that opens them is never sent there." }
+        },
+        {
+          "@type": "Question",
+          "name": "What can Vault3 see about me?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Your email address, which is how you sign in and how security alerts reach you. Everything else is either encrypted or a count: how many items you keep and when they last changed, never what they are." }
+        },
+        {
+          "@type": "Question",
+          "name": "Is Vault3 really free?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Vault3 is free while it is in beta, with no card required. There is no advertising and no analytics, and nothing about you is sold on." }
+        },
+        {
+          "@type": "Question",
+          "name": "Does it work on a phone as well as a laptop?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Yes, on any up-to-date browser. Sign in on each device and the vault stays in step across all of them, updating the second something changes." }
+        }
+      ]
+    }
+    </script>
 
     {{/* ───────── Honesty section ───────── */}}
     <section class="px-6 py-12 sm:py-16 scroll-reveal">
@@ -298,12 +391,12 @@
                 <svg class="h-11 w-11 text-accent mx-auto mb-6 mark-pulse" viewBox="0 0 64 64" aria-hidden="true">
                     <rect width="64" height="64" rx="15" fill="currentColor" mask="url(#v3-cut)"/>
                 </svg>
-                <h2 class="text-3xl font-bold tracking-tight mb-5">Zero-knowledge cuts both ways.</h2>
+                <h2 class="text-3xl font-bold tracking-tight mb-5">This protection cuts both ways.</h2>
                 <p class="text-muted-foreground leading-relaxed mb-4">
-                    Because we can't read your vault, we also can't reset it. If you lose both your Master Password and your Secret Phrase, your data is gone — for everyone, forever. That is not a limitation we apologise for; it is the proof the encryption is real.
+                    Because we cannot read your vault, we cannot rescue it either. There is no reset link and no support agent who can let you back in. Lose your Master Password <em class="not-italic text-foreground">and</em> your Secret Phrase, and what is inside is gone — for you, for us, for good. We would rather say that plainly than pretend otherwise: a lock somebody else can open is not a lock.
                 </p>
                 <p class="text-muted-foreground leading-relaxed">
-                    Your Emergency Kit exists for exactly this reason. Print it. Keep it somewhere that isn't your computer.
+                    Your Emergency Kit exists for exactly this. Print it, and keep it somewhere that isn't your computer.
                 </p>
             </div>
         </div>
@@ -315,8 +408,8 @@
             <div class="glow-orb" style="--orb:var(--accent-glow);width:560px;height:360px;top:-160px;left:50%;transform:translateX(-50%)"></div>
             <div class="relative">
                 <h2 class="text-4xl font-extrabold tracking-tighter mb-5">Seal your first secret<br/>in under a minute.</h2>
-                <p class="text-muted-foreground mb-9 max-w-md mx-auto">One password to remember. Nine words to keep safe. Everything else, encrypted.</p>
-                <a href="/join" class="btn btn-primary text-base px-8 py-3.5">Create your vault</a>
+                <p class="text-muted-foreground mb-9 max-w-md mx-auto">Nothing to install, no card to enter. Pick a Master Password, save the kit we hand you, and start putting things somewhere safe.</p>
+                <a href="/join" class="btn btn-primary btn-lg px-8 py-3.5">Create your vault</a>
             </div>
         </div>
     </section>

@@ -19,15 +19,13 @@ import (
 	"github.com/google/uuid"
 	bungo "github.com/piotr-nierobisz/BunGo"
 	"go.uber.org/zap"
-	"golang.org/x/crypto/bcrypt"
 )
 
 // /join: the self-signup flow. The browser does all the cryptography before
-// this API is ever called — generates the Secret Phrase, derives the auth
-// key, creates the keypair and the personal vault key — so registration
-// arrives as one bundle of public parameters and ciphertext. The server
-// verifies shape, hashes the auth key, and persists everything in one
-// transaction.
+// this API is ever called — generates the Secret Phrase, derives the auth key,
+// mints the personal vault key — so registration arrives as one bundle of
+// public parameters and ciphertext. The server verifies shape, hashes the auth
+// key, and persists everything in one transaction.
 
 var emailPattern = regexp.MustCompile(`^[^@\s]+@[^@\s]+\.[^@\s]+$`)
 
@@ -41,13 +39,14 @@ func newUUID() string {
 	return uuid.Must(uuid.NewV7()).String()
 }
 
-// hashAuthKey bcrypts the client-derived auth key for storage.
+// hashAuthKey derives the storage hash (Argon2id) for the client-derived auth
+// key. See internal/crypto/password.go for why it is not bcrypt.
 func hashAuthKey(authKey string) (string, error) {
-	hash, hashErr := bcrypt.GenerateFromPassword([]byte(authKey), bcrypt.DefaultCost)
+	hash, hashErr := crypto.HashAuthKey(authKey)
 	if hashErr != nil {
 		return "", fmt.Errorf("hash auth key: %w", hashErr)
 	}
-	return string(hash), nil
+	return hash, nil
 }
 
 // JoinPage renders the registration wizard. The page itself is public; the
@@ -59,27 +58,62 @@ func (r *Runtime) JoinPage(req *bungo.Request) (map[string]any, error) {
 		"PageDescription":  "Create a Vault3 account. Your Master Password and Secret Phrase never leave your device.",
 		"CanonicalURL":     config.SITE_URL + "/join",
 		"RegistrationOpen": r.PublicRegistrationEnabled(req.Context),
-		"KdfIterations":    config.KdfDefaultIterations,
+		"KdfCosts":         defaultKdfCosts(),
 	}), nil
 }
 
 type registerPayload struct {
-	Email         string          `json:"email"`
-	DisplayName   string          `json:"displayName"`
-	AuthKey       string          `json:"authKey"`
-	KdfSalt       string          `json:"kdfSalt"`
-	KdfIterations int             `json:"kdfIterations"`
-	KeysAlgo      string          `json:"keysAlgo"`
-	PublicKey     json.RawMessage `json:"publicKey"`
-	EncPrivateKey json.RawMessage `json:"encPrivateKey"`
-	Vault         struct {
+	Email       string `json:"email"`
+	DisplayName string `json:"displayName"`
+	AuthKey     string `json:"authKey"`
+	KdfSalt     string `json:"kdfSalt"`
+	models.KdfCosts
+	Vault struct {
 		EncName    json.RawMessage `json:"encName"`
 		WrappedKey json.RawMessage `json:"wrappedKey"`
 	} `json:"vault"`
 }
 
+// validateKdfCosts enforces the platform floors on the derivation parameters
+// a client asks to register with.
+//
+// The costs are client-chosen because only the client can run them, and the
+// server cannot verify that a submitted auth key was actually derived at the
+// stated cost — it holds no password to check against. What it can do is
+// refuse to *record* parameters below the floor, which is what stops a
+// tampered or downgraded client from quietly registering an account whose
+// vault is cheap to attack offline. The floors are OWASP's minimum
+// configurations for each KDF.
+func validateKdfCosts(costs models.KdfCosts) error {
+	if costs.KdfIterations < config.KdfMinIterations {
+		return fmt.Errorf("KDF iteration count below the platform floor")
+	}
+	if costs.Argon2MemoryKiB < config.Argon2MinMemoryKiB {
+		return fmt.Errorf("Argon2 memory cost below the platform floor")
+	}
+	if costs.Argon2Time < config.Argon2MinTime {
+		return fmt.Errorf("Argon2 time cost below the platform floor")
+	}
+	if costs.Argon2Lanes < 1 {
+		return fmt.Errorf("Argon2 parallelism must be at least 1")
+	}
+	return nil
+}
+
+// defaultKdfCosts is the profile new registrations are issued with; the
+// browser echoes it back and the server stores whatever it is sent, subject
+// to the floors above.
+func defaultKdfCosts() models.KdfCosts {
+	return models.KdfCosts{
+		KdfIterations:   config.KdfDefaultIterations,
+		Argon2MemoryKiB: config.Argon2DefaultMemoryKiB,
+		Argon2Time:      config.Argon2DefaultTime,
+		Argon2Lanes:     config.Argon2DefaultLanes,
+	}
+}
+
 // RegisterAPI handles POST /api/v1/auth/register: validates the crypto
-// bundle, creates user + auth + keypair + personal vault in one transaction,
+// bundle, creates user + auth + personal vault in one transaction,
 // signs the new account in, and (best-effort, post-commit) sends the welcome
 // and verification emails.
 func (r *Runtime) RegisterAPI(req *bungo.Request) (bungo.APIResponse, error) {
@@ -87,9 +121,9 @@ func (r *Runtime) RegisterAPI(req *bungo.Request) (bungo.APIResponse, error) {
 		return apiError(403, "Registration is currently closed."), nil
 	}
 
-	var payload registerPayload
-	if unmarshalErr := json.Unmarshal(req.Body, &payload); unmarshalErr != nil {
-		return apiError(400, "Invalid request body"), nil
+	payload, deny := decodeBody[registerPayload](req)
+	if deny != nil {
+		return *deny, nil
 	}
 
 	email := strings.ToLower(strings.TrimSpace(payload.Email))
@@ -97,10 +131,10 @@ func (r *Runtime) RegisterAPI(req *bungo.Request) (bungo.APIResponse, error) {
 	if !emailPattern.MatchString(email) {
 		return apiFieldError(400, "Enter a valid email address.", "email"), nil
 	}
-	if len(displayName) > 100 {
+	if len(displayName) > config.MaxDisplayNameChars {
 		return apiFieldError(400, "Name is too long.", "displayName"), nil
 	}
-	if fieldErr := validateRegistrationCrypto(&payload); fieldErr != nil {
+	if fieldErr := validateRegistrationCrypto(payload); fieldErr != nil {
 		return apiFieldError(400, fieldErr.Error(), "crypto"), nil
 	}
 
@@ -110,9 +144,9 @@ func (r *Runtime) RegisterAPI(req *bungo.Request) (bungo.APIResponse, error) {
 		return bungo.APIResponse{}, fmt.Errorf("check email availability: %w", takenErr)
 	}
 
-	authKeyHash, hashErr := bcrypt.GenerateFromPassword([]byte(payload.AuthKey), bcrypt.DefaultCost)
+	authKeyHash, hashErr := hashAuthKey(payload.AuthKey)
 	if hashErr != nil {
-		return bungo.APIResponse{}, fmt.Errorf("hash auth key: %w", hashErr)
+		return bungo.APIResponse{}, hashErr
 	}
 
 	userID := uuid.Must(uuid.NewV7()).String()
@@ -131,28 +165,22 @@ func (r *Runtime) RegisterAPI(req *bungo.Request) (bungo.APIResponse, error) {
 			return insertUserErr
 		}
 		insertAuthErr := database.InsertUserAuth(req.Context, txRt.GetDb(), &txRt.Builder, &models.UserAuth{
-			UserID:        userID,
-			AuthKeyHash:   string(authKeyHash),
-			KdfSalt:       payload.KdfSalt,
-			KdfIterations: payload.KdfIterations,
-			EmailVerified: false,
+			UserID:          userID,
+			AuthKeyHash:     authKeyHash,
+			KdfSalt:         payload.KdfSalt,
+			KdfIterations:   payload.KdfIterations,
+			Argon2MemoryKiB: payload.Argon2MemoryKiB,
+			Argon2Time:      payload.Argon2Time,
+			Argon2Lanes:     payload.Argon2Lanes,
+			EmailVerified:   false,
 		})
 		if insertAuthErr != nil {
 			return insertAuthErr
 		}
-		insertKeysErr := database.InsertUserKeys(req.Context, txRt.GetDb(), &txRt.Builder, &models.UserKeys{
-			UserID:        userID,
-			Algo:          payload.KeysAlgo,
-			PublicKey:     payload.PublicKey,
-			EncPrivateKey: payload.EncPrivateKey,
-		})
-		if insertKeysErr != nil {
-			return insertKeysErr
-		}
 		insertVaultErr := database.InsertVault(req.Context, txRt.GetDb(), &txRt.Builder, &models.Vault{
 			ID:          vaultID,
 			OwnerUserID: userID,
-			Kind:        "personal",
+			Kind:        models.VaultKindPersonal,
 			EncName:     payload.Vault.EncName,
 		})
 		if insertVaultErr != nil {
@@ -162,8 +190,8 @@ func (r *Runtime) RegisterAPI(req *bungo.Request) (bungo.APIResponse, error) {
 			ID:         uuid.Must(uuid.NewV7()).String(),
 			VaultID:    vaultID,
 			UserID:     userID,
-			Role:       "owner",
-			WrapAlgo:   "muk",
+			Role:       models.RoleOwner,
+			WrapAlgo:   models.WrapAlgoMUK,
 			WrappedKey: payload.Vault.WrappedKey,
 		})
 	})
@@ -225,25 +253,13 @@ func validateRegistrationCrypto(payload *registerPayload) error {
 	if saltErr != nil || len(salt) != config.KdfSaltBytes {
 		return fmt.Errorf("malformed KDF salt")
 	}
-	if payload.KdfIterations < config.KdfMinIterations {
-		return fmt.Errorf("KDF iteration count below the platform floor")
+	if kdfErr := validateKdfCosts(payload.KdfCosts); kdfErr != nil {
+		return kdfErr
 	}
-	if payload.KeysAlgo != "rsa-oaep-2048" {
-		return fmt.Errorf("unsupported keypair algorithm")
-	}
-	var jwk struct {
-		Kty string `json:"kty"`
-	}
-	if jwkErr := json.Unmarshal(payload.PublicKey, &jwk); jwkErr != nil || jwk.Kty == "" {
-		return fmt.Errorf("malformed public key")
-	}
-	if envErr := models.ValidateCipherEnvelope(payload.EncPrivateKey, 8*1024); envErr != nil {
-		return fmt.Errorf("malformed private key envelope: %w", envErr)
-	}
-	if envErr := models.ValidateCipherEnvelope(payload.Vault.WrappedKey, 1024); envErr != nil {
+	if envErr := models.ValidateCipherEnvelope(payload.Vault.WrappedKey, config.MaxWrappedKeyBytes); envErr != nil {
 		return fmt.Errorf("malformed vault key envelope: %w", envErr)
 	}
-	if envErr := models.ValidateCipherEnvelope(payload.Vault.EncName, 1024); envErr != nil {
+	if envErr := models.ValidateCipherEnvelope(payload.Vault.EncName, config.MaxVaultNameBytes); envErr != nil {
 		return fmt.Errorf("malformed vault name envelope: %w", envErr)
 	}
 	return nil

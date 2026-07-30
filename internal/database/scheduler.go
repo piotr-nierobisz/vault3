@@ -112,8 +112,8 @@ func PurgeLapsedVaultInvites(
 	return affected, nil
 }
 
-// ClearExpiredAuthTokens nulls out lapsed verification and reset tokens so
-// stale hashes do not linger indefinitely, returning how many rows changed.
+// ClearExpiredAuthTokens nulls out lapsed email-verification tokens so stale
+// hashes do not linger indefinitely, returning how many rows changed.
 func ClearExpiredAuthTokens(
 	ctx context.Context,
 	db DbTx,
@@ -121,18 +121,9 @@ func ClearExpiredAuthTokens(
 ) (int64, error) {
 	sqlStr, args, sqlErr := builder.
 		Update(`"vault3_user_auth"`).
-		Set(`"Vault3UserAuthEmailVerificationTokenHash"`, sq.Expr(
-			`CASE WHEN "Vault3UserAuthEmailVerificationTokenExpiry" <= now() THEN NULL ELSE "Vault3UserAuthEmailVerificationTokenHash" END`)).
-		Set(`"Vault3UserAuthEmailVerificationTokenExpiry"`, sq.Expr(
-			`CASE WHEN "Vault3UserAuthEmailVerificationTokenExpiry" <= now() THEN NULL ELSE "Vault3UserAuthEmailVerificationTokenExpiry" END`)).
-		Set(`"Vault3UserAuthAccountResetTokenHash"`, sq.Expr(
-			`CASE WHEN "Vault3UserAuthAccountResetTokenExpiry" <= now() THEN NULL ELSE "Vault3UserAuthAccountResetTokenHash" END`)).
-		Set(`"Vault3UserAuthAccountResetTokenExpiry"`, sq.Expr(
-			`CASE WHEN "Vault3UserAuthAccountResetTokenExpiry" <= now() THEN NULL ELSE "Vault3UserAuthAccountResetTokenExpiry" END`)).
-		Where(sq.Or{
-			sq.Expr(`"Vault3UserAuthEmailVerificationTokenExpiry" <= now()`),
-			sq.Expr(`"Vault3UserAuthAccountResetTokenExpiry" <= now()`),
-		}).
+		Set(`"Vault3UserAuthEmailVerificationTokenHash"`, nil).
+		Set(`"Vault3UserAuthEmailVerificationTokenExpiry"`, nil).
+		Where(sq.Expr(`"Vault3UserAuthEmailVerificationTokenExpiry" <= now()`)).
 		ToSql()
 	if sqlErr != nil {
 		return 0, fmt.Errorf("build clear expired tokens: %w", sqlErr)

@@ -95,18 +95,21 @@ func (h *SignalHub) Publish(userID string, signal ChangeSignal) {
 	}
 }
 
-// SignalUserChanged bumps the user's revision (its own statement, so call it
-// INSIDE WithTransaction alongside the mutation) and returns the new
-// revision for the caller to publish after commit via PublishChange.
+// SignalUserChanged bumps the user's revision and returns the new value.
+//
+// It must run INSIDE the mutation's transaction, and its result must not be
+// published until that transaction commits. Handlers therefore do not call
+// this directly — commitUserChange owns the sequencing. Reach for it only when
+// building another commit helper.
 func SignalUserChanged(ctx context.Context, txRt *Runtime, userID string) (int64, error) {
 	return database.BumpUserRevision(ctx, txRt.GetDb(), &txRt.Builder, userID)
 }
 
-// SignalVaultChanged bumps the revision of EVERY user with access to a
-// vault (call INSIDE WithTransaction alongside the mutation) and returns the
-// per-user revisions for the caller to fan out after commit via
-// PublishChanges. Mutations in a shared vault must reach every member's
-// devices, not just the actor's.
+// SignalVaultChanged bumps the revision of EVERY user with access to a vault,
+// because a mutation in a shared vault must reach every member's devices, not
+// just the actor's. Same rules as SignalUserChanged: inside the transaction,
+// published only after commit, and driven by commitVaultChange rather than by
+// handlers directly.
 func SignalVaultChanged(ctx context.Context, txRt *Runtime, vaultID string) (map[string]int64, error) {
 	userIDs, idsErr := database.SelectVaultUserIDs(ctx, txRt.GetDb(), &txRt.Builder, vaultID)
 	if idsErr != nil {
@@ -126,6 +129,103 @@ func signalUsersChanged(ctx context.Context, txRt *Runtime, userIDs []string) (m
 		}
 		revisions[userID] = revision
 	}
+	return revisions, nil
+}
+
+// --- Commit pipeline --------------------------------------------------------
+//
+// Nearly every mutation in the app has the same shape: change something, bump
+// the affected users' revisions in the SAME transaction, then — once it has
+// actually committed — publish the change signal and append an audit row.
+//
+// The ordering is not stylistic. Bumping inside the transaction is what makes
+// a rolled-back change unable to signal anyone; publishing only after commit
+// is what stops a client being told to refetch data that was never written.
+// Spelled out at each call site, those are two invariants a handler can get
+// wrong silently. The three helpers below own them instead, so a handler
+// supplies only the mutation and cannot sequence it incorrectly.
+//
+// Pick by audience:
+//
+//	commitUserChange     — only the acting user sees it (profile, credentials)
+//	commitVaultChange    — everyone with access, resolved after the mutation
+//	commitAudienceChange — audience captured BEFORE the mutation, for changes
+//	                       that remove the very access rows identifying it
+
+// commitUserChange applies a mutation affecting one user and returns their new
+// revision.
+func (r *Runtime) commitUserChange(
+	req *bungo.Request,
+	userID, action, entityType, entityID string,
+	mutate func(txRt *Runtime) error,
+) (int64, error) {
+	var revision int64
+	transactionErr := WithTransaction(r, req.Context, func(txRt *Runtime) error {
+		if mutateErr := mutate(txRt); mutateErr != nil {
+			return mutateErr
+		}
+		var bumpErr error
+		revision, bumpErr = SignalUserChanged(req.Context, txRt, userID)
+		return bumpErr
+	})
+	if transactionErr != nil {
+		return 0, transactionErr
+	}
+	r.PublishChange(req, userID, revision)
+	r.audit(req, userID, action, entityType, entityID, "")
+	return revision, nil
+}
+
+// commitVaultChange applies a mutation to a vault and signals every user who
+// can reach it. The audience is resolved after the mutation runs, so a member
+// added by it is included and one removed by it is not.
+func (r *Runtime) commitVaultChange(
+	req *bungo.Request,
+	actorUserID, vaultID, action, entityType, entityID string,
+	mutate func(txRt *Runtime) error,
+) (map[string]int64, error) {
+	var revisions map[string]int64
+	transactionErr := WithTransaction(r, req.Context, func(txRt *Runtime) error {
+		if mutateErr := mutate(txRt); mutateErr != nil {
+			return mutateErr
+		}
+		var signalErr error
+		revisions, signalErr = SignalVaultChanged(req.Context, txRt, vaultID)
+		return signalErr
+	})
+	if transactionErr != nil {
+		return nil, transactionErr
+	}
+	r.PublishChanges(req, revisions)
+	r.audit(req, actorUserID, action, entityType, entityID, "")
+	return revisions, nil
+}
+
+// commitAudienceChange applies a mutation and signals a caller-supplied set of
+// users. Use it when the mutation destroys the access rows that identify the
+// audience — deleting a vault, removing a member — so the list must be
+// captured before the change and cannot be derived after it.
+func (r *Runtime) commitAudienceChange(
+	req *bungo.Request,
+	actorUserID string,
+	audience []string,
+	action, entityType, entityID string,
+	mutate func(txRt *Runtime) error,
+) (map[string]int64, error) {
+	var revisions map[string]int64
+	transactionErr := WithTransaction(r, req.Context, func(txRt *Runtime) error {
+		if mutateErr := mutate(txRt); mutateErr != nil {
+			return mutateErr
+		}
+		var signalErr error
+		revisions, signalErr = signalUsersChanged(req.Context, txRt, audience)
+		return signalErr
+	})
+	if transactionErr != nil {
+		return nil, transactionErr
+	}
+	r.PublishChanges(req, revisions)
+	r.audit(req, actorUserID, action, entityType, entityID, "")
 	return revisions, nil
 }
 

@@ -33,7 +33,7 @@ export function Dialog({
       aria-modal="true"
       aria-label={title}
     >
-      <div className="absolute inset-0 animate-fade" style={{ background: "rgba(4,4,10,0.65)", backdropFilter: "blur(4px)" }} onClick={onClose} />
+      <div className="absolute inset-0 scrim animate-fade" onClick={onClose} />
       <div className={`relative animate-pop card shadow-xl w-full ${wide ? "max-w-2xl" : "max-w-md"} max-h-[88vh] overflow-y-auto`}>
         <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-border sticky top-0 bg-card z-10">
           <h2 className="text-base font-semibold text-foreground">{title}</h2>
@@ -41,7 +41,7 @@ export function Dialog({
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            className="btn-icon"
           >
             <XIcon className="h-4 w-4" />
           </button>

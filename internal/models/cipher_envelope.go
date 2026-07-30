@@ -18,12 +18,27 @@ type CipherEnvelope struct {
 	Ciphertext string `json:"c"`
 }
 
+// EnvelopeVersion is the only envelope version this release accepts.
+//
+// Version 1 was the pre-quantum format. It differed in permitting a second
+// algorithm, RSA-OAEP-256, for wrapping a key to an account's public key —
+// the one Shor-breakable construction Vault3 ever defined. It was never
+// produced (sharing shipped symmetric instead), and removing it leaves the
+// format with a single algorithm and nothing an eventual quantum adversary
+// could unwrap.
+//
+// Bumping the version rather than quietly narrowing v1's meaning is the rule
+// docs/security.md sets: a v1 envelope means what it always meant, and there
+// simply are none.
+const EnvelopeVersion = 2
+
 // envelopeAlgorithms are the client-side algorithms the server accepts.
-// A256GCM seals data under a symmetric key; RSA-OAEP-256 wraps a key to a
-// public key (no nonce). Anything else is rejected.
+// A256GCM seals data under a symmetric key — and is the only entry, by
+// design. AES-256 retains 128 bits of security against Grover's algorithm,
+// which is NIST's highest post-quantum category, so there is no successor to
+// plan for here.
 var envelopeAlgorithms = map[string]bool{
-	"A256GCM":      true,
-	"RSA-OAEP-256": true,
+	"A256GCM": true,
 }
 
 // ValidateCipherEnvelope structurally checks a raw JSON envelope: known
@@ -38,7 +53,7 @@ func ValidateCipherEnvelope(raw json.RawMessage, maxCiphertextBytes int) error {
 	if unmarshalErr := json.Unmarshal(raw, &env); unmarshalErr != nil {
 		return fmt.Errorf("cipher envelope is not valid JSON: %w", unmarshalErr)
 	}
-	if env.Version != 1 {
+	if env.Version != EnvelopeVersion {
 		return fmt.Errorf("unsupported cipher envelope version %d", env.Version)
 	}
 	if !envelopeAlgorithms[env.Algorithm] {
@@ -54,14 +69,15 @@ func ValidateCipherEnvelope(raw json.RawMessage, maxCiphertextBytes int) error {
 	if maxCiphertextBytes > 0 && len(ct) > maxCiphertextBytes {
 		return fmt.Errorf("ciphertext exceeds %d bytes", maxCiphertextBytes)
 	}
-	if env.Algorithm == "A256GCM" {
-		nonce, nErr := base64.RawURLEncoding.DecodeString(env.Nonce)
-		if nErr != nil {
-			return fmt.Errorf("nonce is not base64url: %w", nErr)
-		}
-		if len(nonce) != 12 {
-			return fmt.Errorf("A256GCM nonce must be 12 bytes, got %d", len(nonce))
-		}
+	// Unconditional now that A256GCM is the only algorithm: every envelope
+	// carries a nonce, and one that does not is malformed rather than merely
+	// a different shape.
+	nonce, nonceErr := base64.RawURLEncoding.DecodeString(env.Nonce)
+	if nonceErr != nil {
+		return fmt.Errorf("nonce is not base64url: %w", nonceErr)
+	}
+	if len(nonce) != 12 {
+		return fmt.Errorf("A256GCM nonce must be 12 bytes, got %d", len(nonce))
 	}
 	return nil
 }

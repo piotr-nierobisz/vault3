@@ -62,14 +62,6 @@ func SelectUserFullByKeyValue(
 		full.Auth = auth
 	}
 
-	keys, keysErr := selectUserKeysRow(ctx, db, builder, user.ID)
-	if keysErr != nil && !errors.Is(keysErr, sql.ErrNoRows) {
-		return nil, fmt.Errorf("select user keys: %w", keysErr)
-	}
-	if keysErr == nil {
-		full.Keys = keys
-	}
-
 	admin, adminErr := selectAdminRow(ctx, db, builder, user.ID)
 	if adminErr != nil && !errors.Is(adminErr, sql.ErrNoRows) {
 		return nil, fmt.Errorf("select admin: %w", adminErr)
@@ -161,14 +153,15 @@ func SelectUserAuthRow(
 			`"Vault3UserAuthAuthKeyHash"`,
 			`"Vault3UserAuthKdfSalt"`,
 			`"Vault3UserAuthKdfIterations"`,
+			`"Vault3UserAuthArgon2MemoryKiB"`,
+			`"Vault3UserAuthArgon2Time"`,
+			`"Vault3UserAuthArgon2Lanes"`,
 			`"Vault3UserAuthLastPasswordChangeAt"`,
 			`COALESCE("Vault3UserAuthTwoFactorSecretEnc", '')`,
 			`COALESCE("Vault3UserAuthTempTwoFactorSecretEnc", '')`,
 			`"Vault3UserAuthEmailVerified"`,
 			`COALESCE("Vault3UserAuthEmailVerificationTokenHash", '')`,
 			`"Vault3UserAuthEmailVerificationTokenExpiry"`,
-			`COALESCE("Vault3UserAuthAccountResetTokenHash", '')`,
-			`"Vault3UserAuthAccountResetTokenExpiry"`,
 			`"Vault3UserAuthUpdatedAt"`,
 		).
 		From(`"vault3_user_auth"`).
@@ -184,57 +177,21 @@ func SelectUserAuthRow(
 		&a.AuthKeyHash,
 		&a.KdfSalt,
 		&a.KdfIterations,
+		&a.Argon2MemoryKiB,
+		&a.Argon2Time,
+		&a.Argon2Lanes,
 		&a.LastPasswordChangeAt,
 		&a.TwoFactorSecretEnc,
 		&a.TempTwoFactorSecretEnc,
 		&a.EmailVerified,
 		&a.EmailVerificationTokenHash,
 		&a.EmailVerificationTokenExpiry,
-		&a.AccountResetTokenHash,
-		&a.AccountResetTokenExpiry,
 		&a.UpdatedAt,
 	)
 	if scanErr != nil {
 		return nil, scanErr
 	}
 	return a, nil
-}
-
-func selectUserKeysRow(
-	ctx context.Context,
-	db DbTx,
-	builder *sq.StatementBuilderType,
-	userID string,
-) (*models.UserKeys, error) {
-	sqlStr, args, sqlErr := builder.
-		Select(
-			`"Vault3UserKeysUserID"`,
-			`"Vault3UserKeysAlgo"`,
-			`"Vault3UserKeysPublicKey"`,
-			`"Vault3UserKeysEncPrivateKey"`,
-			`"Vault3UserKeysCreatedAt"`,
-			`"Vault3UserKeysUpdatedAt"`,
-		).
-		From(`"vault3_user_keys"`).
-		Where(sq.Eq{`"Vault3UserKeysUserID"`: userID}).
-		ToSql()
-	if sqlErr != nil {
-		return nil, fmt.Errorf("build user_keys query: %w", sqlErr)
-	}
-
-	k := &models.UserKeys{}
-	scanErr := db.QueryRowContext(ctx, sqlStr, args...).Scan(
-		&k.UserID,
-		&k.Algo,
-		&k.PublicKey,
-		&k.EncPrivateKey,
-		&k.CreatedAt,
-		&k.UpdatedAt,
-	)
-	if scanErr != nil {
-		return nil, scanErr
-	}
-	return k, nil
 }
 
 func selectAdminRow(

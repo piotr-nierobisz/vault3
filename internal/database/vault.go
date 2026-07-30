@@ -230,10 +230,12 @@ func UpdateVaultAccessWrappedKey(
 	if sqlErr != nil {
 		return fmt.Errorf("build update wrapped key: %w", sqlErr)
 	}
-	if _, execErr := db.ExecContext(ctx, sqlStr, args...); execErr != nil {
-		return fmt.Errorf("update wrapped key: %w", execErr)
-	}
-	return nil
+	// Scoped to (user, vault), so zero rows means the caller asked to re-wrap
+	// a vault this account cannot open. During a Master Password change that
+	// must abort the transaction: letting it pass would rotate the
+	// credentials while leaving a vault key sealed under the old MUK, which
+	// no one — the server least of all — could ever unwrap again.
+	return execExpectingRow(ctx, db, sqlStr, args, "update wrapped key")
 }
 
 // SelectVaultByID loads one vault hub row. Returns sql.ErrNoRows when
@@ -297,10 +299,7 @@ func UpdateVaultEncName(
 	if sqlErr != nil {
 		return fmt.Errorf("build update vault name: %w", sqlErr)
 	}
-	if _, execErr := db.ExecContext(ctx, sqlStr, args...); execErr != nil {
-		return fmt.Errorf("update vault name: %w", execErr)
-	}
-	return nil
+	return execExpectingRow(ctx, db, sqlStr, args, "update vault name")
 }
 
 // UpdateVaultKind flips a vault between 'personal' and 'shared' as members
@@ -321,10 +320,7 @@ func UpdateVaultKind(
 	if sqlErr != nil {
 		return fmt.Errorf("build update vault kind: %w", sqlErr)
 	}
-	if _, execErr := db.ExecContext(ctx, sqlStr, args...); execErr != nil {
-		return fmt.Errorf("update vault kind: %w", execErr)
-	}
-	return nil
+	return execExpectingRow(ctx, db, sqlStr, args, "update vault kind")
 }
 
 // DeleteVault removes one vault (items, access rows and invites cascade).
@@ -341,10 +337,7 @@ func DeleteVault(
 	if sqlErr != nil {
 		return fmt.Errorf("build delete vault: %w", sqlErr)
 	}
-	if _, execErr := db.ExecContext(ctx, sqlStr, args...); execErr != nil {
-		return fmt.Errorf("delete vault: %w", execErr)
-	}
-	return nil
+	return execExpectingRow(ctx, db, sqlStr, args, "delete vault")
 }
 
 // SelectVaultMembers returns everyone with access to a vault (owner first,
@@ -454,10 +447,9 @@ func DeleteVaultAccess(
 	if sqlErr != nil {
 		return fmt.Errorf("build delete vault access: %w", sqlErr)
 	}
-	if _, execErr := db.ExecContext(ctx, sqlStr, args...); execErr != nil {
-		return fmt.Errorf("delete vault access: %w", execErr)
-	}
-	return nil
+	// Both ids come from the request body, so this is the write most exposed
+	// to a caller that skipped its authorisation check.
+	return execExpectingRow(ctx, db, sqlStr, args, "delete vault access")
 }
 
 // CountVaultMembers counts a vault's access rows (owner included).
@@ -503,49 +495,4 @@ func CountUserVaults(
 		return 0, fmt.Errorf("count user vaults: %w", scanErr)
 	}
 	return count, nil
-}
-
-// DeleteUserVaultMemberships removes the user's access rows to vaults they
-// do NOT own. Used by the zero-knowledge account reset: those wraps were
-// sealed under the old key-encryption key and are undecryptable afterwards.
-func DeleteUserVaultMemberships(
-	ctx context.Context,
-	db DbTx,
-	builder *sq.StatementBuilderType,
-	userID string,
-) error {
-	sqlStr, args, sqlErr := builder.
-		Delete(`"vault3_vault_access"`).
-		Where(sq.Eq{`"Vault3VaultAccessUserID"`: userID}).
-		Where(sq.Expr(`"Vault3VaultAccessVaultID" NOT IN (
-			SELECT "Vault3VaultID" FROM "vault3_vault" WHERE "Vault3VaultOwnerUserID" = ?)`, userID)).
-		ToSql()
-	if sqlErr != nil {
-		return fmt.Errorf("build delete vault memberships: %w", sqlErr)
-	}
-	if _, execErr := db.ExecContext(ctx, sqlStr, args...); execErr != nil {
-		return fmt.Errorf("delete vault memberships: %w", execErr)
-	}
-	return nil
-}
-
-// DeleteUserOwnedVaults removes every vault the user owns (items cascade) —
-// the destructive half of a zero-knowledge account reset.
-func DeleteUserOwnedVaults(
-	ctx context.Context,
-	db DbTx,
-	builder *sq.StatementBuilderType,
-	userID string,
-) error {
-	sqlStr, args, sqlErr := builder.
-		Delete(`"vault3_vault"`).
-		Where(sq.Eq{`"Vault3VaultOwnerUserID"`: userID}).
-		ToSql()
-	if sqlErr != nil {
-		return fmt.Errorf("build delete user vaults: %w", sqlErr)
-	}
-	if _, execErr := db.ExecContext(ctx, sqlStr, args...); execErr != nil {
-		return fmt.Errorf("delete user vaults: %w", execErr)
-	}
-	return nil
 }

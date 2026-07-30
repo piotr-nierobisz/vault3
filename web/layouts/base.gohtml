@@ -151,10 +151,10 @@
         <p class="font-semibold leading-snug">One cookie. No trackers.</p>
     </div>
     <p class="text-sm text-muted-foreground leading-relaxed mb-4">
-        Vault3 sets a single strictly necessary cookie to keep you signed in. No analytics, no advertising, no third parties.
+        Vault3 uses one cookie, and only to keep you signed in. There is nothing to agree to and nothing to switch off — no analytics, no advertising, nobody else watching.
     </p>
     <div class="flex items-center gap-4">
-        <button type="button" data-cookie-dismiss class="btn btn-primary text-sm">Got it</button>
+        <button type="button" data-cookie-dismiss class="btn btn-primary btn-sm">Got it</button>
         <a href="/legal/cookies" class="text-sm text-muted-foreground hover:text-accent transition-colors">Cookie Policy &rarr;</a>
     </div>
 </div>
@@ -198,17 +198,17 @@
             <a href="/security" class="hidden sm:block text-sm text-muted-foreground hover:text-foreground transition-colors">Security</a>
             <a href="/contact" class="hidden sm:block text-sm text-muted-foreground hover:text-foreground transition-colors">Contact</a>
             {{if .Viewer}}
-            <a href="/app" class="btn btn-primary text-sm px-3 sm:px-4 py-2">Open your vault</a>
+            <a href="/app" class="btn btn-primary btn-sm px-3 sm:px-4 py-2">Open your vault</a>
             {{else}}
             <a href="/login" class="hidden sm:inline-flex text-sm text-muted-foreground hover:text-foreground border border-border hover:border-border-strong px-4 py-2 rounded-md transition-colors">Unlock</a>
-            <a href="/join" class="btn btn-primary text-sm px-3 sm:px-4 py-2">Create your vault</a>
+            <a href="/join" class="btn btn-primary btn-sm px-3 sm:px-4 py-2">Create your vault</a>
             {{end}}
             {{/* Below sm there is no room for the nav beside the CTA, so it
                  collapses in here rather than disappearing — Security is the
                  page the whole product argument rests on. */}}
             <div class="relative sm:hidden" data-site-menu>
                 <button type="button" data-site-menu-trigger aria-label="Menu" aria-haspopup="menu" aria-expanded="false"
-                        class="flex p-2 -mr-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                        class="btn-icon p-2 -mr-2">
                     <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/></svg>
                 </button>
                 <div role="menu" aria-label="Site" data-site-menu-panel
@@ -261,7 +261,10 @@
         <div class="flex flex-col md:flex-row md:justify-between gap-8 md:gap-10">
             <div class="space-y-4 max-w-sm">
                 {{template "wordmark" .}}
-                <p class="text-sm text-muted-foreground leading-relaxed">Everything you store is encrypted on your device before it reaches us. We could not read your vault if we tried — and neither could anyone who breached us.</p>
+                {{/* The footer is the last thing a visitor reads, so it says
+                     the one thing worth remembering rather than repeating the
+                     hero's claim: you are the only key-holder. */}}
+                <p class="text-sm text-muted-foreground leading-relaxed">A password manager where you hold the only keys. No ads, no trackers, nothing about you to sell — and nothing readable we could hand over, however politely we were asked.</p>
                 {{/* Colophon: who built it, what with, and where the source
                      is. Quiet, but not hidden — it sits with the brand it
                      credits rather than trailing off the bottom edge. */}}
@@ -346,7 +349,7 @@
                      GET /api/v1/notifications by the script below. */}}
                 <div class="relative" data-notif-menu>
                     <button type="button" data-notif-trigger aria-label="Notifications" aria-haspopup="menu" aria-expanded="false"
-                            class="relative p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                            class="btn-icon relative p-2">
                         <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
                         <span data-notif-badge class="hidden absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-accent text-accent-foreground text-[10px] font-bold leading-none inline-flex items-center justify-center"></span>
                     </button>
@@ -554,11 +557,11 @@
      navigation only — the way back into the app is the header's single
      "Open your vault", not a second link here. */}}
 {{define "legalSidebar"}}
-<div class="pb-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground select-none">Trust</div>
+<div class="field-label select-none px-3 pb-1">Trust</div>
 <div class="space-y-0.5 mb-6">
     <a href="/security" class="block w-full text-left px-3 py-1.5 rounded-md text-sm transition-colors{{if eq .LegalSlug "security"}} bg-muted text-foreground font-semibold{{else}} text-muted-foreground hover:bg-muted{{end}}">Security</a>
 </div>
-<div class="pb-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground select-none">Legal</div>
+<div class="field-label select-none px-3 pb-1">Legal</div>
 <div class="space-y-0.5">
     <a href="/legal/terms" class="block w-full text-left px-3 py-1.5 rounded-md text-sm transition-colors{{if eq .LegalSlug "terms"}} bg-muted text-foreground font-semibold{{else}} text-muted-foreground hover:bg-muted{{end}}">Terms of Service</a>
     <a href="/legal/privacy" class="block w-full text-left px-3 py-1.5 rounded-md text-sm transition-colors{{if eq .LegalSlug "privacy"}} bg-muted text-foreground font-semibold{{else}} text-muted-foreground hover:bg-muted{{end}}">Privacy Policy</a>

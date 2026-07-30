@@ -2,13 +2,16 @@ import React, { useState } from "react";
 import { AlertIcon, BellIcon, CheckIcon, DeviceIcon, IdentityIcon, LockIcon, ShieldIcon } from "../components/icons";
 import { PasswordInput } from "../components/ui/password-input";
 import { CheckboxBox } from "../components/ui/checkbox";
+import { ErrorBanner } from "../components/ui/error-banner";
 import { SecretText } from "../components/ui/secret-text";
 import { CopyButton } from "../components/ui/copy-button";
 import { Dialog } from "../components/ui/dialog";
 import { ToastProvider, useToasts } from "../components/ui/toast";
 import { postJSON } from "../lib/api";
-import { b64uEncode, deriveKeys, open as openEnvelope, seal } from "../lib/crypto";
-import { autoLockMinutes, loadIdentity, saveKeys, setAutoLockMinutes } from "../lib/keystore";
+import { b64uEncode, deriveKeys, open as openEnvelope, seal, type DerivationStage } from "../lib/crypto";
+import { DerivationProgress } from "../components/ui/derivation-progress";
+import { autoLockMinutes, forgetIdentity, loadIdentity, saveKeys, setAutoLockMinutes } from "../lib/keystore";
+import { useAction } from "../lib/use-action";
 import type { NotificationPrefs, SessionRow, SettingsPageData, TwoFactorSetupResponse } from "../types/settings";
 
 // Settings. The Master Password change is the flagship flow: everything is
@@ -49,28 +52,23 @@ function Section({
 function ProfileSection({ initialName }: { initialName: string }) {
   const toast = useToasts();
   const [name, setName] = useState(initialName);
-  const [busy, setBusy] = useState(false);
+  const { busy, run } = useAction({ onError: (message) => toast("error", message), network: "Network error" });
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
-    setBusy(true);
-    try {
-      const { ok } = await postJSON("/api/v1/account/profile", { displayName: name.trim() });
-      toast(ok ? "success" : "error", ok ? "Profile saved" : "Couldn't save the profile");
-    } catch {
-      toast("error", "Network error");
-    } finally {
-      setBusy(false);
-    }
+    await run(() => postJSON("/api/v1/account/profile", { displayName: name.trim() }), {
+      onOK: () => toast("success", "Profile saved"),
+      fail: "Couldn't save the profile",
+    });
   };
 
   return (
     <form onSubmit={save} className="flex items-end gap-3">
       <div className="flex-1 space-y-1.5">
-        <label htmlFor="settings-name" className="text-xs font-semibold tracking-widest uppercase text-muted-foreground">Display name</label>
+        <label htmlFor="settings-name" className="field-label">Display name</label>
         <input id="settings-name" className="input" maxLength={100} placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} disabled={busy} />
       </div>
-      <button type="submit" disabled={busy} className="btn btn-primary h-[42px]">Save</button>
+      <button type="submit" disabled={busy} className="btn btn-primary">Save</button>
     </form>
   );
 }
@@ -83,10 +81,17 @@ function PasswordSection({ data }: { data: SettingsPageData }) {
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  // Bumped per submit and used as the banner's key. Re-setting an identical
+  // message is a no-op to React, so without this a second failed submit
+  // re-renders nothing and the shake never replays — the user sees no
+  // response at all to their click.
+  const [attempt, setAttempt] = useState(0);
+  const [stage, setStage] = useState<DerivationStage | null>(null);
 
   const change = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setAttempt((n) => n + 1);
     const identity = loadIdentity();
     if (!identity?.secretPhrase) {
       setError("Your Secret Phrase isn't saved on this device — sign out and back in first, entering it manually.");
@@ -104,11 +109,9 @@ function PasswordSection({ data }: { data: SettingsPageData }) {
     setBusy(true);
     try {
       // 1. Re-derive the CURRENT keys and prove them locally by unwrapping.
-      const currentKeys = await deriveKeys(email, current, identity.secretPhrase, data.Keyset.kdfSalt, data.Keyset.kdfIterations);
-      let privateKeyBytes: Uint8Array;
+      const currentKeys = await deriveKeys(email, current, identity.secretPhrase, data.Keyset, setStage);
       const vaultKeyByID: Record<string, Uint8Array> = {};
       try {
-        privateKeyBytes = await openEnvelope(currentKeys.encKeyRaw, data.Keyset.encPrivateKey);
         for (const vault of data.Keyset.vaults) {
           vaultKeyByID[vault.id] = await openEnvelope(currentKeys.encKeyRaw, vault.wrappedKey);
         }
@@ -117,14 +120,22 @@ function PasswordSection({ data }: { data: SettingsPageData }) {
         return;
       }
 
-      // 2. Derive the NEW keys under a fresh salt (same Secret Phrase).
+      // 2. Derive the NEW keys under a fresh salt (same Secret Phrase) and at
+      // the platform's CURRENT costs, which may have been raised since this
+      // account registered — a password change is where an account catches up.
       const saltBytes = new Uint8Array(16);
       crypto.getRandomValues(saltBytes);
       const newSalt = b64uEncode(saltBytes);
-      const newKeys = await deriveKeys(email, next, identity.secretPhrase, newSalt, data.KdfIterations);
+      const newKeys = await deriveKeys(
+        email,
+        next,
+        identity.secretPhrase,
+        { kdfSalt: newSalt, ...data.KdfCosts },
+        setStage,
+      );
+      setStage(null);
 
-      // 3. Re-wrap everything under the new encryption key.
-      const encPrivateKey = await seal(newKeys.encKeyRaw, privateKeyBytes);
+      // 3. Re-wrap every vault key under the new encryption key.
       const vaults = [] as { vaultId: string; wrappedKey: unknown }[];
       for (const vault of data.Keyset.vaults) {
         vaults.push({ vaultId: vault.id, wrappedKey: await seal(newKeys.encKeyRaw, vaultKeyByID[vault.id]) });
@@ -135,8 +146,7 @@ function PasswordSection({ data }: { data: SettingsPageData }) {
         currentAuthKey: currentKeys.authKey,
         newAuthKey: newKeys.authKey,
         newKdfSalt: newSalt,
-        newKdfIterations: data.KdfIterations,
-        encPrivateKey,
+        ...data.KdfCosts,
         vaults,
       });
       if (!res.ok) {
@@ -154,28 +164,25 @@ function PasswordSection({ data }: { data: SettingsPageData }) {
       setError("Network error. Nothing was changed.");
     } finally {
       setBusy(false);
+      setStage(null);
     }
   };
 
   return (
     <form onSubmit={change} className="space-y-4" noValidate>
-      {error && (
-        <div className="animate-shake flex items-start gap-2 text-sm rounded-md border border-danger px-3 py-2.5 text-danger" role="alert" style={{ background: "var(--danger-subtle)" }}>
-          <AlertIcon className="h-4 w-4 mt-0.5 flex-shrink-0" />
-          <span>{error}</span>
-        </div>
-      )}
+      {error && <ErrorBanner key={attempt} message={error} />}
+      <DerivationProgress stage={stage} />
       <div className="space-y-1.5">
-        <label htmlFor="pw-current" className="text-xs font-semibold tracking-widest uppercase text-muted-foreground">Current Master Password</label>
+        <label htmlFor="pw-current" className="field-label">Current Master Password</label>
         <PasswordInput id="pw-current" name="current" autoComplete="current-password" value={current} onChange={setCurrent} disabled={busy} />
       </div>
       <div className="grid sm:grid-cols-2 gap-4">
         <div className="space-y-1.5">
-          <label htmlFor="pw-next" className="text-xs font-semibold tracking-widest uppercase text-muted-foreground">New Master Password</label>
+          <label htmlFor="pw-next" className="field-label">New Master Password</label>
           <PasswordInput id="pw-next" name="next" autoComplete="new-password" value={next} onChange={setNext} disabled={busy} />
         </div>
         <div className="space-y-1.5">
-          <label htmlFor="pw-confirm" className="text-xs font-semibold tracking-widest uppercase text-muted-foreground">Confirm</label>
+          <label htmlFor="pw-confirm" className="field-label">Confirm</label>
           <PasswordInput id="pw-confirm" name="confirm" autoComplete="new-password" value={confirm} onChange={setConfirm} disabled={busy} />
         </div>
       </div>
@@ -195,68 +202,47 @@ function TwoFactorSection({ enabled: initialEnabled }: { enabled: boolean }) {
   const [setup, setSetup] = useState<TwoFactorSetupResponse | null>(null);
   const [code, setCode] = useState("");
   const [disableOpen, setDisableOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const { busy, run } = useAction({ onError: (message) => toast("error", message), network: "Network error" });
 
   const begin = async () => {
-    setBusy(true);
-    try {
-      const res = await postJSON<TwoFactorSetupResponse>("/api/v1/account/2fa/setup", {});
-      if (res.ok && res.data) {
-        setSetup(res.data);
+    await run(() => postJSON<TwoFactorSetupResponse>("/api/v1/account/2fa/setup", {}), {
+      onOK: (started) => {
+        setSetup(started);
         setCode("");
-      } else {
-        toast("error", "Couldn't start the setup.");
-      }
-    } catch {
-      toast("error", "Network error");
-    } finally {
-      setBusy(false);
-    }
+      },
+      fail: "Couldn't start the setup.",
+    });
   };
 
   const verify = async () => {
-    setBusy(true);
-    try {
-      const res = await postJSON<{ enabled?: boolean; message?: string }>("/api/v1/account/2fa/verify", { code });
-      if (res.ok) {
+    await run(() => postJSON<{ enabled?: boolean }>("/api/v1/account/2fa/verify", { code }), {
+      onOK: () => {
         setEnabled(true);
         setSetup(null);
         toast("success", "Two-factor authentication is on");
-      } else {
-        toast("error", res.data?.message ?? "That code wasn't right.");
-      }
-    } catch {
-      toast("error", "Network error");
-    } finally {
-      setBusy(false);
-    }
+      },
+      fail: "That code wasn't right.",
+    });
   };
 
   const disable = async () => {
-    setBusy(true);
-    try {
-      const res = await postJSON<{ disabled?: boolean; message?: string }>("/api/v1/account/2fa/disable", { code });
-      if (res.ok) {
+    await run(() => postJSON<{ disabled?: boolean }>("/api/v1/account/2fa/disable", { code }), {
+      onOK: () => {
         setEnabled(false);
         setDisableOpen(false);
         setCode("");
         toast("success", "Two-factor authentication is off");
-      } else {
-        toast("error", res.data?.message ?? "That code wasn't right.");
-      }
-    } catch {
-      toast("error", "Network error");
-    } finally {
-      setBusy(false);
-    }
+      },
+      fail: "That code wasn't right.",
+    });
   };
 
   return (
     <div>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${enabled ? "bg-accent-subtle text-accent" : "bg-muted text-muted-foreground"}`}>
-            <ShieldIcon className="h-4.5 w-4.5" />
+          <div className={`icon-tile icon-tile-sm flex-shrink-0${enabled ? "" : " icon-tile-muted"}`}>
+            <ShieldIcon className="h-5 w-5" />
           </div>
           <div>
             <p className="text-sm font-medium text-foreground">Authenticator app</p>
@@ -264,9 +250,9 @@ function TwoFactorSection({ enabled: initialEnabled }: { enabled: boolean }) {
           </div>
         </div>
         {enabled ? (
-          <button type="button" onClick={() => { setDisableOpen(true); setCode(""); }} className="btn btn-secondary text-sm" disabled={busy}>Disable</button>
+          <button type="button" onClick={() => { setDisableOpen(true); setCode(""); }} className="btn btn-secondary btn-sm" disabled={busy}>Disable</button>
         ) : (
-          <button type="button" onClick={begin} className="btn btn-primary text-sm" disabled={busy}>Enable</button>
+          <button type="button" onClick={begin} className="btn btn-primary btn-sm" disabled={busy}>Enable</button>
         )}
       </div>
 
@@ -285,7 +271,7 @@ function TwoFactorSection({ enabled: initialEnabled }: { enabled: boolean }) {
               className="w-[176px] h-[176px] rounded-lg bg-white p-2 flex-shrink-0 self-center sm:self-start"
             />
             <div className="min-w-0 flex-1 space-y-2">
-              <p className="text-xs font-semibold tracking-widest uppercase text-muted-foreground">Or enter this key by hand</p>
+              <p className="field-label">Or enter this key by hand</p>
               <div className="flex items-center gap-2">
                 <SecretText value={setup.secret} className="text-sm break-all flex-1 min-w-0" />
                 <CopyButton value={setup.secret} label="Copy setup key" />
@@ -303,10 +289,10 @@ function TwoFactorSection({ enabled: initialEnabled }: { enabled: boolean }) {
               onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
               disabled={busy}
             />
-            <button type="button" onClick={verify} disabled={busy || code.length !== 6} className="btn btn-primary text-sm">
+            <button type="button" onClick={verify} disabled={busy || code.length !== 6} className="btn btn-primary">
               <CheckIcon className="h-4 w-4" /> Verify
             </button>
-            <button type="button" onClick={() => setSetup(null)} disabled={busy} className="btn btn-ghost text-sm">Cancel</button>
+            <button type="button" onClick={() => setSetup(null)} disabled={busy} className="btn btn-ghost">Cancel</button>
           </div>
         </div>
       )}
@@ -324,7 +310,7 @@ function TwoFactorSection({ enabled: initialEnabled }: { enabled: boolean }) {
             disabled={busy}
             autoFocus
           />
-          <button type="button" onClick={disable} disabled={busy || code.length !== 6} className="btn btn-danger text-sm">Disable</button>
+          <button type="button" onClick={disable} disabled={busy || code.length !== 6} className="btn btn-danger">Disable</button>
         </div>
       </Dialog>
     </div>
@@ -334,30 +320,23 @@ function TwoFactorSection({ enabled: initialEnabled }: { enabled: boolean }) {
 function SessionsSection({ sessions: initial }: { sessions: SessionRow[] }) {
   const toast = useToasts();
   const [sessions, setSessions] = useState(initial);
-  const [busy, setBusy] = useState(false);
+  const { busy, run } = useAction({ onError: (message) => toast("error", message), network: "Network error" });
 
   const revoke = async (id: string) => {
-    setBusy(true);
-    try {
-      const res = await postJSON("/api/v1/account/sessions/revoke", { sessionId: id });
-      if (res.ok) {
+    await run(() => postJSON("/api/v1/account/sessions/revoke", { sessionId: id }), {
+      onOK: () => {
         setSessions((s) => s.filter((x) => x.id !== id));
         toast("success", "Session revoked");
-      } else {
-        toast("error", "Couldn't revoke that session");
-      }
-    } catch {
-      toast("error", "Network error");
-    } finally {
-      setBusy(false);
-    }
+      },
+      fail: "Couldn't revoke that session",
+    });
   };
 
   return (
     <div className="divide-y divide-border-subtle">
       {sessions.map((s) => (
         <div key={s.id} className="flex items-center gap-3 py-3">
-          <div className="w-9 h-9 rounded-lg bg-muted text-muted-foreground flex items-center justify-center flex-shrink-0">
+          <div className="icon-tile icon-tile-sm icon-tile-muted flex-shrink-0">
             <DeviceIcon className="h-4 w-4" />
           </div>
           <div className="min-w-0 flex-1">
@@ -370,7 +349,7 @@ function SessionsSection({ sessions: initial }: { sessions: SessionRow[] }) {
             </p>
           </div>
           {!s.current && (
-            <button type="button" onClick={() => revoke(s.id)} disabled={busy} className="btn btn-ghost text-sm text-danger">
+            <button type="button" onClick={() => revoke(s.id)} disabled={busy} className="btn btn-ghost btn-sm text-danger">
               Revoke
             </button>
           )}
@@ -385,12 +364,20 @@ function PrefsSection({ initial }: { initial: NotificationPrefs }) {
   const [prefs, setPrefs] = useState(initial);
   const [autoLock, setAutoLock] = useState(autoLockMinutes());
 
+  // Optimistic: the checkbox moves first so toggling stays instant. Which
+  // means a failure has to put it back — leaving it flipped would state,
+  // permanently and silently, a preference the server never accepted.
   const save = async (next: NotificationPrefs) => {
+    const previous = prefs;
     setPrefs(next);
     try {
       const res = await postJSON("/api/v1/account/notifications", next);
-      if (!res.ok) toast("error", "Couldn't save preferences");
+      if (!res.ok) {
+        setPrefs(previous);
+        toast("error", "Couldn't save preferences");
+      }
     } catch {
+      setPrefs(previous);
       toast("error", "Network error");
     }
   };
@@ -440,32 +427,37 @@ function DangerSection({ data }: { data: SettingsPageData }) {
   const [open, setOpen] = useState(false);
   const [password, setPassword] = useState("");
   const [typed, setTyped] = useState("");
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [attempt, setAttempt] = useState(0);
+  const { busy, run } = useAction({ onError: setError, network: "Network error. Nothing was deleted." });
 
   const destroy = async () => {
     setError("");
+    setAttempt((n) => n + 1);
     const identity = loadIdentity();
     if (!identity?.secretPhrase || !data.Keyset) {
       setError("Your Secret Phrase isn't on this device. Sign in entering it manually first.");
       return;
     }
-    setBusy(true);
-    try {
-      const { authKey } = await deriveKeys(email, password, identity.secretPhrase, data.Keyset.kdfSalt, data.Keyset.kdfIterations);
-      const res = await postJSON<{ deleted?: boolean; message?: string }>("/api/v1/account/delete", { authKey });
-      if (!res.ok) {
-        setError(res.data?.message ?? "Deletion failed.");
-        return;
-      }
-      sessionStorage.clear();
-      localStorage.removeItem("v3.identity");
-      window.location.assign("/");
-    } catch {
-      setError("Network error. Nothing was deleted.");
-    } finally {
-      setBusy(false);
-    }
+    const secretPhrase = identity.secretPhrase;
+    const keyset = data.Keyset;
+    await run(
+      async () => {
+        const { authKey } = await deriveKeys(email, password, secretPhrase, keyset);
+        return postJSON<{ deleted?: boolean }>("/api/v1/account/delete", { authKey });
+      },
+      {
+        onOK: () => {
+          // Through the keystore, not by name: the storage keys are its
+          // business, and a hardcoded copy here would silently stop clearing
+          // the remembered Secret Phrase the day one of them is renamed.
+          sessionStorage.clear();
+          forgetIdentity();
+          window.location.assign("/");
+        },
+        fail: "Deletion failed.",
+      },
+    );
   };
 
   return (
@@ -475,30 +467,25 @@ function DangerSection({ data }: { data: SettingsPageData }) {
           <p className="text-sm font-medium text-foreground">Delete this account</p>
           <p className="text-xs text-muted-foreground">Erases your vault, sessions and account. Permanent.</p>
         </div>
-        <button type="button" onClick={() => setOpen(true)} className="btn btn-danger text-sm">Delete account</button>
+        <button type="button" onClick={() => setOpen(true)} className="btn btn-danger btn-sm">Delete account</button>
       </div>
       <Dialog open={open} onClose={() => setOpen(false)} title="Delete your account">
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
             This permanently erases your vault and everything in it. Because Vault3 is zero-knowledge, there is no backup we could restore.
           </p>
-          {error && (
-            <div className="animate-shake flex items-start gap-2 text-sm rounded-md border border-danger px-3 py-2.5 text-danger" role="alert" style={{ background: "var(--danger-subtle)" }}>
-              <AlertIcon className="h-4 w-4 mt-0.5 flex-shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
+          {error && <ErrorBanner key={attempt} message={error} />}
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold tracking-widest uppercase text-muted-foreground" htmlFor="del-password">Master Password</label>
+            <label className="field-label" htmlFor="del-password">Master Password</label>
             <PasswordInput id="del-password" name="password" value={password} onChange={setPassword} disabled={busy} />
           </div>
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold tracking-widest uppercase text-muted-foreground" htmlFor="del-typed">
+            <label className="field-label" htmlFor="del-typed">
               Type <span className="font-mono normal-case">DELETE</span> to confirm
             </label>
             <input id="del-typed" className="input font-mono" value={typed} onChange={(e) => setTyped(e.target.value.toUpperCase())} disabled={busy} placeholder="DELETE" />
           </div>
-          <button type="button" onClick={destroy} disabled={busy || typed !== "DELETE" || !password} className="btn btn-danger w-full h-11">
+          <button type="button" onClick={destroy} disabled={busy || typed !== "DELETE" || !password} className="btn btn-danger btn-lg w-full">
             {busy ? "Deleting…" : "Delete everything"}
           </button>
         </div>

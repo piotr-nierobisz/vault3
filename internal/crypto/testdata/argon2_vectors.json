@@ -1,0 +1,72 @@
+[
+  {
+    "note": "minimum costs the module accepts",
+    "password": "cGFzc3dvcmQ",
+    "salt": "c29tZXNhbHQ",
+    "time": 1,
+    "memoryKiB": 8,
+    "lanes": 1,
+    "outLen": 16,
+    "want": "f73a73d271859d21ef45465da12bdf86"
+  },
+  {
+    "note": "RFC-style small parameters",
+    "password": "cGFzc3dvcmQ",
+    "salt": "c29tZXNhbHQ",
+    "time": 3,
+    "memoryKiB": 256,
+    "lanes": 1,
+    "outLen": 32,
+    "want": "aff8d0a36038af7b01bff39a89fda54652f67da404f7da8776324f4a2931d794"
+  },
+  {
+    "note": "multi-lane",
+    "password": "cGFzc3dvcmQ",
+    "salt": "c29tZXNhbHQ",
+    "time": 3,
+    "memoryKiB": 4096,
+    "lanes": 4,
+    "outLen": 64,
+    "want": "14ee1c59332ff62518fbd541b95b909cc902bfafd6af13019767240c52f2b7989056a7894489c3e34a93ecb289fe0a52fbe40fac61af8525b8b9415e956cc8a0"
+  },
+  {
+    "note": "empty password",
+    "password": "",
+    "salt": "MDEyMzQ1Njc4OWFiY2RlZg",
+    "time": 2,
+    "memoryKiB": 1024,
+    "lanes": 2,
+    "outLen": 32,
+    "want": "440c92e9ce656c2820c6c4ab6c41cb60c8a3ba4af9cb168b11def5503348f97e"
+  },
+  {
+    "note": "binary password and salt, full byte range",
+    "password": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0-Pw",
+    "salt": "__79_Pv6-fj39vX08_Lx8O_u7ezr6uno5-bl5OPi4eDf3t3c29rZ2NfW1dTT0tHQz87NzMvKycjHxsXEw8LBwA",
+    "time": 2,
+    "memoryKiB": 2048,
+    "lanes": 2,
+    "outLen": 64,
+    "want": "1d1292ab356926db95387edbcfa350702c4deb267a663c942892b5ffa3f071b83b128c2dd741f4d6c4ba9ec8c332cfd4b9b24e60b90cc985a6e11ec3a954c898"
+  },
+  {
+    "note": "non-ASCII password",
+    "password": "dW5pY29kZSDinKggcMOkc3N3w7ZyZA",
+    "salt": "MDEyMzQ1Njc4OWFiY2RlZg",
+    "time": 2,
+    "memoryKiB": 1024,
+    "lanes": 1,
+    "outLen": 64,
+    "want": "c2dc0aa59ba81fe92be9301ff622df12358a13ad38dfcd64ffa1cc4e65811bc14cce320a693b76538a22df3f77bc64b8f4377a347447dd4d3939f9aebce1b706"
+  },
+  {
+    "note": "PRODUCTION PARAMETERS — must match config.Argon2* exactly",
+    "password": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0-Pw",
+    "salt": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0-Pw",
+    "time": 4,
+    "memoryKiB": 65536,
+    "lanes": 4,
+    "outLen": 64,
+    "want": "868957fb6eec11d4e6e1c6fbea6db7fb809c9e5b14fa60016fd8cfa667fbf6f61521ed26590d1f22b04e4ff43149183c6d1da1c0b0cba2dfd808d36c0bc55375"
+  }
+]

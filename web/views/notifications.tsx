@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { DeviceIcon, ShieldIcon, SparkleIcon, CheckIcon } from "../components/icons";
+import { StatusPanel } from "../components/ui/status-panel";
 import { postJSON } from "../lib/api";
 import type { NotificationItem, NotificationsPageData } from "../types/notifications";
 
@@ -46,15 +47,13 @@ function NotificationsCentre() {
             {unread > 0 ? `${unread} unread` : "All caught up"}
           </p>
         </div>
-        <button type="button" onClick={markAll} disabled={unread === 0} className="btn btn-secondary text-sm disabled:opacity-40">
+        <button type="button" onClick={markAll} disabled={unread === 0} className="btn btn-secondary btn-sm disabled:opacity-40">
           Mark all as read
         </button>
       </div>
 
       {items.length === 0 ? (
-        <div className="panel p-14 text-center">
-          <p className="text-sm text-muted-foreground">Nothing yet — quiet is good.</p>
-        </div>
+        <StatusPanel body="Nothing yet — quiet is good." />
       ) : (
         <div className="panel divide-y divide-border-subtle">
           {items.map((n, index) => (

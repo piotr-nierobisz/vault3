@@ -11,19 +11,27 @@ const VERSION = "1.0.0"
 // keys that the auth security layer populates. Handlers should reference
 // these rather than redeclaring string literals locally.
 const (
-	SessionCookieName  = "vault3_session"
-	SessionTTL         = 30 * 24 * time.Hour
-	SessionInternalKey = "Session"
-	UserInternalKey    = "User"
+	SessionCookieName = "vault3_session"
+	// SessionCookieNameSecure is the production session cookie name. The
+	// __Host- prefix is a guarantee the browser itself enforces: it refuses
+	// the cookie unless it was set with Secure, Path=/ and no Domain. That
+	// makes the session cookie unplantable and unoverwritable by a sibling
+	// subdomain or by a network attacker on a plain-http origin — a cookie
+	// this name can only have come from this exact origin over TLS. Secure
+	// is impossible on the dev server's plain HTTP, hence two names.
+	SessionCookieNameSecure = "__Host-vault3_session"
+	SessionTTL              = 30 * 24 * time.Hour
+	SessionInternalKey      = "Session"
+	UserInternalKey         = "User"
 	// ViewerInternalKey holds the *view.UserSummary the load_viewer security
 	// layer builds from the authenticated user, so handlers read req.Internal
 	// instead of rebuilding the summary per request.
 	ViewerInternalKey = "Viewer"
 
 	// GenericLoginError is returned for every failed sign-in so attackers
-	// cannot distinguish "wrong password" from "wrong Secret Key" from "no
+	// cannot distinguish "wrong password" from "wrong Secret Phrase" from "no
 	// such account".
-	GenericLoginError = "Those details don't match an account. Check your email, Master Password and Secret Key, then try again."
+	GenericLoginError = "Those details don't match an account. Check your email, Master Password and Secret Phrase, then try again."
 )
 
 // Default redirect after a successful sign-in.
@@ -32,33 +40,61 @@ const DefaultPostLoginRedirect = "/app"
 // Zero-knowledge key derivation -----------------------------------------
 //
 // The client derives every key in the browser (see web/lib/crypto.ts); the
-// server never sees the Master Password, the Secret Key, or any derived
+// server never sees the Master Password, the Secret Phrase, or any derived
 // encryption key. These constants are the server-side halves of that
 // contract: the KDF parameters registration must arrive with, and the
 // account-unlock values /api/v1/auth/params hands back before login.
+//
+// The browser runs Argon2id over PBKDF2-HMAC-SHA-512 (web/lib/crypto.ts).
+// Both layers are post-quantum by construction — Grover only halves a
+// preimage search, and SHA-512 leaves 256 bits after that — but they resist
+// different attackers, which is why both are there rather than one:
+//
+//   - PBKDF2-HMAC-SHA-512 is the FIPS-approved floor, implemented natively by
+//     WebCrypto. If the Argon2 wasm module were ever wrong, unavailable, or
+//     substituted, the Master Password has still been through a million
+//     rounds of an approved KDF.
+//   - Argon2id supplies the memory-hardness PBKDF2 structurally cannot. That
+//     is what prices a GPU or ASIC cracking rig out of a stolen database, and
+//     it is the layer that matters against a classical attacker.
+//
+// Every parameter below is stored per account and echoed by
+// /api/v1/auth/params, exactly as the iteration count already was, so all of
+// them can be raised later without stranding an existing account.
 const (
-	// KdfDefaultIterations is the PBKDF2-SHA256 iteration count new accounts
-	// register with. The client sends its actual count and the server stores
-	// it per account, so this can be raised without breaking existing users.
-	KdfDefaultIterations = 650000
-	// KdfMinIterations rejects registrations weakened below the floor.
-	KdfMinIterations = 100000
+	// KdfDefaultIterations is the PBKDF2-HMAC-SHA-512 iteration count new
+	// accounts register with (~330ms in a desktop browser).
+	KdfDefaultIterations = 1000000
+	// KdfMinIterations rejects registrations weakened below the floor. This
+	// is OWASP's PBKDF2-HMAC-SHA-512 recommendation.
+	KdfMinIterations = 210000
 	// KdfSaltBytes is the decoded length of the per-account KDF salt.
 	KdfSaltBytes = 16
+
+	// Argon2DefaultMemoryKiB / Time / Lanes are the Argon2id costs new
+	// accounts register with: 64 MiB, four passes, four lanes (~440ms in a
+	// desktop browser). The memory figure deliberately matches the profile
+	// browser-based password managers already ship, because it is the number
+	// proven to survive a mid-range phone — a device that cannot grow wasm
+	// linear memory far enough cannot unlock its own vault at all.
+	Argon2DefaultMemoryKiB = 65536
+	Argon2DefaultTime      = 4
+	Argon2DefaultLanes     = 4
+	// Argon2MinMemoryKiB / MinTime floor a weakened registration. 19 MiB at
+	// two passes is OWASP's minimum Argon2id configuration.
+	Argon2MinMemoryKiB = 19456
+	Argon2MinTime      = 2
+
 	// AuthKeyEncodedLength is the exact base64url length of the client-derived
-	// 32-byte auth key. Anything else is rejected before bcrypt.
-	AuthKeyEncodedLength = 43
+	// 64-byte auth key. Anything else is rejected before hashing.
+	AuthKeyEncodedLength = 86
 )
 
 // Account tokens ---------------------------------------------------------
 //
-// Emailed single-use tokens are stored hashed (SHA-256) and time-limited.
+// Emailed single-use tokens are stored hashed (SHA-512) and time-limited.
 const (
 	EmailVerificationTokenTTL = 24 * time.Hour
-	// AccountResetTokenTTL bounds the emailed account-reset link. Because
-	// Vault3 is zero-knowledge, redeeming it wipes the vault: there is no
-	// password reset that preserves data.
-	AccountResetTokenTTL = time.Hour
 )
 
 // Platform settings (vault3_platform_setting keys) -----------------------
@@ -129,6 +165,13 @@ const (
 	SharingPurgeGrace = 7 * 24 * time.Hour
 )
 
+// Profile ----------------------------------------------------------------
+const (
+	// MaxDisplayNameChars caps the account display name. Enforced identically
+	// at registration and on profile update — the two must not drift.
+	MaxDisplayNameChars = 100
+)
+
 // Contact form -----------------------------------------------------------
 const (
 	MaxContactNameChars    = 100
@@ -166,7 +209,7 @@ const SQLScriptsDir = "scripts/sql"
 
 // LATEST_SQL_SCRIPT_VERSION is the highest script number to run in development (inclusive).
 // Bump when adding scripts/sql/00N.sql; runtime replays 1..N on each dev startup.
-const LATEST_SQL_SCRIPT_VERSION = 6
+const LATEST_SQL_SCRIPT_VERSION = 8
 
 // REQUIRED_ENV_VARS fail fast at startup if missing or empty.
 //

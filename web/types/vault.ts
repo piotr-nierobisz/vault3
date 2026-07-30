@@ -2,10 +2,19 @@ import type { CipherEnvelope, ItemDetails, ItemOverview } from "../lib/crypto";
 
 // Server payload shapes (mirror internal/view: Keyset, ItemRow).
 
+// Vault access roles, mirroring models.RoleOwner / models.RoleMember in
+// internal/models/vault_access.go. Members read, owners write — the server
+// enforces it, and every read-only affordance in the UI keys off this. A union
+// type rather than string so a mistyped comparison fails to compile instead of
+// silently rendering an owner-only control.
+export type VaultRole = "owner" | "member";
+
+export const ROLE_OWNER: VaultRole = "owner";
+
 export type KeysetVaultDto = {
   id: string;
   kind: string;
-  role: string;
+  role: VaultRole;
   wrapAlgo: string;
   wrappedKey: CipherEnvelope;
   encName: CipherEnvelope;
@@ -15,9 +24,9 @@ export type KeysetVaultDto = {
 export type KeysetDto = {
   kdfSalt: string;
   kdfIterations: number;
-  algo: string;
-  publicKey: unknown;
-  encPrivateKey: CipherEnvelope;
+  argon2MemoryKiB: number;
+  argon2Time: number;
+  argon2Lanes: number;
   vaults: KeysetVaultDto[];
 };
 
@@ -89,7 +98,7 @@ export type VaultMemberDto = {
   userId: string;
   email: string;
   displayName: string;
-  role: string;
+  role: VaultRole;
   joinedAt: string;
 };
 
@@ -103,7 +112,7 @@ export type VaultInviteDto = {
 export type VaultMembersResponse = {
   members: VaultMemberDto[];
   invites: VaultInviteDto[];
-  role: string;
+  role: VaultRole;
 };
 
 export type InviteCreateResponse = {

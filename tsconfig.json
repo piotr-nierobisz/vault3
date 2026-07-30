@@ -9,7 +9,6 @@
     "skipLibCheck": true,
     "allowJs": true,
     "noEmit": true,
-    "baseUrl": ".",
     "paths": {
       "react": ["./web/types/vendor/react"],
       "react/*": ["./web/types/vendor/react/*"],

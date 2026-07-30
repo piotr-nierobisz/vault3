@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { AlertIcon, CheckIcon, VaultMark } from "../components/icons";
+import { ErrorBanner } from "../components/ui/error-banner";
+import { StatusPanel } from "../components/ui/status-panel";
 import { postJSON } from "../lib/api";
 import type { VerifyEmailPageData, VerifyResponse } from "../types/verify-email";
 
@@ -18,6 +20,10 @@ function VerifyEmail() {
   const [state, setState] = useState<State>(data.Token ? { kind: "verifying" } : { kind: "resend" });
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
+  // Kept apart from the "failed" state, whose heading speaks about a link
+  // that did not work — there is no link yet when sending one fails.
+  const [resendError, setResendError] = useState("");
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     if (!data.Token) return;
@@ -36,72 +42,67 @@ function VerifyEmail() {
   const resend = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
+    setResendError("");
+    setAttempt((n) => n + 1);
     try {
-      const { data: res } = await postJSON<{ message?: string }>("/api/v1/auth/resend-verification", { email: email.trim() });
+      // The happy path is always 200 (the answer is neutral either way, so it
+      // cannot leak whether the address is registered) — but a refused
+      // cross-origin write, a 5xx, or a proxy error page are all still
+      // reachable. Announcing "check your inbox" for any of those would tell
+      // the user a link is coming when none was sent, on the only route back
+      // to a verified account.
+      const { ok, data: res } = await postJSON<{ message?: string }>("/api/v1/auth/resend-verification", { email: email.trim() });
+      if (!ok) {
+        setResendError(res?.message ?? "We couldn't send that link. Please try again shortly.");
+        return;
+      }
       setState({ kind: "resent", message: res?.message ?? "If an unverified account exists for that address, a new link is on its way." });
     } catch {
-      setState({ kind: "failed", message: "Network error. Please try again shortly." });
+      setResendError("Network error. Please try again shortly.");
     } finally {
       setBusy(false);
     }
   };
 
+  if (state.kind === "verifying") {
+    return <StatusPanel mark pulse title="Confirming…" body="One moment." />;
+  }
+
+  if (state.kind === "verified") {
+    return (
+      <StatusPanel icon={<CheckIcon className="h-6 w-6" />} title="Email confirmed." body="Account alerts can now reach you.">
+        <a href="/app" className="btn btn-primary">Open your vault</a>
+      </StatusPanel>
+    );
+  }
+
+  if (state.kind === "failed") {
+    return (
+      <StatusPanel icon={<AlertIcon className="h-6 w-6" />} tone="danger" title="That link didn't work." body={state.message}>
+        <button type="button" onClick={() => setState({ kind: "resend" })} className="btn btn-secondary">
+          Request a new link
+        </button>
+      </StatusPanel>
+    );
+  }
+
+  if (state.kind === "resent") {
+    return <StatusPanel icon={<CheckIcon className="h-6 w-6" />} title="Check your inbox." body={state.message} />;
+  }
+
   return (
-    <div className="card p-9 text-center animate-unseal">
-      {state.kind === "verifying" && (
-        <>
-          <VaultMark className="h-10 w-10 text-accent mx-auto mb-5 mark-pulse" />
-          <h1 className="text-2xl font-bold tracking-tight mb-2">Confirming…</h1>
-          <p className="text-sm text-muted-foreground">One moment.</p>
-        </>
-      )}
-
-      {state.kind === "verified" && (
-        <>
-          <div className="w-12 h-12 rounded-full bg-accent-subtle text-accent inline-flex items-center justify-center mx-auto mb-5 animate-glow">
-            <CheckIcon className="h-6 w-6" />
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight mb-2">Email confirmed.</h1>
-          <p className="text-sm text-muted-foreground mb-6">Account alerts can now reach you.</p>
-          <a href="/app" className="btn btn-primary">Open your vault</a>
-        </>
-      )}
-
-      {state.kind === "failed" && (
-        <>
-          <AlertIcon className="h-9 w-9 text-danger mx-auto mb-5" />
-          <h1 className="text-2xl font-bold tracking-tight mb-2">That link didn't work.</h1>
-          <p className="text-sm text-muted-foreground mb-6">{state.message}</p>
-          <button type="button" onClick={() => setState({ kind: "resend" })} className="btn btn-secondary">
-            Request a new link
-          </button>
-        </>
-      )}
-
-      {state.kind === "resend" && (
-        <form onSubmit={resend} className="text-left space-y-4" noValidate>
-          <div className="text-center mb-2">
-            <VaultMark className="h-9 w-9 text-accent mx-auto mb-4" />
-            <h1 className="text-2xl font-bold tracking-tight mb-1.5">Verify your email.</h1>
-            <p className="text-sm text-muted-foreground">We'll send a fresh single-use link, valid for 24 hours.</p>
-          </div>
-          <input className="input" type="email" required placeholder="you@example.com" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} disabled={busy} />
-          <button type="submit" disabled={busy || !email.trim()} className="btn btn-primary w-full h-11">
-            {busy ? "Sending…" : "Send verification link"}
-          </button>
-        </form>
-      )}
-
-      {state.kind === "resent" && (
-        <>
-          <div className="w-12 h-12 rounded-full bg-accent-subtle text-accent inline-flex items-center justify-center mx-auto mb-5">
-            <CheckIcon className="h-6 w-6" />
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight mb-2">Check your inbox.</h1>
-          <p className="text-sm text-muted-foreground">{state.message}</p>
-        </>
-      )}
-    </div>
+    <form onSubmit={resend} className="panel p-8 space-y-4 animate-unseal" noValidate>
+      <div className="text-center mb-2">
+        <VaultMark className="h-11 w-11 text-accent mx-auto mb-4" />
+        <h1 className="text-2xl font-bold tracking-tight mb-1.5">Verify your email.</h1>
+        <p className="text-sm text-muted-foreground">We'll email you a new link. It works once, and lasts 24 hours.</p>
+      </div>
+      <input className="input" type="email" required placeholder="you@example.com" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} disabled={busy} />
+      {resendError && <ErrorBanner key={attempt} message={resendError} />}
+      <button type="submit" disabled={busy || !email.trim()} className="btn btn-primary btn-lg w-full">
+        {busy ? "Sending…" : "Send verification link"}
+      </button>
+    </form>
   );
 }
 

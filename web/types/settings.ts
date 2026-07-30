@@ -22,7 +22,12 @@ export type SettingsPageData = {
   Prefs: NotificationPrefs;
   TwoFactorEnabled: boolean;
   EmailVerified: boolean;
-  KdfIterations: number;
+  KdfCosts: {
+    kdfIterations: number;
+    argon2MemoryKiB: number;
+    argon2Time: number;
+    argon2Lanes: number;
+  };
   Keyset: KeysetDto | null;
   Revision: number;
 };

@@ -212,6 +212,18 @@
   background: var(--danger-subtle);
   border-color: var(--danger);
 }
+/* Two more sizes of the same well: a dense settings row, and the mark that
+   opens a status panel. The large one takes the larger radius so the corner
+   keeps its proportion as the square grows. */
+.icon-tile-sm {
+  width: 2.25rem;
+  height: 2.25rem;
+}
+.icon-tile-lg {
+  width: 3rem;
+  height: 3rem;
+  border-radius: var(--radius-lg);
+}
 .panel-interactive:hover .icon-tile {
   background: var(--accent-subtle);
   color: var(--accent);
@@ -645,6 +657,99 @@
 .loot svg { flex: none; }
 
 /* ════════════════════════════════════════════════════════════════════ */
+/* Plain-language blocks                                                 */
+/* The pages carry the cryptography in mono chips and figures; these     */
+/* two blocks carry the sentences a reader who does not want any of it   */
+/* needs instead. Both are ordinary HTML — a <details> list and a        */
+/* definition list — so they work with JavaScript off.                   */
+/* ════════════════════════════════════════════════════════════════════ */
+
+/* Landing FAQ. A stack of disclosures on the panel surface rather than
+   inside one card, so an open answer reads as its own object; the accent
+   edge is how the page shows which one is open. */
+.faq-item {
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background-color: var(--card);
+  background-image: var(--surface-raised);
+  transition: border-color var(--duration-base) var(--ease-out),
+    box-shadow var(--duration-base) var(--ease-out);
+}
+.faq-item + .faq-item { margin-top: 0.65rem; }
+.faq-item:hover { border-color: var(--border-strong); }
+.faq-item[open] {
+  border-color: var(--accent-border);
+  box-shadow: var(--shadow-accent);
+}
+.faq-item > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: var(--line-snug);
+  cursor: pointer;
+  list-style: none;
+}
+.faq-item > summary::-webkit-details-marker { display: none; }
+.faq-item > summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  border-radius: var(--radius-lg);
+}
+/* The chevron: two borders on a rotated square, so there is no icon to
+   ship and no second copy of it to keep in step with the theme. */
+.faq-item > summary::after {
+  content: "";
+  flex: none;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-right: 0.15rem;
+  border-right: 2px solid var(--accent);
+  border-bottom: 2px solid var(--accent);
+  transform: rotate(45deg) translateY(-25%);
+  transition: transform var(--duration-base) var(--ease-out);
+}
+.faq-item[open] > summary::after { transform: rotate(-135deg) translateY(-25%); }
+.faq-body {
+  padding: 0 1.25rem 1.15rem;
+  font-size: var(--text-sm);
+  line-height: var(--line-relaxed);
+  color: var(--muted-foreground);
+  animation: fadeIn var(--duration-slow) var(--ease-out) both;
+}
+
+/* "In plain words": the term as the same mono chip the rest of the page
+   uses for machinery, next to the sentence a reader actually needs. A
+   <dl>, so the pairing is in the markup and not only in the layout. */
+.gloss { margin: 0; }
+.gloss-row { padding: 0.8rem 0; }
+.gloss-row + .gloss-row { border-top: 1px solid var(--border-subtle); }
+.gloss dt {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--accent);
+  margin-bottom: 0.3rem;
+}
+.gloss dd {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--line-relaxed);
+  color: var(--muted-foreground);
+}
+@media (min-width: 640px) {
+  .gloss-row {
+    display: grid;
+    grid-template-columns: 13.5rem minmax(0, 1fr);
+    gap: 1.25rem;
+    align-items: baseline;
+  }
+  .gloss dt { margin-bottom: 0; }
+}
+
+/* ════════════════════════════════════════════════════════════════════ */
 /* Security page                                                         */
 /* ════════════════════════════════════════════════════════════════════ */
 
@@ -786,12 +891,6 @@
   100% { background-color: transparent; }
 }
 .copied-flash { animation: copied-flash 700ms ease-out; }
-
-/* Lock screen backdrop: the vault content stays visible but sealed. */
-.lock-veil {
-  backdrop-filter: blur(18px) saturate(0.8);
-  background: color-mix(in srgb, var(--background) 55%, transparent);
-}
 
 ul { margin: 0.5rem 0; padding-left: 1.25rem; }
 

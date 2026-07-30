@@ -40,7 +40,7 @@ export function VaultSwitcher({
 
   return (
     <div className="mb-5">
-      <div className="pb-1 px-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground select-none">Vaults</div>
+      <div className="field-label select-none px-3 pb-1">Vaults</div>
       <nav className="space-y-0.5">
         {vaults.map((vault) => {
           const active = vault.id === activeId;
@@ -98,7 +98,7 @@ export function VaultSwitcher({
             or to share a set of items with someone later.
           </p>
           <div className="space-y-1.5">
-            <label htmlFor="new-vault-name" className="text-xs font-semibold tracking-widest uppercase text-muted-foreground">
+            <label htmlFor="new-vault-name" className="field-label">
               Vault name
             </label>
             <input
@@ -113,10 +113,10 @@ export function VaultSwitcher({
             />
           </div>
           <div className="flex justify-end gap-3">
-            <button type="button" onClick={() => setCreateOpen(false)} className="btn btn-ghost text-sm" disabled={busy}>
+            <button type="button" onClick={() => setCreateOpen(false)} className="btn btn-ghost btn-sm" disabled={busy}>
               Cancel
             </button>
-            <button type="submit" className="btn btn-primary text-sm px-6" disabled={busy || !newName.trim()}>
+            <button type="submit" className="btn btn-primary btn-sm px-6" disabled={busy || !newName.trim()}>
               {busy ? "Sealing…" : "Create vault"}
             </button>
           </div>

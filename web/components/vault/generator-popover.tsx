@@ -36,7 +36,7 @@ function Slider({
   const pct = `${((value - min) / (max - min)) * 100}%`;
   return (
     <div className="flex items-center gap-3.5 text-xs text-muted-foreground">
-      <label htmlFor={id} className="font-semibold tracking-widest uppercase">
+      <label htmlFor={id} className="field-label">
         {label}
       </label>
       <input
@@ -89,7 +89,7 @@ export function GeneratorPanel({ onUse }: { onUse: (password: string) => void })
           type="button"
           aria-label="Regenerate"
           onClick={() => setCandidate(generatePassword(options))}
-          className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-card transition-colors flex-shrink-0"
+          className="btn-icon flex-shrink-0"
         >
           <RefreshIcon className="h-4 w-4" />
         </button>
@@ -155,7 +155,7 @@ export function GeneratorPanel({ onUse }: { onUse: (password: string) => void })
         />
       )}
 
-      <button type="button" onClick={() => onUse(candidate)} className="btn btn-primary w-full text-sm h-9">
+      <button type="button" onClick={() => onUse(candidate)} className="btn btn-primary btn-sm w-full">
         <CheckIcon className="h-4 w-4" /> Use this password
       </button>
     </div>

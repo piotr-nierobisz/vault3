@@ -1,7 +1,12 @@
 export type JoinPageData = {
   PageTitle: string;
   RegistrationOpen: boolean;
-  KdfIterations: number;
+  KdfCosts: {
+    kdfIterations: number;
+    argon2MemoryKiB: number;
+    argon2Time: number;
+    argon2Lanes: number;
+  };
 };
 
 export type RegisterResponse = {

@@ -1,9 +1,12 @@
 import React, { useEffect, useState } from "react";
-import { AlertIcon, LinkIcon, TrashIcon } from "../icons";
-import { CopyButton } from "../ui/copy-button";
+import { LinkIcon, TrashIcon } from "../icons";
 import { Dialog } from "../ui/dialog";
+import { ErrorBanner } from "../ui/error-banner";
+import { FreshLinkCallout } from "../ui/fresh-link-callout";
+import { Loading } from "../ui/loading";
 import { getJSON, postJSON } from "../../lib/api";
 import { composeLinkFragment, mintLinkKey, openJSON, seal, type ItemDetails } from "../../lib/crypto";
+import { useAction } from "../../lib/use-action";
 import { CATEGORY_FIELDS, type DecryptedItem, type ShareCreateResponse, type ShareLinkDto } from "../../types/vault";
 
 // The per-item share dialog. Creating a link mints a random share key HERE,
@@ -38,17 +41,36 @@ export function ShareDialog({
 }) {
   const [links, setLinks] = useState<ShareLinkDto[] | null>(null);
   const [hours, setHours] = useState(24);
-  const [busy, setBusy] = useState(false);
   const [freshLink, setFreshLink] = useState("");
   const [sharesSeed, setSharesSeed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const { busy, run } = useAction({ onError: (message) => notify("error", message), network: "Network error. Try again." });
+  // Row actions take their own instance so revoking one link does not disable
+  // the create controls; they still need the hook's catch and re-entry guard.
+  const { run: runRow } = useAction({ onError: (message) => notify("error", message), network: "Network error. Try again." });
 
   useEffect(() => {
     if (!open) return;
     setFreshLink("");
     setLinks(null);
-    getJSON<{ links: ShareLinkDto[] }>(`/api/v1/shares?itemId=${encodeURIComponent(item.row.id)}`).then((res) => {
-      setLinks(res.ok && res.data ? res.data.links : []);
-    });
+    setLoadFailed(false);
+    getJSON<{ links: ShareLinkDto[] }>(`/api/v1/shares?itemId=${encodeURIComponent(item.row.id)}`)
+      .then((res) => {
+        // A failed load must not render as "no share links yet". This list's
+        // whole job is to tell the user what is currently exposed so they can
+        // revoke it — showing an empty one on a 500 is a lie in the dangerous
+        // direction.
+        if (res.ok && res.data) {
+          setLinks(res.data.links);
+          return;
+        }
+        setLinks([]);
+        setLoadFailed(true);
+      })
+      .catch(() => {
+        setLinks([]);
+        setLoadFailed(true);
+      });
   }, [open, item.row.id]);
 
   // A share link points at the live details blob, so every field in it goes —
@@ -73,45 +95,43 @@ export function ShareDialog({
   }, [open, item]);
 
   const createLink = async () => {
-    setBusy(true);
-    try {
-      const shareKey = mintLinkKey();
-      const wrappedItemKey = await seal(shareKey, item.itemKey);
-      const res = await postJSON<ShareCreateResponse>("/api/v1/shares/create", {
-        itemId: item.row.id,
-        wrappedItemKey,
-        expiresInHours: hours,
-      });
-      if (!res.ok || !res.data) {
-        const message = (res.data as { message?: string } | null)?.message;
-        notify("error", message ?? "Couldn't create the share link.");
-        return;
-      }
-      const url = `${window.location.origin}/share#${composeLinkFragment(res.data.token, shareKey)}`;
-      setFreshLink(url);
-      setLinks((prev) => (prev ? [res.data!.link, ...prev] : [res.data!.link]));
-      try {
-        await navigator.clipboard.writeText(url);
-        notify("success", "Share link copied to your clipboard");
-      } catch {
-        notify("info", "Share link created — copy it below");
-      }
-    } catch {
-      notify("error", "Network error. Try again.");
-    } finally {
-      setBusy(false);
-    }
+    // The share key stays here: the server is handed the wrap, the fragment
+    // gets the key, and only this screen ever holds both.
+    const shareKey = mintLinkKey();
+    await run(
+      async () => {
+        const wrappedItemKey = await seal(shareKey, item.itemKey);
+        return postJSON<ShareCreateResponse>("/api/v1/shares/create", {
+          itemId: item.row.id,
+          wrappedItemKey,
+          expiresInHours: hours,
+        });
+      },
+      {
+        onOK: async (created) => {
+          const url = `${window.location.origin}/share#${composeLinkFragment(created.token, shareKey)}`;
+          setFreshLink(url);
+          setLinks((prev) => (prev ? [created.link, ...prev] : [created.link]));
+          try {
+            await navigator.clipboard.writeText(url);
+            notify("success", "Share link copied to your clipboard");
+          } catch {
+            notify("info", "Share link created — copy it below");
+          }
+        },
+        fail: "Couldn't create the share link.",
+      },
+    );
   };
 
-  const revoke = async (link: ShareLinkDto) => {
-    const res = await postJSON<{ ok: boolean }>("/api/v1/shares/revoke", { id: link.id });
-    if (!res.ok) {
-      notify("error", "Couldn't revoke that link.");
-      return;
-    }
-    setLinks((prev) => prev?.map((l) => (l.id === link.id ? { ...l, revoked: true } : l)) ?? null);
-    notify("success", "Link revoked — it stops working immediately");
-  };
+  const revoke = (link: ShareLinkDto) =>
+    runRow(() => postJSON<{ ok: boolean }>("/api/v1/shares/revoke", { id: link.id }), {
+      onOK: () => {
+        setLinks((prev) => prev?.map((l) => (l.id === link.id ? { ...l, revoked: true } : l)) ?? null);
+        notify("success", "Link revoked — it stops working immediately");
+      },
+      fail: "Couldn't revoke that link.",
+    });
 
   return (
     <Dialog open={open} onClose={onClose} title={`Share "${item.overview.title}"`}>
@@ -121,22 +141,19 @@ export function ShareDialog({
       </p>
 
       {sharesSeed && (
-        <div
-          className="flex items-start gap-2 text-sm rounded-md border px-3 py-2.5 mb-5 leading-relaxed"
-          style={{ background: "var(--warning-subtle)", borderColor: "var(--warning)", color: "var(--warning-fg)" }}
-          role="note"
+        <ErrorBanner
+          tone="warning"
+          className="mb-5"
+          message="This item stores a one-time-code key. A share link hands over"
         >
-          <AlertIcon className="h-4 w-4 mt-0.5 flex-shrink-0" />
-          <span>
-            This item stores a one-time-code key. A share link hands over{" "}
-            <strong>both factors</strong> for that account — the password and the ability to generate its codes.
-          </span>
-        </div>
+          {" "}
+          <strong>both factors</strong> for that account — the password and the ability to generate its codes.
+        </ErrorBanner>
       )}
 
       <div className="flex items-end gap-3 mb-2">
         <div className="flex-1 space-y-1.5">
-          <label htmlFor="share-expiry" className="text-xs font-semibold tracking-widest uppercase text-muted-foreground">
+          <label htmlFor="share-expiry" className="field-label">
             Link lifetime
           </label>
           <select id="share-expiry" className="input" value={hours} onChange={(e) => setHours(Number(e.target.value))} disabled={busy}>
@@ -147,25 +164,26 @@ export function ShareDialog({
             ))}
           </select>
         </div>
-        <button type="button" onClick={createLink} disabled={busy} className="btn btn-primary text-sm whitespace-nowrap">
+        <button type="button" onClick={createLink} disabled={busy} className="btn btn-primary whitespace-nowrap">
           <LinkIcon className="h-4 w-4" /> {busy ? "Sealing…" : "Create link"}
         </button>
       </div>
 
       {freshLink && (
-        <div className="animate-pop mt-4 rounded-lg border border-accent-border p-3" style={{ background: "var(--accent-subtle)" }}>
-          <p className="text-xs font-semibold tracking-widest uppercase text-accent mb-2">Your new link — visible only now</p>
-          <div className="flex items-center gap-2">
-            <code className="font-mono text-xs text-foreground break-all flex-1 select-all">{freshLink}</code>
-            <CopyButton value={freshLink} label="Copy share link" />
-          </div>
-        </div>
+        <FreshLinkCallout label="Your new link — visible only now" value={freshLink} copyLabel="Copy share link" />
       )}
 
       <div className="mt-6">
-        <p className="text-xs font-semibold tracking-widest uppercase text-muted-foreground mb-2">Links for this item</p>
-        {links === null && <p className="text-sm text-muted-foreground font-mono py-2">loading…</p>}
-        {links !== null && links.length === 0 && <p className="text-sm text-muted-foreground py-2">No share links yet.</p>}
+        <p className="field-label mb-2">Links for this item</p>
+        {links === null && <Loading />}
+        {loadFailed && (
+          <p className="text-sm text-danger py-2">
+            Couldn't load this item's share links — so this list may not show everything that is currently shared. Close and reopen to retry.
+          </p>
+        )}
+        {links !== null && !loadFailed && links.length === 0 && (
+          <p className="text-sm text-muted-foreground py-2">No share links yet.</p>
+        )}
         {links !== null && links.length > 0 && (
           <ul className="divide-y divide-border-subtle">
             {links.map((link) => {
@@ -185,7 +203,7 @@ export function ShareDialog({
                     <button
                       type="button"
                       onClick={() => revoke(link)}
-                      className="p-1.5 rounded-md text-muted-foreground hover:text-danger hover:bg-muted transition-colors"
+                      className="btn-icon btn-icon-danger"
                       aria-label="Revoke link"
                       title="Revoke link"
                     >

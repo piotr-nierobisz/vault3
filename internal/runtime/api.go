@@ -1,7 +1,6 @@
 package runtime
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -12,17 +11,19 @@ import (
 	"go.uber.org/zap"
 )
 
-// ContactSubmitAPI persists a contact form submission. The middleware's auth
-// throttle fronts this endpoint, so a scripted flood hits 429 before it
-// reaches the database.
+type contactPayload struct {
+	Name    string `json:"name"`
+	Email   string `json:"email"`
+	Message string `json:"message"`
+}
+
+// ContactSubmitAPI persists a contact form submission. It is public and
+// unauthenticated, so flood protection is the production reverse proxy's job
+// (see middleware.go) — nothing here rate-limits.
 func (r *Runtime) ContactSubmitAPI(req *bungo.Request) (bungo.APIResponse, error) {
-	var payload struct {
-		Name    string `json:"name"`
-		Email   string `json:"email"`
-		Message string `json:"message"`
-	}
-	if unmarshalErr := json.Unmarshal(req.Body, &payload); unmarshalErr != nil {
-		return apiError(400, "Invalid request body"), nil
+	payload, deny := decodeBody[contactPayload](req)
+	if deny != nil {
+		return *deny, nil
 	}
 
 	name := strings.TrimSpace(payload.Name)

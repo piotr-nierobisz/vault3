@@ -6,14 +6,14 @@ What Vault3 is, who it is for, the rules its copy follows, and where the product
 
 ## The product in one paragraph
 
-Vault3 (vault3.com) is a zero-knowledge password manager for individuals. A user signs in with three things: their **email**, their **Master Password** (in their head), and their **Secret Phrase** — nine memorable words generated on their device at sign-up (the mnemonic take on 1Password's Secret Key). Everything they store is encrypted on-device before upload; the server can count items but never read one. The pitch is not "we protect your data" — it is "we could not read your data if we tried, and here is the design that makes that true."
+Vault3 (vault3.com) is a zero-knowledge password manager for individuals. A user signs in with three things: their **email**, their **Master Password** (in their head), and their **Secret Phrase** — twelve memorable words generated on their device at sign-up (the mnemonic take on 1Password's Secret Key). Everything they store is encrypted on-device before upload; the server can count items but never read one. The pitch is not "we protect your data" — it is "we could not read your data if we tried, and here is the design that makes that true."
 
 ## Vocabulary (use these words, exactly)
 
 | Term | Meaning | Never call it |
 |---|---|---|
 | Master Password | The secret in the user's head | password, passphrase |
-| Secret Phrase | The nine generated words in the Emergency Kit | secret key, seed phrase, mnemonic |
+| Secret Phrase | The twelve generated words in the Emergency Kit | secret key, seed phrase, mnemonic |
 | Emergency Kit | The downloadable .txt/printable record of email + Secret Phrase | backup, recovery kit |
 | Unlock / Lock / Seal | Opening and closing the vault; encrypting an item | log in (for the vault), decrypt (in UI copy) |
 | Item | One stored entry (login, secure note, payment card, identity) | record, credential |
@@ -25,7 +25,7 @@ Vault3 (vault3.com) is a zero-knowledge password manager for individuals. A user
 
 - Personal vault with four item categories (login, secure note, payment card, identity), favourites, client-side search, trash with 30-day retention, permanent delete.
 - Password generator (character and passphrase modes, honest entropy meter).
-- Registration ceremony with Secret Phrase minting and mandatory Emergency Kit confirmation; verify-email flow; zero-knowledge account reset (`/recover`).
+- Registration ceremony with Secret Phrase minting and mandatory Emergency Kit confirmation; verify-email flow. There is deliberately **no** account recovery or reset flow (see [security.md](./security.md)); account deletion is the only way out.
 - TOTP two-factor authentication; per-device session list with revocation; Master Password change with full client-side re-wrap that signs out other devices.
 - Live cross-device sync: any change on one device signals every other signed-in client to refresh within a second (SSE + per-user revision).
 - Security notifications (new-device sign-in, password change, 2FA changes) in-app and by email; notification preferences; auto-lock preference.
@@ -43,8 +43,12 @@ Vault3 (vault3.com) is a zero-knowledge password manager for individuals. A user
 
 ## Copy rules
 
-- **Honesty over reassurance.** The zero-knowledge trade-off (lost secrets = lost vault) is stated plainly wherever it is relevant — the landing page, the join wizard, `/recover`, the settings danger zone. Never soften it into "contact support to recover".
-- Precise, calm, confident. No hype words ("military-grade", "unhackable", "bank-level"). The numbers speak: AES-256-GCM, 650,000 rounds, 99 bits.
+- **Honesty over reassurance.** The zero-knowledge trade-off (lost secrets = lost vault) is stated plainly wherever it is relevant — the landing page, the join wizard, `/security`, the settings danger zone. Never soften it into "contact support to recover", and never imply a reset exists.
+- Precise, calm, confident. No hype words ("military-grade", "unhackable", "bank-level"). The numbers speak: AES-256-GCM, Argon2id at 64 MiB, 1,000,000 PBKDF2 rounds, 132 bits.
+- **Plain sentence, exact chip.** Prose is written for someone who has never heard of a KDF: locked/unlocked rather than encrypted/decrypted where either works, scrambled text rather than ciphertext, randomness rather than entropy, "made on your device" rather than "derived client-side". The precision is not dropped — it moves into the monospace badges, `.fig-label`s and figures beside the sentence, where the exact primitive and parameters belong. A reader should be able to skip every chip and still understand the product, and read only the chips and still audit it.
+- **Every page answers, not just asserts.** `/` carries a plain-answers FAQ (what if I forget my password, what would a hacker get, is it free) and `/security` opens with a glossary of its own jargon. The FAQ copy and the `FAQPage` JSON-LD on the landing page are the same six answers twice — change one and change the other in the same edit.
+- **Repeated claims get a fresh angle, not a fresh paste.** The zero-knowledge argument recurs on the landing page, `/security`, the Terms and the Privacy Policy; each states it from its own vantage (what it means for you, how it works, what you are agreeing to, why the policy is short). No two pages should carry the same sentence — the footer, the two CTAs and the meta descriptions included.
+- **"Post-quantum" is a claim about structure, not a badge.** Say why it holds — no asymmetric cryptography to break, widths chosen to survive Grover — and never imply a quantum computer exists today that would otherwise read the vault.
 - British English. Sentence case for headings and buttons ("Create your vault", not "Create Your Vault").
 - Security claims in copy must be literally true of the implementation; when the implementation changes, the copy changes in the same task.
 - **We state, we don't ask.** The cookie notice is a notice, not a consent gate: the session cookie is strictly necessary, so there is nothing to accept or reject and the panel carries one acknowledgement button. Never add accept/reject controls unless a non-essential cookie actually ships — and if one ever does, the Cookie Policy and this line change in the same task.
@@ -59,7 +63,7 @@ Vault3 (vault3.com) is a zero-knowledge password manager for individuals. A user
 
 ## Roadmap runway (design for, don't build)
 
-1. **Editor role for shared vaults** — the access row's role column and server-side write gate are the extension point; `WrapAlgo = 'rsa-oaep'` also stays reserved for public-key wraps if invites ever become email-addressed.
+1. **Editor role for shared vaults** — the access row's role column and server-side write gate are the extension point. Note that `WrapAlgo` is now `'muk'` only: the reserved public-key value was removed with the keypair, and server-mediated (email-addressed) invites would need a post-quantum KEM decided up front — see [security.md](./security.md).
 2. **Browser extension / desktop clients** — same APIs, same envelopes; the JSON API is already the full product surface.
 3. **Subscriptions** — organisation-less individual billing; keep user hub clean of plan data until then.
 4. **Admin console** — gate on `vault3_admin`, mount under `config.AdminConsolePath`.

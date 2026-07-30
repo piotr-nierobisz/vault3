@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"vault3/internal/config"
+	"vault3/internal/crypto"
 	"vault3/internal/database"
 	"vault3/internal/models"
 	"vault3/internal/view"
@@ -18,7 +19,6 @@ import (
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
 	"go.uber.org/zap"
-	"golang.org/x/crypto/bcrypt"
 )
 
 // /app/settings: profile, security (Master Password change, 2FA, sessions),
@@ -67,41 +67,34 @@ func (r *Runtime) SettingsPage(req *bungo.Request) (map[string]any, error) {
 		"Prefs":            models.DecodeNotificationPrefs(user.NotificationPrefs),
 		"TwoFactorEnabled": user.Auth.TwoFactorEnabled(),
 		"EmailVerified":    user.Auth != nil && user.Auth.EmailVerified,
-		"KdfIterations":    config.KdfDefaultIterations,
+		"KdfCosts":         defaultKdfCosts(),
 		"Keyset":           view.NewKeyset(user),
 		"Revision":         user.Revision,
 	}), nil
 }
 
+type updateProfilePayload struct {
+	DisplayName string `json:"displayName"`
+}
+
 // UpdateProfileAPI handles POST /api/v1/account/profile {displayName}.
 func (r *Runtime) UpdateProfileAPI(req *bungo.Request) (bungo.APIResponse, error) {
 	user := CurrentUser(req)
-	var payload struct {
-		DisplayName string `json:"displayName"`
-	}
-	if unmarshalErr := json.Unmarshal(req.Body, &payload); unmarshalErr != nil {
-		return apiError(400, "Invalid request body"), nil
+	payload, deny := decodeBody[updateProfilePayload](req)
+	if deny != nil {
+		return *deny, nil
 	}
 	displayName := strings.TrimSpace(payload.DisplayName)
-	if len(displayName) > 100 {
+	if len(displayName) > config.MaxDisplayNameChars {
 		return apiError(400, "Name is too long."), nil
 	}
 
-	var revision int64
-	transactionErr := WithTransaction(r, req.Context, func(txRt *Runtime) error {
-		if updateErr := database.UpdateUserDisplayName(req.Context, txRt.GetDb(), &txRt.Builder, txRt.Cipher, user.ID, displayName); updateErr != nil {
-			return updateErr
-		}
-		var bumpErr error
-		revision, bumpErr = SignalUserChanged(req.Context, txRt, user.ID)
-		return bumpErr
-	})
-	if transactionErr != nil {
-		return bungo.APIResponse{}, transactionErr
+	if _, commitErr := r.commitUserChange(req, user.ID, "profile_updated", "user", user.ID,
+		func(txRt *Runtime) error {
+			return database.UpdateUserDisplayName(req.Context, txRt.GetDb(), &txRt.Builder, txRt.Cipher, user.ID, displayName)
+		}); commitErr != nil {
+		return bungo.APIResponse{}, commitErr
 	}
-
-	r.PublishChange(req, user.ID, revision)
-	r.audit(req, user.ID, "profile_updated", "user", user.ID, "")
 	return bungo.APIResponse{StatusCode: 200, Body: map[string]any{"saved": true}}, nil
 }
 
@@ -109,9 +102,9 @@ func (r *Runtime) UpdateProfileAPI(req *bungo.Request) (bungo.APIResponse, error
 // the canonical models.NotificationPrefs shape.
 func (r *Runtime) UpdateNotificationPrefsAPI(req *bungo.Request) (bungo.APIResponse, error) {
 	user := CurrentUser(req)
-	var prefs models.NotificationPrefs
-	if unmarshalErr := json.Unmarshal(req.Body, &prefs); unmarshalErr != nil {
-		return apiError(400, "Invalid request body"), nil
+	prefs, deny := decodeBody[models.NotificationPrefs](req)
+	if deny != nil {
+		return *deny, nil
 	}
 	encoded, marshalErr := json.Marshal(prefs)
 	if marshalErr != nil {
@@ -124,49 +117,65 @@ func (r *Runtime) UpdateNotificationPrefsAPI(req *bungo.Request) (bungo.APIRespo
 }
 
 type changePasswordPayload struct {
-	CurrentAuthKey string          `json:"currentAuthKey"`
-	NewAuthKey     string          `json:"newAuthKey"`
-	NewKdfSalt     string          `json:"newKdfSalt"`
-	NewKdfIters    int             `json:"newKdfIterations"`
-	EncPrivateKey  json.RawMessage `json:"encPrivateKey"`
-	Vaults         []struct {
+	CurrentAuthKey string `json:"currentAuthKey"`
+	NewAuthKey     string `json:"newAuthKey"`
+	NewKdfSalt     string `json:"newKdfSalt"`
+	models.KdfCosts
+	Vaults []struct {
 		VaultID    string          `json:"vaultId"`
 		WrappedKey json.RawMessage `json:"wrappedKey"`
 	} `json:"vaults"`
 }
 
 // ChangePasswordAPI handles POST /api/v1/account/password. The Secret Phrase
-// stays the same; the browser derives the new MUK, re-wraps every vault key
-// and the private key, and sends the whole set. Applied atomically, then
-// every other session is revoked.
+// stays the same; the browser derives the new MUK, re-wraps every vault key,
+// and sends the whole set. Applied atomically, then every other session is
+// revoked.
+//
+// A password change is also when an account picks up any increase to the
+// platform's cost defaults: the browser derives under the current profile and
+// submits it, so accounts drift forward rather than staying pinned to
+// whatever was current the day they registered.
 func (r *Runtime) ChangePasswordAPI(req *bungo.Request) (bungo.APIResponse, error) {
 	user := CurrentUser(req)
 	session := CurrentSession(req)
-	var payload changePasswordPayload
-	if unmarshalErr := json.Unmarshal(req.Body, &payload); unmarshalErr != nil {
-		return apiError(400, "Invalid request body"), nil
+	payload, deny := decodeBody[changePasswordPayload](req)
+	if deny != nil {
+		return *deny, nil
 	}
 
 	// Re-authenticate with the current auth key before anything changes.
-	if compareErr := bcrypt.CompareHashAndPassword([]byte(user.Auth.AuthKeyHash), []byte(payload.CurrentAuthKey)); compareErr != nil {
+	if !crypto.CompareAuthKey(user.Auth.AuthKeyHash, payload.CurrentAuthKey) {
 		return apiError(401, "Your current Master Password wasn't right."), nil
 	}
 	if len(payload.NewAuthKey) != config.AuthKeyEncodedLength {
 		return apiError(400, "Malformed new credentials."), nil
 	}
-	if payload.NewKdfIters < config.KdfMinIterations {
-		return apiError(400, "KDF iteration count below the platform floor."), nil
+	if kdfErr := validateKdfCosts(payload.KdfCosts); kdfErr != nil {
+		return apiError(400, kdfErr.Error()+"."), nil
 	}
-	if envErr := models.ValidateCipherEnvelope(payload.EncPrivateKey, 8*1024); envErr != nil {
-		return apiError(400, "Malformed private key envelope."), nil
+	// The submitted set must cover every vault this account can open, each
+	// exactly once. Checking only the count would accept a duplicate standing
+	// in for a missing vault: the credentials would rotate while that vault's
+	// key stayed sealed under the old MUK, and because the server holds no
+	// key material it could never re-wrap it. That vault's contents would be
+	// unrecoverable — so this is a data-loss guard, not input tidiness.
+	owned := make(map[string]bool, len(user.Vaults))
+	for i := range user.Vaults {
+		owned[user.Vaults[i].Vault.ID] = true
 	}
-	if len(payload.Vaults) != len(user.Vaults) {
-		return apiError(400, "Re-wrapped key set does not cover every vault."), nil
-	}
+	rewrapped := make(map[string]bool, len(payload.Vaults))
 	for _, v := range payload.Vaults {
-		if envErr := models.ValidateCipherEnvelope(v.WrappedKey, 1024); envErr != nil {
+		if !owned[v.VaultID] || rewrapped[v.VaultID] {
+			return apiError(400, "Re-wrapped key set does not cover every vault."), nil
+		}
+		if envErr := models.ValidateCipherEnvelope(v.WrappedKey, config.MaxWrappedKeyBytes); envErr != nil {
 			return apiError(400, "Malformed vault key envelope."), nil
 		}
+		rewrapped[v.VaultID] = true
+	}
+	if len(rewrapped) != len(owned) {
+		return apiError(400, "Re-wrapped key set does not cover every vault."), nil
 	}
 
 	newHash, hashErr := hashAuthKey(payload.NewAuthKey)
@@ -174,34 +183,27 @@ func (r *Runtime) ChangePasswordAPI(req *bungo.Request) (bungo.APIResponse, erro
 		return bungo.APIResponse{}, hashErr
 	}
 
-	var revision int64
-	transactionErr := WithTransaction(r, req.Context, func(txRt *Runtime) error {
-		if credErr := database.UpdateUserAuthCredentials(req.Context, txRt.GetDb(), &txRt.Builder,
-			user.ID, newHash, payload.NewKdfSalt, payload.NewKdfIters); credErr != nil {
-			return credErr
-		}
-		if keyErr := database.UpdateEncPrivateKey(req.Context, txRt.GetDb(), &txRt.Builder, user.ID, payload.EncPrivateKey); keyErr != nil {
-			return keyErr
-		}
-		for _, v := range payload.Vaults {
-			if wrapErr := database.UpdateVaultAccessWrappedKey(req.Context, txRt.GetDb(), &txRt.Builder,
-				user.ID, v.VaultID, v.WrappedKey); wrapErr != nil {
-				return wrapErr
+	// One transaction: new credentials, every re-wrapped vault key, and the
+	// revocation of all other sessions. A
+	// partial application here would strand the account between two MUKs, so
+	// there is no version of this that may commit in pieces.
+	if _, commitErr := r.commitUserChange(req, user.ID, "password_changed", "user", user.ID,
+		func(txRt *Runtime) error {
+			if credErr := database.UpdateUserAuthCredentials(req.Context, txRt.GetDb(), &txRt.Builder,
+				user.ID, newHash, payload.NewKdfSalt, payload.KdfCosts); credErr != nil {
+				return credErr
 			}
-		}
-		if revokeErr := database.DeleteOtherUserSessions(req.Context, txRt.GetDb(), &txRt.Builder, user.ID, session.ID); revokeErr != nil {
-			return revokeErr
-		}
-		var bumpErr error
-		revision, bumpErr = SignalUserChanged(req.Context, txRt, user.ID)
-		return bumpErr
-	})
-	if transactionErr != nil {
-		return bungo.APIResponse{}, transactionErr
+			for _, v := range payload.Vaults {
+				if wrapErr := database.UpdateVaultAccessWrappedKey(req.Context, txRt.GetDb(), &txRt.Builder,
+					user.ID, v.VaultID, v.WrappedKey); wrapErr != nil {
+					return wrapErr
+				}
+			}
+			return database.DeleteOtherUserSessions(req.Context, txRt.GetDb(), &txRt.Builder, user.ID, session.ID)
+		}); commitErr != nil {
+		return bungo.APIResponse{}, commitErr
 	}
 
-	r.PublishChange(req, user.ID, revision)
-	r.audit(req, user.ID, "password_changed", "user", user.ID, "")
 	if notifyErr := r.Notify(req.Context, &PasswordChanged{UserID: user.ID}); notifyErr != nil {
 		r.Log.Warn("password change: notification failed", zap.Error(notifyErr))
 	}
@@ -263,11 +265,9 @@ func otpauthQRDataURI(key *otp.Key) (string, error) {
 // validates against the pending secret and promotes it.
 func (r *Runtime) TwoFactorVerifyAPI(req *bungo.Request) (bungo.APIResponse, error) {
 	user := CurrentUser(req)
-	var payload struct {
-		Code string `json:"code"`
-	}
-	if unmarshalErr := json.Unmarshal(req.Body, &payload); unmarshalErr != nil {
-		return apiError(400, "Invalid request body"), nil
+	payload, deny := decodeBody[codePayload](req)
+	if deny != nil {
+		return *deny, nil
 	}
 	if user.Auth.TempTwoFactorSecretEnc == "" {
 		return apiError(400, "No pending two-factor setup. Start again."), nil
@@ -293,11 +293,9 @@ func (r *Runtime) TwoFactorVerifyAPI(req *bungo.Request) (bungo.APIResponse, err
 // valid current code is required to switch 2FA off.
 func (r *Runtime) TwoFactorDisableAPI(req *bungo.Request) (bungo.APIResponse, error) {
 	user := CurrentUser(req)
-	var payload struct {
-		Code string `json:"code"`
-	}
-	if unmarshalErr := json.Unmarshal(req.Body, &payload); unmarshalErr != nil {
-		return apiError(400, "Invalid request body"), nil
+	payload, deny := decodeBody[codePayload](req)
+	if deny != nil {
+		return *deny, nil
 	}
 	if !user.Auth.TwoFactorEnabled() {
 		return apiError(400, "Two-factor authentication is not enabled."), nil
@@ -319,15 +317,17 @@ func (r *Runtime) TwoFactorDisableAPI(req *bungo.Request) (bungo.APIResponse, er
 	return bungo.APIResponse{StatusCode: 200, Body: map[string]any{"disabled": true}}, nil
 }
 
+type revokeSessionPayload struct {
+	SessionID string `json:"sessionId"`
+}
+
 // RevokeSessionAPI handles POST /api/v1/account/sessions/revoke {sessionId}.
 // Revoking the current session is allowed (it is just a logout the hard way).
 func (r *Runtime) RevokeSessionAPI(req *bungo.Request) (bungo.APIResponse, error) {
 	user := CurrentUser(req)
-	var payload struct {
-		SessionID string `json:"sessionId"`
-	}
-	if unmarshalErr := json.Unmarshal(req.Body, &payload); unmarshalErr != nil {
-		return apiError(400, "Invalid request body"), nil
+	payload, deny := decodeBody[revokeSessionPayload](req)
+	if deny != nil {
+		return *deny, nil
 	}
 	if strings.TrimSpace(payload.SessionID) == "" {
 		return apiError(400, "sessionId is required."), nil
@@ -339,19 +339,21 @@ func (r *Runtime) RevokeSessionAPI(req *bungo.Request) (bungo.APIResponse, error
 	return bungo.APIResponse{StatusCode: 200, Body: map[string]any{"revoked": true}}, nil
 }
 
+type deleteAccountPayload struct {
+	AuthKey string `json:"authKey"`
+}
+
 // DeleteAccountAPI handles POST /api/v1/account/delete {authKey}: full
 // account deletion, re-authenticated by the current auth key. Cascades
 // remove vaults, items, sessions and notifications; the audit row is written
 // first (user id becomes NULL after the cascade, by design).
 func (r *Runtime) DeleteAccountAPI(req *bungo.Request) (bungo.APIResponse, error) {
 	user := CurrentUser(req)
-	var payload struct {
-		AuthKey string `json:"authKey"`
+	payload, deny := decodeBody[deleteAccountPayload](req)
+	if deny != nil {
+		return *deny, nil
 	}
-	if unmarshalErr := json.Unmarshal(req.Body, &payload); unmarshalErr != nil {
-		return apiError(400, "Invalid request body"), nil
-	}
-	if compareErr := bcrypt.CompareHashAndPassword([]byte(user.Auth.AuthKeyHash), []byte(payload.AuthKey)); compareErr != nil {
+	if !crypto.CompareAuthKey(user.Auth.AuthKeyHash, payload.AuthKey) {
 		return apiError(401, "Your Master Password wasn't right."), nil
 	}
 

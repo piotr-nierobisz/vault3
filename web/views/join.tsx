@@ -1,19 +1,23 @@
 import React, { useState } from "react";
-import { AlertIcon, CheckIcon, DownloadIcon, RefreshIcon, VaultMark } from "../components/icons";
+import { CheckIcon, DownloadIcon, RefreshIcon } from "../components/icons";
 import { PasswordInput } from "../components/ui/password-input";
 import { CheckboxBox } from "../components/ui/checkbox";
+import { ErrorBanner } from "../components/ui/error-banner";
+import { Loading } from "../components/ui/loading";
+import { StatusPanel } from "../components/ui/status-panel";
 import { PhraseGrid } from "../components/auth/phrase-grid";
 import { StrengthMeter, estimateStrength } from "../components/auth/strength-meter";
 import { downloadKitHTML, downloadKitText } from "../components/auth/emergency-kit";
 import { postJSON } from "../lib/api";
-import { createCryptoBundle, generateSecretPhrase } from "../lib/crypto";
+import { createCryptoBundle, generateSecretPhrase, type DerivationStage } from "../lib/crypto";
+import { DerivationProgress } from "../components/ui/derivation-progress";
 import { saveKeys, rememberIdentity } from "../lib/keystore";
 import type { JoinPageData, JoinStep, RegisterResponse } from "../types/join";
 
 // Registration: a three-beat ceremony.
 //   1. account  — email, optional name, Master Password
 //   2. phrase   — mint the Secret Phrase, download the Emergency Kit, confirm
-//   3. sealing  — derive keys, generate keypair + vault key, register
+//   3. sealing  — derive keys, generate the vault key, register
 // Everything cryptographic happens on-device; the server receives the
 // finished ciphertext bundle.
 
@@ -42,30 +46,37 @@ function JoinWizard() {
   const [phrase, setPhrase] = useState(() => generateSecretPhrase());
   const [savedKit, setSavedKit] = useState(false);
   const [error, setError] = useState("");
+  // Keys the banner so a repeated validation failure remounts it and replays
+  // the shake; re-setting an identical message alone re-renders nothing.
+  const [attempt, setAttempt] = useState(0);
+  const [stage, setStage] = useState<DerivationStage | null>(null);
 
   if (!data.RegistrationOpen) {
     return (
-      <div className="card p-10 text-center animate-unseal">
-        <VaultMark className="h-10 w-10 text-accent mx-auto mb-5" />
-        <h1 className="text-2xl font-bold tracking-tight mb-3">Registration is closed for now.</h1>
-        <p className="text-sm text-muted-foreground">
-          We're letting people in gradually. Check back soon, or{" "}
-          <a href="/contact" className="text-accent hover:text-accent-active">get in touch</a>.
-        </p>
-      </div>
+      <StatusPanel
+        mark
+        title="Registration is closed for now."
+        body={
+          <>
+            We're letting people in gradually. Check back soon, or{" "}
+            <a href="/contact" className="text-accent hover:text-accent-active">get in touch</a>.
+          </>
+        }
+      />
     );
   }
 
   const submitAccount = (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setAttempt((n) => n + 1);
     const cleanEmail = email.trim().toLowerCase();
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(cleanEmail)) {
       setError("Enter a valid email address.");
       return;
     }
     if (estimateStrength(password).bits < 40) {
-      setError("Your Master Password is the half of your key you carry in your head — make it stronger.");
+      setError("This is the half of your key you keep in your head — please make it harder to guess.");
       return;
     }
     if (password !== confirm) {
@@ -80,7 +91,8 @@ function JoinWizard() {
     setStep("sealing");
     try {
       const cleanEmail = email.trim().toLowerCase();
-      const bundle = await createCryptoBundle(cleanEmail, password, phrase, data.KdfIterations);
+      const bundle = await createCryptoBundle(cleanEmail, password, phrase, data.KdfCosts, setStage);
+      setStage(null);
       const res = await postJSON<RegisterResponse>("/api/v1/auth/register", {
         email: cleanEmail,
         displayName: name.trim(),
@@ -113,15 +125,10 @@ function JoinWizard() {
         {stepBadge(step === "sealing" || step === "done", step === "done", 3, "Seal")}
       </div>
 
-      {error && (
-        <div className="animate-shake flex items-start gap-2 text-sm rounded-md border border-danger px-3 py-2.5 text-danger mb-5" role="alert" style={{ background: "var(--danger-subtle)" }}>
-          <AlertIcon className="h-4 w-4 mt-0.5 flex-shrink-0" />
-          <span>{error}</span>
-        </div>
-      )}
+      {error && <ErrorBanner key={attempt} message={error} className="mb-5" />}
 
       {step === "account" && (
-        <form onSubmit={submitAccount} className="card p-8 space-y-5" noValidate>
+        <form onSubmit={submitAccount} className="panel p-8 space-y-5" noValidate>
           <div>
             <h1 className="text-2xl font-bold tracking-tight mb-1.5">Create your vault.</h1>
             <p className="text-sm text-muted-foreground">
@@ -129,51 +136,51 @@ function JoinWizard() {
             </p>
           </div>
           <div className="space-y-1.5">
-            <label htmlFor="join-name" className="text-xs font-semibold tracking-widest uppercase text-muted-foreground">
+            <label htmlFor="join-name" className="field-label">
               Name <span className="normal-case font-normal">(optional)</span>
             </label>
             <input id="join-name" className="input" autoComplete="name" placeholder="Nora Sandoval" value={name} onChange={(e) => setName(e.target.value)} />
           </div>
           <div className="space-y-1.5">
-            <label htmlFor="join-email" className="text-xs font-semibold tracking-widest uppercase text-muted-foreground">Email</label>
+            <label htmlFor="join-email" className="field-label">Email</label>
             <input id="join-email" className="input" type="email" required autoComplete="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
           </div>
           <div className="space-y-1.5">
-            <label htmlFor="join-password" className="text-xs font-semibold tracking-widest uppercase text-muted-foreground">Master Password</label>
+            <label htmlFor="join-password" className="field-label">Master Password</label>
             <PasswordInput id="join-password" name="password" autoComplete="new-password" value={password} onChange={setPassword} />
             <StrengthMeter password={password} />
           </div>
           <div className="space-y-1.5">
-            <label htmlFor="join-confirm" className="text-xs font-semibold tracking-widest uppercase text-muted-foreground">Confirm Master Password</label>
+            <label htmlFor="join-confirm" className="field-label">Confirm Master Password</label>
             <PasswordInput id="join-confirm" name="confirm" autoComplete="new-password" value={confirm} onChange={setConfirm} />
           </div>
           <div className="rounded-lg border border-border bg-muted px-4 py-3 text-xs text-muted-foreground leading-relaxed">
-            Vault3 cannot reset this password. If you lose it (and your Secret Phrase), your vault is unrecoverable — that's the zero-knowledge deal.
+            There is no reset for this password. If you lose it along with your Secret Phrase, nobody can open your vault again — us included. That is the trade for keeping it genuinely private.
           </div>
-          <button type="submit" className="btn btn-primary w-full h-11 text-base">Continue</button>
+          <button type="submit" className="btn btn-primary btn-lg w-full">Continue</button>
         </form>
       )}
 
       {step === "phrase" && (
-        <div className="card p-8 space-y-5">
+        <div className="panel p-8 space-y-5">
           <div>
             <h1 className="text-2xl font-bold tracking-tight mb-1.5">Your Secret Phrase.</h1>
             <p className="text-sm text-muted-foreground">
-              Nine words, minted on this device just now. Together with your Master Password they form your vault key. We never see them.
+              Twelve words, made on this device a moment ago. Together with your Master Password they open your vault, and we never see either of them. Save them now — the app will not show them to you again.
             </p>
           </div>
 
           <PhraseGrid phrase={phrase} withCopy />
 
           <div className="flex flex-wrap gap-3">
-            <button type="button" onClick={() => setPhrase(generateSecretPhrase())} className="btn btn-ghost text-sm">
+            <button type="button" onClick={() => setPhrase(generateSecretPhrase())} className="btn btn-ghost btn-sm">
               <RefreshIcon className="h-4 w-4" /> New phrase
             </button>
             <span className="flex-1" />
-            <button type="button" onClick={() => downloadKitText(email.trim().toLowerCase(), phrase)} className="btn btn-secondary text-sm">
+            <button type="button" onClick={() => downloadKitText(email.trim().toLowerCase(), phrase)} className="btn btn-secondary btn-sm">
               <DownloadIcon className="h-4 w-4" /> Kit (.txt)
             </button>
-            <button type="button" onClick={() => downloadKitHTML(email.trim().toLowerCase(), phrase)} className="btn btn-secondary text-sm">
+            <button type="button" onClick={() => downloadKitHTML(email.trim().toLowerCase(), phrase)} className="btn btn-secondary btn-sm">
               <DownloadIcon className="h-4 w-4" /> Kit (printable)
             </button>
           </div>
@@ -181,13 +188,13 @@ function JoinWizard() {
           <label className="flex items-start gap-3 rounded-lg border border-border px-4 py-3.5 cursor-pointer hover:border-border-strong transition-colors">
             <CheckboxBox checked={savedKit} onChange={setSavedKit} className="mt-0.5" />
             <span className="text-sm text-foreground leading-relaxed">
-              I've saved my Emergency Kit somewhere safe and offline. I understand that losing both secrets means losing my vault — permanently.
+              I have saved my Emergency Kit somewhere safe and offline. I understand that if I lose both secrets, everything in my vault is gone for good.
             </span>
           </label>
 
           <div className="flex items-center gap-3">
             <button type="button" onClick={() => setStep("account")} className="btn btn-ghost">Back</button>
-            <button type="button" onClick={register} disabled={!savedKit} className="btn btn-primary flex-1 h-11 text-base">
+            <button type="button" onClick={register} disabled={!savedKit} className="btn btn-primary btn-lg flex-1">
               Seal my vault
             </button>
           </div>
@@ -195,23 +202,16 @@ function JoinWizard() {
       )}
 
       {step === "sealing" && (
-        <div className="card p-12 text-center">
-          <VaultMark className="h-12 w-12 text-accent mx-auto mb-6 mark-pulse" />
-          <h1 className="text-2xl font-bold tracking-tight mb-2">Sealing your vault…</h1>
-          <p className="text-sm text-muted-foreground font-mono">
-            deriving keys · 650,000 rounds · generating keypair · wrapping vault key
-          </p>
-        </div>
+        <StatusPanel
+          mark
+          pulse
+          title="Sealing your vault…"
+          body={stage ? <DerivationProgress stage={stage} /> : <Loading label="locking your vault key" />}
+        />
       )}
 
       {step === "done" && (
-        <div className="card p-12 text-center animate-unseal">
-          <div className="w-14 h-14 rounded-full bg-accent-subtle text-accent inline-flex items-center justify-center mx-auto mb-6 animate-glow">
-            <CheckIcon className="h-7 w-7" />
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight mb-2">Sealed.</h1>
-          <p className="text-sm text-muted-foreground">Opening your vault…</p>
-        </div>
+        <StatusPanel icon={<CheckIcon className="h-6 w-6" />} title="Sealed." body="Opening your vault…" />
       )}
 
       <p className="text-xs text-muted-foreground text-center mt-6">

@@ -5,6 +5,9 @@ export type LoginPageData = {
 export type AuthParamsResponse = {
   kdfSalt: string;
   kdfIterations: number;
+  argon2MemoryKiB: number;
+  argon2Time: number;
+  argon2Lanes: number;
 };
 
 export type LoginResponse = {

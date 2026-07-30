@@ -11,7 +11,7 @@ For agent routing, see [claude.md](../claude.md). For the cryptography the clien
 Vault3 does **not** use a separate Node/Vite app. React is compiled by BunGo (embedded esbuild) and served by the Go binary.
 
 - **No** npm, `package.json`, `node_modules`, or Vite dev server.
-- Third-party client dependencies would use Deno-style URL imports (`https://esm.sh/...`) wrapped once under `web/lib/` — but Vault3 currently has **zero** of them, and the CSP (`script-src`/`connect-src` allow esm.sh only) is the only door. Prefer keeping it that way: a password manager's bundle should be auditable.
+- Third-party client dependencies would use Deno-style URL imports (`https://esm.sh/...`), resolved at build time and wrapped once under `web/lib/` — but Vault3 has **zero** of them, and the CSP now names no third-party host at all. Keep it that way: a CDN allowance in `script-src`/`connect-src` is a standing script source and exfiltration channel for any injected payload, and for a vault whose unlocked keys live in the page that is the whole ballgame. Adding a remote dependency means re-opening that hole deliberately, in the same change.
 - BunGo injects view scripts and `window.__BUNGO_DATA__` automatically — see [bungo.md](./bungo.md).
 
 ## Type checking
@@ -23,7 +23,10 @@ clone type-checks with no install step. See that directory's README for versions
 to refresh them.
 
 - Run it with any available TypeScript: `npx --package typescript tsc -p tsconfig.json`.
-  The config is `noEmit`, so a clean run prints nothing.
+  The config is `noEmit`, so a clean run prints nothing. It carries no `baseUrl` — the
+  `paths` entries are relative to the config itself, which TypeScript has resolved
+  natively since 5.0 and which keeps the command working on versions that removed the
+  option.
 - The vendored declarations are `exclude`d from the program roots and load only when a
   file imports `react`. They are invisible to esbuild, which will not take a `.d.ts` as a
   bundle input — so `paths` cannot redirect the React that BunGo actually ships.
@@ -36,7 +39,7 @@ to refresh them.
 |-------|--------|
 | Runtime | React 18.2 (embedded via BunGo) |
 | Language | TypeScript / TSX |
-| Crypto | WebCrypto only (`web/lib/crypto.ts`) — no crypto libraries |
+| Crypto | WebCrypto via `web/lib/crypto.ts`, plus the Argon2id wasm module behind `web/lib/argon2.ts` — no third-party crypto libraries |
 | Styling | theme.css design tokens + local Tailwind Play runtime (`web/static/tailwind.js`) |
 | Components | shadcn/ui-inspired local primitives (no shadcn CLI or npm) |
 | Data fetching | `web/lib/api.ts` (`postJSON`/`getJSON`) |
@@ -54,11 +57,13 @@ web/
     vendor/       vendored React/csstype declarations for tsc only (see "Type checking")
   components/
     icons.tsx     shared lucide-matched icon set (see "Shared icons")
-    ui/           token primitives: password-input, copy-button, dialog, toast, field-error
-    auth/         join/recover ceremony pieces: phrase-grid, strength-meter, emergency-kit
+    ui/           token primitives: password-input, copy-button, dialog, toast,
+                  field-error, error-banner, status-panel, loading,
+                  fresh-link-callout
+    auth/         join ceremony pieces: phrase-grid, strength-meter, emergency-kit
     vault/        the vault surface: lock-screen, item-form, item-detail, generator-popover
   lib/            shared client glue: api.ts, crypto.ts, keystore.ts, sync.ts,
-                  generator.ts, totp.ts, wordlist.ts, motion.ts
+                  use-action.ts, generator.ts, totp.ts, wordlist.ts, motion.ts
   static/         theme.css (all tokens), styles.css (page styles), tailwind.js,
                   favicon.svg, og-image.png, robots.txt, sitemap.xml
 ```
@@ -72,7 +77,9 @@ Conventions the tree encodes:
 
 ## The crypto layer (client)
 
-- `lib/crypto.ts` — the 2SKD derivation, envelope seal/open, keypair generation, the registration bundle, item sealing. Constants (info strings, iteration default, phrase length) are part of the wire contract with the server; see the change checklist in [security.md](./security.md).
+- `lib/crypto.ts` — the 2SKD derivation, envelope seal/open, the registration bundle, item sealing. Constants (info strings, cost defaults, phrase length) are part of the wire contract with the server; see the change checklist in [security.md](./security.md).
+- `lib/argon2.ts` — the typed door to the Argon2id wasm module. It spawns a worker per derivation and disposes of it; the module itself, its integrity pin, and the WASI shim live in `web/static/argon2*.js` (served unbundled so `scripts/verify-wasm.mjs` can test the very code the browser runs). Do not inline or bundle those.
+- **Long derivations report progress.** `deriveKeys` takes an optional `ProgressCallback` and every unlock path passes it to `<DerivationProgress>`. A KDF that occupies the main thread for a second reads as a broken page; the fix is to say what is happening, not to weaken the KDF.
 - `lib/wordlist.ts` — the 2048-word Secret Phrase list. Append-only in spirit: existing phrases must keep validating forever.
 - `lib/keystore.ts` — sessionStorage keys per tab, localStorage remembered identity, auto-lock, and the per-tab `clientID()` the api layer sends as `X-Vault3-Client`.
 - `lib/sync.ts` — subscribes to `/events`, ignores this tab's own echoes, hands the new revision to the view for refetch.
@@ -111,13 +118,17 @@ All `.gohtml` files live in `web/layouts/`. Full rules: [bungo.md](./bungo.md).
 
 **The single source of truth for all design tokens is `web/static/theme.css`** — colours (light + dark), typography, spacing, radii, shadows, and the brand motion keyframes. Never hardcode colour values; use tokens or the token utility classes theme.css defines (`bg-card`, `text-accent`, `border-border`, `btn`, `input`, `checkbox`, `slider`, `badge-*`).
 
+- **Never size a `.btn` with a utility class.** Tailwind's stylesheet is appended *after* theme.css, so a `text-sm` on a button silently overrides `.btn`'s own font-size and the button renders at a different size from its neighbours — this is how ~50 buttons drifted into six spellings of "tall submit button". Size comes from the class: `.btn` (default; its box matches `.input` exactly, so use it for a button sitting in a field row), `.btn-sm` for dense chrome, `.btn-lg` for a form's main submit.
+- **Recurring class strings live in theme.css, not in JSX.** `.field-label` is the small uppercase label above a field (also the mini-heading above a group); `.btn-icon` / `.btn-icon-danger` is the bare glyph button; `.scrim` is the modal backdrop; `.icon-tile` (+ `-sm` / `-lg` / `-cool` / `-warm` / `-danger` / `-muted` in styles.css) is a glyph in a tinted well. Reach for these before writing the classes out; a hand-rolled copy is how the tile that should have been `icon-tile-danger` ended up rendering a danger glyph on an accent well.
+
 - **Form controls are painted, not native.** `.checkbox` and `.slider` replace browser chrome with token styling (`appearance: none`) while staying real inputs, so labels, keyboard and form semantics survive. Both take a caller-set custom property for the parts CSS cannot know — `--check-tint` to theme a box to what it toggles, `--slider-pct` for the filled portion of a track. Use the `Checkbox`/`CheckboxBox` primitives rather than a bare `<input type="checkbox">`; `accentColor` is not a substitute.
 
 - **One theme, dark.** The tokens in `theme.css` are literal colours under `:root`; there is no light palette, no `.dark` class, no theme switch and no `dark:` variants. A new colour is a token, never a per-theme pair.
 - **The spectrum.** `--accent` (violet) is the brand. `--accent-2` (signal cyan) and `--accent-3` (sealed magenta) exist for gradients, ambient light and accent-on-accent detail — never as a second brand colour standing alone. `--gradient-brand` (magenta → violet → cyan) is the one gradient; reach for the primitives that already apply it (`.text-gradient`, `.bg-gradient-brand`, `.rule-gradient`, `.eyebrow`, `.step-chip`, `.stat-value`) rather than writing new `linear-gradient()` calls. Never on body text.
 - **Surfaces.** `.card` is the plain app surface; `.panel` is the marketing-weight one (accent-lit wash, gradient top hairline), and `.panel-interactive` adds the hover lift. Public pages sit on `.site-canvas` — one fixed layer holding the grid, grain and `.glow-orb` ambient colour — so no section paints its own background.
-- **Marketing tiles argue, they don't decorate.** A feature tile on `/` or `/security` carries a small figure of its own claim — sealed item titles, the nine words in their slots, an authenticator counting down, the real response headers — not a generic glyph in an `.icon-tile`. The bento grids size each tile to its figure (`lg:grid-cols-6` + spans), and the figure parts in `styles.css` (`.fig`, `.seal-bar`, `.phrase-grid`, `.otp`, `.trail`, `.kv`, …) are deliberately small and combinable: a new tile composes a new figure rather than reusing a finished one. Figures are `aria-hidden` garnish — the copy beside one must state the claim on its own — and should quote what the product actually produces (a real column, a real header), because a false figure is a false claim.
-- Monospace = secret material. `data-secret` inputs and `.font-mono` get the mono stack; keep that signal consistent.
+- **Marketing tiles argue, they don't decorate.** A feature tile on `/` or `/security` carries a small figure of its own claim — sealed item titles, the twelve words in their slots, an authenticator counting down, the real response headers — not a generic glyph in an `.icon-tile`. The bento grids size each tile to its figure (`lg:grid-cols-6` + spans), and the figure parts in `styles.css` (`.fig`, `.seal-bar`, `.phrase-grid`, `.otp`, `.trail`, `.kv`, …) are deliberately small and combinable: a new tile composes a new figure rather than reusing a finished one. Figures are `aria-hidden` garnish — the copy beside one must state the claim on its own — and should quote what the product actually produces (a real column, a real header), because a false figure is a false claim.
+- **Plain-language blocks are prose, not figures.** `.faq` (a stack of `<details>` disclosures, on `/`) and `.gloss` (a `<dl>` of term → sentence, on `/security`) carry the explanation a visitor who skips the cryptography needs. Unlike figures they are real content: never `aria-hidden`, and built from native elements so they open and read with JavaScript off. The technical term sits in the mono/accent slot and the everyday sentence beside it — the same division the marketing copy follows (see [product.md](./product.md)).
+- Monospace = secret material, or machinery named precisely. `data-secret` inputs and `.font-mono` get the mono stack; algorithm names and parameters ride in mono badges and `.fig-label`s so prose can stay plain. Keep that signal consistent.
 - Motion language: sealing/unsealing. Use the provided classes — `animate-unseal`, `animate-seal`, `animate-rise` (+ `--stagger-i`), `animate-pop`, `animate-shake`, `animate-glow`, `.scroll-reveal` — rather than inventing new keyframes per view. Everything respects `prefers-reduced-motion`.
 - `styles.css` is for page-specific styles (landing visuals, legal prose, app helpers); it must never redeclare a token.
 
@@ -125,6 +136,23 @@ All `.gohtml` files live in `web/layouts/`. Full rules: [bungo.md](./bungo.md).
 
 - **Initial page state**: server handler map → template + `useBungoData()`.
 - **Mutations and refetches**: through `lib/api.ts` only (`postJSON`/`getJSON`; they never throw on non-2xx — branch on `ok`). Do not scatter raw `fetch` (the shared-header inline scripts are the one exception).
+- **Async actions go through `useAction`** (`lib/use-action.ts`) rather than a hand-rolled `setBusy`/`try`/`catch`/`finally` around each button:
+
+  ```ts
+  const { busy, run } = useAction({ onError: (m) => toast("error", m), network: "Network error. Try again." });
+
+  await run(() => postJSON<T>("/api/v1/…", payload), {
+    onOK: (data) => { /* only the success path */ },
+    fail: "Couldn't do the thing.",
+  });
+  ```
+
+  The hook owns the re-entry guard (a ref, not `busy` — a double click lands before React re-renders the button as disabled), prefers the server's `{"message"}` over the `fail` fallback, `await`s `onOK` so an async success path stays inside the busy window and the network catch, and always clears busy. Where the failure is shown and how a dropped connection is worded are per-*surface*, so a component states them once when it takes the hook. `run` resolves to whether the success path ran, for callers that must rewind their own state (a two-step confirm).
+
+  Handlers that genuinely do not fit are left alone rather than contorted: an optimistic toggle with no busy state, a wizard whose failure branch routes by `field`, a multi-step machine with intermediate states, a fire-and-forget mark-as-read. Adding one is fine — forcing one through the hook is not.
+- **Recoverable failures render as `<ErrorBanner message=… />`** (`components/ui/error-banner.tsx`), never a hand-copied shake block. Give it a `key` that changes per attempt when the same message can fail twice running: re-setting an identical message changes no state, so React re-renders nothing, the banner never remounts and the shake never replays — leaving a repeat click with no visible response at all. `children` render inside the message for the rare failure that offers a way out of itself (login's resend-verification link); `tone="warning"` is the standing-advisory variant, which deliberately does not shake. `field-error` remains the small inline variant for a single field.
+- **Whole-page states are `<StatusPanel />`**, not a hand-rolled centred box — loading, empty, terminal failure, and success-before-redirect all take it, so they cannot drift apart in surface, padding, mark size or entrance animation. `<Loading />` is the inline form (its default label, "unsealing…", is the product's voice for waiting; "loading…" is not). `<FreshLinkCallout />` is the show-once share/invite link block.
+- **A failed load must never render as an empty one.** The share-link and member lists both say what is *currently* exposed, so presenting a fetch failure as "none" is a lie in the dangerous direction; keep a distinct failed state and say retrying is possible. The same applies to a blanked list mid-refetch: a silent failure there strands the pane on its spinner for good.
 - **Live updates**: mutation responses carry the new `revision`; other tabs converge via `lib/sync.ts` → refetch → re-decrypt. Keep the pattern: apply your own response optimistically, let the signal drive everyone else.
 - Forms are plain controlled React with explicit validation — no form library while the forms stay this small.
 

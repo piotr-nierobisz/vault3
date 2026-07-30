@@ -153,7 +153,6 @@ func (r *Runtime) recipientDetails(ctx context.Context, userID string) notificat
 var alwaysEmailKinds = map[string]bool{
 	"welcome":            true,
 	"email_verification": true,
-	"account_reset":      true,
 	"password_changed":   true,
 }
 
@@ -226,24 +225,6 @@ func (e *EmailVerification) plan(_ context.Context, _ *Runtime) ([]plannedNotifi
 		Channels:      []NotificationChannel{ChannelEmail},
 		EmailTemplate: "EMAIL_VERIFICATION",
 		EmailData:     map[string]any{"verifyUrl": e.VerifyURL},
-	}}, nil
-}
-
-// AccountReset carries the destructive reset link (email only).
-type AccountReset struct {
-	UserID   string
-	ResetURL string
-}
-
-func (e *AccountReset) plan(_ context.Context, _ *Runtime) ([]plannedNotification, error) {
-	return []plannedNotification{{
-		UserID:        e.UserID,
-		Kind:          "account_reset",
-		Title:         "Account reset requested",
-		Body:          "An account reset was requested for your address.",
-		Channels:      []NotificationChannel{ChannelEmail},
-		EmailTemplate: "ACCOUNT_RESET",
-		EmailData:     map[string]any{"resetUrl": e.ResetURL},
 	}}, nil
 }
 

@@ -5,6 +5,16 @@ import (
 	"time"
 )
 
+// Vault kinds. These are the only values the Vault3VaultKind CHECK
+// constraint accepts (scripts/sql/003.sql); the kind tracks whether anyone
+// besides the owner currently holds access, and flips as members join and
+// leave. Reference these rather than the bare strings so a typo is a compile
+// error instead of a row that silently fails its constraint.
+const (
+	VaultKindPersonal = "personal"
+	VaultKindShared   = "shared"
+)
+
 // Vault mirrors vault3_vault (see scripts/sql/003.sql).
 // EncName is a client-side CipherEnvelope sealed under the vault key: even
 // the vault's name is unreadable server-side.

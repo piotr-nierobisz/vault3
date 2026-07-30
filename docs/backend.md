@@ -15,7 +15,7 @@ For agent routing, see [claude.md](../claude.md). For the cryptography — key h
 | Logging | Zap (`go.uber.org/zap`) |
 | Database | PostgreSQL |
 | SQL builder | `github.com/Masterminds/squirrel` |
-| Auth | Custom session auth over a client-derived auth key (bcrypt), TOTP 2FA (`github.com/pquerna/otp`) |
+| Auth | Custom session auth over a client-derived auth key (Argon2id), TOTP 2FA (`github.com/pquerna/otp`) |
 | Server field crypto | `internal/crypto` (AES-256-GCM under `SERVER_ENCRYPTION_KEY_STRING`) |
 | Email | Mailgun REST API (keys empty in dev; delivery degrades to logged skips) |
 | Change signal | In-process SSE hub (`/events`) + per-user revision counter |
@@ -58,7 +58,29 @@ func (rt *Runtime) RequireAuth(breq *bungo.Request) bool
 
 ### The custom listener (cmd/vault3/main.go)
 
-`srv.Serve` is **not** used. main.go builds the handler through the engine's public `CreateHandler`, mounts the native `/events` SSE endpoint beside it, and wraps everything in `rt.WrapHandler` — security headers (CSP, HSTS, frame denial), the per-IP auth throttle (proper 429s, which a bungo security layer cannot produce), and socket-IP injection so `ClientIP` works without a proxy. All of it uses only BunGo's public API; the framework is unmodified.
+`srv.Serve` is **not** used. main.go builds the handler through the engine's public `CreateHandler`, mounts the native `/events` SSE endpoint beside it, and wraps everything in `rt.WrapHandler` — security headers (CSP, HSTS, frame denial), rejection of cross-origin state-changing requests, and socket-IP injection so `ClientIP` works without a proxy. All of it uses only BunGo's public API; the framework is unmodified.
+
+Rate limiting is **not** in the app. Per-IP throttling of the auth endpoints belongs to the production reverse proxy, which sees the real client address; an in-process counter keyed on the socket address collapses to one platform-wide bucket the moment traffic arrives through a proxy. Do not reintroduce it in Go.
+
+#### Route registration is secure by default
+
+Routes are registered through five closures defined at the top of main.go, never by writing a `bungo.ApiRoute`/`PageRoute` literal inline:
+
+| Helper | Layers | Use for |
+|--------|--------|---------|
+| `api(method, path, handler)` | `require_auth` + `load_viewer` | every authenticated endpoint |
+| `page(path, template, view, handler)` | `require_auth` + `load_viewer` | every authenticated page |
+| `openAPI(method, path, handler)` | none | the deliberately public API surface |
+| `viewerPage(...)` | `optional_auth` + `load_viewer` | public pages that adapt when signed in |
+| `anonPage(...)` | none | pre-sign-in pages and the share viewer |
+
+The point is the inversion: authentication is the default, and publishing something unauthenticated costs a visible word in the name. In a flat list of ~40 routes a missing `SecurityLayer:` field is invisible in review and silently ships an unauthenticated endpoint over the vault. It also makes the whole public surface auditable in one command:
+
+```sh
+grep -n 'openAPI\|viewerPage\|anonPage' cmd/vault3/main.go
+```
+
+Adding a route means picking a helper. If a new route needs a layer combination none of them covers, add a sixth named helper rather than reaching for a struct literal.
 
 ### Shared handler helpers
 
@@ -67,6 +89,38 @@ func (rt *Runtime) RequireAuth(breq *bungo.Request) bool
 - `optional_auth` — carried by **every** public page (landing, contact, security, the legal docs) so the marketing header can offer a signed-in visitor the way back into `/app`. Loads the session/user when a valid cookie is present but always passes; pair with `load_viewer`, and have the handler put `rt.Viewer(req)` in its map. Shares `resolveSession` with `require_auth` but does not touch last-seen. It adapts the header only — a public page never renders app chrome (see [frontend.md](./frontend.md)).
 - `apiError(status, message)` / `apiFieldError(status, message, field)` — the standard error responses; never inline `bungo.APIResponse` error literals.
 - `rt.audit(req, userID, action, entityType, entityID, detail)` — append to the security trail; log-and-continue by design.
+- `decodeBody[T](req)` — parse the request body or hand back a ready-to-return 400. Every API handler opens with it; none calls `json.Unmarshal(req.Body, …)` directly:
+
+  ```go
+  payload, deny := decodeBody[idPayload](req)
+  if deny != nil {
+      return *deny, nil
+  }
+  ```
+
+  `payload` is a `*T`, so pass it on as-is (`validateItemEnvelopes(payload)`), not `&payload`. Give the body a **named type** — anonymous structs cannot be a readable type argument — and reuse the shared single-field types (`idPayload`, `tokenPayload`, `emailPayload`, `codePayload`) rather than redeclaring them; the rest live next to the handler that owns them. Stating the malformed-body response once also means every endpoint refuses unparseable input identically, so probing one teaches nothing about another.
+
+### Authorisation helpers (vault_view.go)
+
+**Every** vault or item handler authorises through one of these four, and none re-implements the check inline. They return the loaded rows or a ready-to-return denial:
+
+```go
+access, deny := r.requireVaultOwner(req, user.ID, vaultID, "Only the vault owner can rename it.")
+if deny != nil {
+    return *deny, nil
+}
+```
+
+| Helper | Requires |
+|--------|----------|
+| `requireVaultAccess(req, userID, vaultID)` | any access — reads every member is entitled to |
+| `requireVaultOwner(req, userID, vaultID, ownerOnly)` | owner; 403 with `ownerOnly` for a member |
+| `requireItemAccess(req, userID, itemID)` | any access to the item's vault |
+| `requireItemOwner(req, userID, itemID, ownerOnly)` | owner of the item's vault |
+
+Two properties are built in rather than left to each caller. "Does not exist" and "is not yours" collapse into the same 404, because a distinguishable response turns any id into an existence oracle. And the role requirement is **in the function name**: members hold read access to a shared vault, so the owner check is the only thing between a member and someone else's data — a handler that wants it has to say so, and one that omits it reads as `requireVaultAccess` in review rather than as a missing line.
+
+The one legitimate exception is `RemoveVaultMemberAPI`, where a member may remove themselves: it takes `requireVaultAccess` and then branches on the target. It says so in a comment; any other manual role comparison in a handler is a bug.
 
 ---
 
@@ -133,6 +187,10 @@ func SelectVaultItems(ctx context.Context, db DbTx, builder *sq.StatementBuilder
 
 Functions take `db database.DbTx` (satisfied by both `*sql.DB` and `*sql.Tx` — callers pass `rt.GetDb()`) plus `builder`, keeping the package free of the runtime import. Functions that read or write encrypted-at-rest columns additionally take `cipher *crypto.FieldCipher` and do the FieldCipher work internally, so handlers never touch ciphertext plumbing.
 
+**Writes whose `WHERE` is pure identity must go through `execExpectingRow`**, which returns `ErrNoRowsAffected` when nothing matched. The package's division of labour is that handlers authorise and these functions then mutate by id; without the check, a forgotten authorisation check produces a write that changes nothing and still returns 200 — indistinguishable from success at every layer above. The guard turns that class of mistake into a loud 500. It matters most on the credential path: a silent no-op there would report a changed Master Password while the old hash still stood.
+
+Writes that legitimately affect zero rows must **not** use it — the revoke helpers (`IS NULL` guarded so a second revoke is a no-op), `DeleteOtherUserSessions` (matches nothing when the account has only the current session), the session delete/touch helpers, `MarkNotificationRead(All)`, and the scheduler's bulk purges. The full list, with reasons, is on `ErrNoRowsAffected` in `db.go`; adding the guard to one of those turns an ordinary outcome into a 500.
+
 ### Connections and transactions
 
 Never query `rt.DB` directly in database code. Use `rt.GetDb()`.
@@ -153,12 +211,29 @@ transactionErr := runtime.WithTransaction(rt, ctx, func(txRt *runtime.Runtime) e
 
 ### The change signal (cross-device sync)
 
-Every mutation of a user's data follows one shape:
+Every mutation follows one shape — mutate, bump the affected users' revisions **inside** the same transaction, then publish and audit **after** it commits. Handlers do not assemble that sequence by hand; they call one of the three commit helpers in `signal.go` and supply only the mutation:
 
-1. Inside the transaction: the mutation + `SignalUserChanged` (bumps `vault3_user.Revision`, returning the new value).
-2. After commit: `rt.PublishChange(req, userID, revision)` fans the revision out over `/events`; `rt.audit(...)` records the action.
+```go
+revisions, commitErr := r.commitVaultChange(req, user.ID, item.VaultID, "item_updated", "item", item.ID,
+    func(txRt *Runtime) error {
+        return database.UpdateItemBlobs(req.Context, txRt.GetDb(), &txRt.Builder, item.ID, overview, details)
+    })
+if commitErr != nil {
+    return bungo.APIResponse{}, commitErr
+}
+```
 
-Mutations scoped to a **vault** (items, renames, membership) must reach every member, not just the actor: use `SignalVaultChanged` (bumps every access-holder's revision in-transaction, returning a per-user map) and `rt.PublishChanges` after commit. When the mutation removes access rows (member removal, vault delete), capture the audience with `SelectVaultUserIDs` first and bump via `signalUsersChanged`. API responses return the acting user's own revision from the map.
+| Helper | Audience |
+|--------|----------|
+| `commitUserChange(req, userID, action, entityType, entityID, mutate)` | the acting user alone (profile, credentials) |
+| `commitVaultChange(req, actorID, vaultID, action, entityType, entityID, mutate)` | everyone with access, resolved **after** the mutation so a member it adds is included |
+| `commitAudienceChange(req, actorID, audience, action, entityType, entityID, mutate)` | a list captured **before** the mutation, for changes that delete the access rows identifying it (vault delete, member removal) |
+
+The ordering is not stylistic. Bumping inside the transaction is what makes a rolled-back change unable to signal anyone; publishing only after commit is what stops a client being told to refetch data that was never written. Spelled out per call site those are two invariants a handler can get wrong silently, so the helpers own them and a handler cannot sequence them incorrectly. API responses return the acting user's own revision from the returned map.
+
+Registration is the sole handler using a bare `WithTransaction`, because it creates the user and so has no prior revision to bump.
+
+Clients send a per-tab id in `X-Vault3-Client`; the event echoes it as `origin` so the originating tab skips its own refetch. `GET /api/v1/sync/revision` is the reconnect/poll fallback. The hub is in-process — if the web tier ever scales horizontally, put Postgres LISTEN/NOTIFY behind the same Publish/Subscribe surface.
 
 Clients send a per-tab id in `X-Vault3-Client`; the event echoes it as `origin` so the originating tab skips its own refetch. `GET /api/v1/sync/revision` is the reconnect/poll fallback. The hub is in-process — if the web tier ever scales horizontally, put Postgres LISTEN/NOTIFY behind the same Publish/Subscribe surface.
 
@@ -188,13 +263,17 @@ The full model is in [security.md](./security.md). Backend-relevant rules:
 
 | Concern | Rule |
 |---------|------|
-| Sign-in | Client-derived auth key only; bcrypt in `vault3_user_auth`; the same `GenericLoginError` for every failure |
-| KDF params | `/auth/params` serves per-account salt/iterations; unknown emails get deterministic decoys |
-| Sessions | Opaque token client-side; SHA-256 hash in DB; HttpOnly/SameSite/Secure-in-prod; 30-day TTL; revocable; password change revokes all others in-transaction |
-| Tokens | Verification and account-reset tokens stored hashed, single-use, time-limited |
+| Sign-in | Client-derived auth key only; Argon2id (PHC-encoded) in `vault3_user_auth` via `crypto.HashAuthKey`/`CompareAuthKey`; the same `GenericLoginError` for every failure |
+| KDF params | `/auth/params` serves the per-account salt plus the full `models.KdfCosts` (PBKDF2 iterations + Argon2id memory/time/lanes); unknown emails get deterministic decoys at current defaults. Floors enforced by `validateKdfCosts` |
+| Sessions | Opaque 512-bit token client-side; SHA-512 hash in DB; HttpOnly/SameSite/Secure-in-prod; 30-day TTL; revocable; password change revokes all others in-transaction |
+| Tokens | Email-verification tokens stored hashed, single-use, time-limited, claimed atomically (`UPDATE … WHERE … RETURNING`) |
+| Recovery | **None.** There is no account recovery or reset flow and must never be one — see [security.md](./security.md) |
 | 2FA | TOTP secrets FieldCipher-encrypted; pending secret promoted on verify; a valid code required to disable |
 | Email verification | Enforced at login only when the `email_verification_required` platform setting is on (off in dev where email cannot send) |
-| Throttling | Auth endpoints behind the middleware's per-IP limiter (429 + Retry-After) |
+| CSRF | Cross-origin state-changing requests rejected in middleware via `Sec-Fetch-Site`/`Origin`, behind the cookie's `SameSite=Lax` |
+| Throttling | Not in the app — the production reverse proxy owns per-IP limits |
+| Role strings | `models.RoleOwner` / `RoleMember` / `VaultKind*` / `WrapAlgoMUK`, never bare literals |
+| Asymmetric crypto | **None, deliberately.** Adding any is a security-model change, not an implementation detail — see [security.md](./security.md) |
 | Audit | Security events and item lifecycle (ids only) via `rt.audit`; encrypted at rest |
 
 ### Platform settings

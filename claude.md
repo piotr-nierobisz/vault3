@@ -1,6 +1,6 @@
 # Vault3 — AI agent context
 
-Vault3 is a zero-knowledge password manager at vault3.com. Everything a user stores — logins, notes, cards, identities, item titles included — is encrypted in their browser with keys derived from a Master Password and a nine-word Secret Phrase. The server holds only ciphertext and can never decrypt it; that property is the product.
+Vault3 is a zero-knowledge password manager at vault3.com. Everything a user stores — logins, notes, cards, identities, item titles included — is encrypted in their browser with keys derived from a Master Password and a twelve-word Secret Phrase. The server holds only ciphertext and can never decrypt it; that property is the product.
 
 ---
 
@@ -32,18 +32,24 @@ This file is for **routing**, not content. Open the specialised doc that matches
 cmd/vault3/           Web server entry (custom listener: BunGo handler + middleware + /events SSE)
 cmd/scheduler/        Background job scheduler entry (housekeeping container; see backend.md)
 internal/             Go domain: runtime, config, crypto, database, models, view, jobs
+internal/wasm/argon2/ Argon2id KDF kernel, compiled to WebAssembly for the browser (security.md)
 web/                  BunGo frontend: layouts, views, components, lib (client crypto!), static
 scripts/sql/          Numbered schema scripts (see backend.md)
+scripts/              build-wasm.sh (reproducible wasm build), verify-wasm.mjs (known-answer check)
 docs/                 product.md, security.md, backend.md, frontend.md, bungo.md
 ```
 
-Stack in one line: **Go + BunGo + PostgreSQL + custom session auth + client-side WebCrypto (the vault) + Mailgun (email, keys empty in dev)**. React/Tailwind ship inside BunGo with no npm toolchain. No other third parties — by design.
+Stack in one line: **Go + BunGo + PostgreSQL + custom session auth + client-side WebCrypto and an Argon2id wasm module (the vault) + Mailgun (email, keys empty in dev)**. React/Tailwind ship inside BunGo with no npm toolchain. No other third parties — by design.
+
+Every primitive in the product is symmetric or hash-based; there is deliberately **no asymmetric cryptography anywhere**, which is what makes it post-quantum without a migration path to maintain. Adding some is a security-model decision, not an implementation choice — read [docs/security.md](docs/security.md) first.
 
 ---
 
 ## Running locally
 
 `./start.sh` is the supported way to run the app: it brings up Docker containers for Postgres, the `bungo dev` server, and the background job scheduler (`cmd/scheduler`, detached; `VAULT3_RUN_SCHEDULER=0` to skip), reading ports and credentials from `.env`. `./stop.sh` tears the dev stack down (`--wipe` to drop the data volume).
+
+The committed wasm artifact means no extra build step: run `./scripts/build-wasm.sh` only when `internal/wasm/argon2/main.go` or the pinned Go version changes, and commit its output together with the regenerated `web/lib/argon2-manifest.ts`.
 
 **Secrets preflight:** start.sh refuses to boot unless every `REQUIRED_ENV_VARS` entry (parsed live from `internal/config/constants.go`, so the check never drifts) is present in `.env` or the environment. The Mailgun keys are deliberately **not** required: email degrades to a logged skip while they are empty, and the `email_sending_enabled` platform setting (seeded off) keeps dev quiet regardless.
 

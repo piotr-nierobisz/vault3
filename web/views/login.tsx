@@ -1,8 +1,9 @@
 import React, { useState } from "react";
-import { AlertIcon } from "../components/icons";
+import { ErrorBanner } from "../components/ui/error-banner";
 import { PasswordInput } from "../components/ui/password-input";
 import { postJSON } from "../lib/api";
-import { deriveKeys, validateSecretPhrase } from "../lib/crypto";
+import { deriveKeys, validateSecretPhrase, type DerivationStage } from "../lib/crypto";
+import { DerivationProgress } from "../components/ui/derivation-progress";
 import { saveKeys, rememberIdentity, loadIdentity, forgetIdentity } from "../lib/keystore";
 import type { AuthParamsResponse, LoginResponse, LoginState, LoginStep } from "../types/login";
 
@@ -25,11 +26,13 @@ function LoginForm() {
   const [code, setCode] = useState("");
   const [state, setState] = useState<LoginState>({ kind: "idle" });
   const [shake, setShake] = useState(0);
+  const [stage, setStage] = useState<DerivationStage | null>(null);
 
   const busy = state.kind === "deriving" || state.kind === "submitting";
 
   const fail = (message: string, unverified?: boolean) => {
     setState({ kind: "error", message, unverified });
+    setStage(null);
     setShake((s) => s + 1);
   };
 
@@ -53,13 +56,8 @@ function LoginForm() {
         fail("Something went wrong. Please try again.");
         return;
       }
-      const { authKey, encKeyRaw } = await deriveKeys(
-        cleanEmail,
-        password,
-        phrase,
-        params.data.kdfSalt,
-        params.data.kdfIterations,
-      );
+      const { authKey, encKeyRaw } = await deriveKeys(cleanEmail, password, phrase, params.data, setStage);
+      setStage(null);
 
       setState({ kind: "submitting" });
       const login = await postJSON<LoginResponse>("/api/v1/auth/login", {
@@ -102,7 +100,7 @@ function LoginForm() {
       {step === "credentials" && (
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <label htmlFor="login-email" className="text-xs font-semibold tracking-widest uppercase text-muted-foreground">
+            <label htmlFor="login-email" className="field-label">
               Email
             </label>
             <input
@@ -120,7 +118,7 @@ function LoginForm() {
           </div>
 
           <div className="space-y-1.5">
-            <label htmlFor="login-password" className="text-xs font-semibold tracking-widest uppercase text-muted-foreground">
+            <label htmlFor="login-password" className="field-label">
               Master Password
             </label>
             <PasswordInput
@@ -153,8 +151,8 @@ function LoginForm() {
             </div>
           ) : (
             <div className="space-y-1.5">
-              <label htmlFor="login-phrase" className="text-xs font-semibold tracking-widest uppercase text-muted-foreground">
-                Secret Phrase <span className="normal-case font-normal">(9 words)</span>
+              <label htmlFor="login-phrase" className="field-label">
+                Secret Phrase <span className="normal-case font-normal">(12 words)</span>
               </label>
               <textarea
                 id="login-phrase"
@@ -163,7 +161,7 @@ function LoginForm() {
                 rows={2}
                 autoComplete="off"
                 spellCheck={false}
-                placeholder="ember canyon lyric velvet orbit basalt meadow cipher noble"
+                placeholder="ember canyon lyric velvet orbit basalt meadow cipher noble harbor thicket lantern"
                 value={phrase}
                 onChange={(e) => setPhrase(e.target.value)}
                 disabled={busy}
@@ -177,7 +175,7 @@ function LoginForm() {
 
       {step === "twofactor" && (
         <div className="space-y-1.5">
-          <label htmlFor="login-code" className="text-xs font-semibold tracking-widest uppercase text-muted-foreground">
+          <label htmlFor="login-code" className="field-label">
             Authenticator code
           </label>
           <input
@@ -200,30 +198,28 @@ function LoginForm() {
       )}
 
       {state.kind === "error" && (
-        <div key={shake} className="animate-shake flex items-start gap-2 text-sm rounded-md border border-danger px-3 py-2.5 text-danger" role="alert" style={{ background: "var(--danger-subtle)" }}>
-          <AlertIcon className="h-4 w-4 mt-0.5 flex-shrink-0" />
-          <span>
-            {state.message}
-            {state.unverified && (
-              <>
-                {" "}
-                <a href="/verify-email" className="font-semibold underline">
-                  Resend verification email
-                </a>
-              </>
-            )}
-          </span>
-        </div>
+        <ErrorBanner key={shake} message={state.message}>
+          {state.unverified && (
+            <>
+              {" "}
+              <a href="/verify-email" className="font-semibold underline">
+                Resend verification email
+              </a>
+            </>
+          )}
+        </ErrorBanner>
       )}
+
+      <DerivationProgress stage={stage} />
 
       <div className="flex items-center gap-4 pt-1">
         <button
           type="submit"
           disabled={busy || (step === "twofactor" && code.trim().length !== 6)}
-          className="btn btn-primary flex-1 h-11 text-base"
+          className="btn btn-primary btn-lg flex-1"
         >
           {state.kind === "deriving"
-            ? "Deriving keys…"
+            ? "Making your key…"
             : state.kind === "submitting"
               ? step === "twofactor"
                 ? "Verifying…"
@@ -246,7 +242,7 @@ function LoginForm() {
             Back
           </button>
         ) : (
-          <a href="/recover" className="text-sm text-accent hover:text-accent-active transition-colors whitespace-nowrap">
+          <a href="/security" className="text-sm text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap">
             Lost access?
           </a>
         )}

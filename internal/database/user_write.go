@@ -84,7 +84,8 @@ func InsertUser(
 }
 
 // InsertUserAuth creates the auth row paired 1:1 with a user, carrying the
-// bcrypt of the client-derived auth key and the public KDF parameters.
+// Argon2id storage hash of the client-derived auth key and the public KDF
+// parameters the browser will need back before it can unlock.
 func InsertUserAuth(
 	ctx context.Context,
 	db DbTx,
@@ -98,6 +99,9 @@ func InsertUserAuth(
 			`"Vault3UserAuthAuthKeyHash"`,
 			`"Vault3UserAuthKdfSalt"`,
 			`"Vault3UserAuthKdfIterations"`,
+			`"Vault3UserAuthArgon2MemoryKiB"`,
+			`"Vault3UserAuthArgon2Time"`,
+			`"Vault3UserAuthArgon2Lanes"`,
 			`"Vault3UserAuthEmailVerified"`,
 		).
 		Values(
@@ -105,6 +109,9 @@ func InsertUserAuth(
 			auth.AuthKeyHash,
 			auth.KdfSalt,
 			auth.KdfIterations,
+			auth.Argon2MemoryKiB,
+			auth.Argon2Time,
+			auth.Argon2Lanes,
 			auth.EmailVerified,
 		).
 		ToSql()
@@ -113,38 +120,6 @@ func InsertUserAuth(
 	}
 	if _, execErr := db.ExecContext(ctx, sqlStr, args...); execErr != nil {
 		return fmt.Errorf("insert user auth: %w", execErr)
-	}
-	return nil
-}
-
-// InsertUserKeys stores the browser-generated keypair: public JWK in the
-// clear, private key as client-side ciphertext.
-func InsertUserKeys(
-	ctx context.Context,
-	db DbTx,
-	builder *sq.StatementBuilderType,
-	keys *models.UserKeys,
-) error {
-	sqlStr, args, sqlErr := builder.
-		Insert(`"vault3_user_keys"`).
-		Columns(
-			`"Vault3UserKeysUserID"`,
-			`"Vault3UserKeysAlgo"`,
-			`"Vault3UserKeysPublicKey"`,
-			`"Vault3UserKeysEncPrivateKey"`,
-		).
-		Values(
-			keys.UserID,
-			keys.Algo,
-			keys.PublicKey,
-			keys.EncPrivateKey,
-		).
-		ToSql()
-	if sqlErr != nil {
-		return fmt.Errorf("build insert user keys: %w", sqlErr)
-	}
-	if _, execErr := db.ExecContext(ctx, sqlStr, args...); execErr != nil {
-		return fmt.Errorf("insert user keys: %w", execErr)
 	}
 	return nil
 }
@@ -257,10 +232,9 @@ func DeleteUser(
 	if sqlErr != nil {
 		return fmt.Errorf("build delete user: %w", sqlErr)
 	}
-	if _, execErr := db.ExecContext(ctx, sqlStr, args...); execErr != nil {
-		return fmt.Errorf("delete user: %w", execErr)
-	}
-	return nil
+	// Account deletion answers "deleted": true; it must not say so when it
+	// removed nothing.
+	return execExpectingRow(ctx, db, sqlStr, args, "delete user")
 }
 
 // UpdateUserAuthCredentials replaces the auth key hash and KDF parameters —
@@ -274,12 +248,15 @@ func UpdateUserAuthCredentials(
 	userID string,
 	authKeyHash string,
 	kdfSalt string,
-	kdfIterations int,
+	kdf models.KdfCosts,
 ) error {
 	return execUserAuthUpdate(ctx, db, builder, userID, map[string]any{
 		`"Vault3UserAuthAuthKeyHash"`:          authKeyHash,
 		`"Vault3UserAuthKdfSalt"`:              kdfSalt,
-		`"Vault3UserAuthKdfIterations"`:        kdfIterations,
+		`"Vault3UserAuthKdfIterations"`:        kdf.KdfIterations,
+		`"Vault3UserAuthArgon2MemoryKiB"`:      kdf.Argon2MemoryKiB,
+		`"Vault3UserAuthArgon2Time"`:           kdf.Argon2Time,
+		`"Vault3UserAuthArgon2Lanes"`:          kdf.Argon2Lanes,
 		`"Vault3UserAuthLastPasswordChangeAt"`: sq.Expr(`now()`),
 	}, "update auth credentials")
 }
@@ -331,127 +308,6 @@ func RedeemEmailVerificationToken(
 		return "", fmt.Errorf("redeem verification token: %w", scanErr)
 	}
 	return userID, nil
-}
-
-// SetAccountResetToken stores the hash + expiry of a fresh single-use
-// account-reset token.
-func SetAccountResetToken(
-	ctx context.Context,
-	db DbTx,
-	builder *sq.StatementBuilderType,
-	userID string,
-	tokenHash string,
-	expiry time.Time,
-) error {
-	return execUserAuthUpdate(ctx, db, builder, userID, map[string]any{
-		`"Vault3UserAuthAccountResetTokenHash"`:   tokenHash,
-		`"Vault3UserAuthAccountResetTokenExpiry"`: expiry,
-	}, "set account reset token")
-}
-
-// SelectUserIDByResetTokenHash resolves a live (unexpired) account-reset
-// token to its user. Returns sql.ErrNoRows when the token is unknown or
-// expired; the token is cleared by the reset flow itself.
-func SelectUserIDByResetTokenHash(
-	ctx context.Context,
-	db DbTx,
-	builder *sq.StatementBuilderType,
-	tokenHash string,
-) (string, error) {
-	sqlStr, args, sqlErr := builder.
-		Select(`"Vault3UserAuthUserID"`).
-		From(`"vault3_user_auth"`).
-		Where(sq.Eq{`"Vault3UserAuthAccountResetTokenHash"`: tokenHash}).
-		Where(sq.Expr(`"Vault3UserAuthAccountResetTokenExpiry" > now()`)).
-		ToSql()
-	if sqlErr != nil {
-		return "", fmt.Errorf("build select user by reset token: %w", sqlErr)
-	}
-	var userID string
-	scanErr := db.QueryRowContext(ctx, sqlStr, args...).Scan(&userID)
-	if scanErr != nil {
-		if errors.Is(scanErr, sql.ErrNoRows) {
-			return "", sql.ErrNoRows
-		}
-		return "", fmt.Errorf("select user by reset token: %w", scanErr)
-	}
-	return userID, nil
-}
-
-// ResetAccountAuth replaces the account's entire credential set during a
-// zero-knowledge account reset: new auth key hash, new KDF parameters, reset
-// token cleared. The caller wipes vaults and replaces the keypair in the same
-// transaction; redeeming the emailed token also proves inbox control, so the
-// account comes out verified.
-func ResetAccountAuth(
-	ctx context.Context,
-	db DbTx,
-	builder *sq.StatementBuilderType,
-	userID string,
-	authKeyHash string,
-	kdfSalt string,
-	kdfIterations int,
-) error {
-	return execUserAuthUpdate(ctx, db, builder, userID, map[string]any{
-		`"Vault3UserAuthAuthKeyHash"`:             authKeyHash,
-		`"Vault3UserAuthKdfSalt"`:                 kdfSalt,
-		`"Vault3UserAuthKdfIterations"`:           kdfIterations,
-		`"Vault3UserAuthLastPasswordChangeAt"`:    sq.Expr(`now()`),
-		`"Vault3UserAuthAccountResetTokenHash"`:   nil,
-		`"Vault3UserAuthAccountResetTokenExpiry"`: nil,
-		`"Vault3UserAuthEmailVerified"`:           true,
-		`"Vault3UserAuthTwoFactorSecretEnc"`:      nil,
-		`"Vault3UserAuthTempTwoFactorSecretEnc"`:  nil,
-	}, "reset account auth")
-}
-
-// ReplaceUserKeys swaps the stored keypair for a new one (account reset, or a
-// future key rotation).
-func ReplaceUserKeys(
-	ctx context.Context,
-	db DbTx,
-	builder *sq.StatementBuilderType,
-	keys *models.UserKeys,
-) error {
-	sqlStr, args, sqlErr := builder.
-		Update(`"vault3_user_keys"`).
-		Set(`"Vault3UserKeysAlgo"`, keys.Algo).
-		Set(`"Vault3UserKeysPublicKey"`, []byte(keys.PublicKey)).
-		Set(`"Vault3UserKeysEncPrivateKey"`, []byte(keys.EncPrivateKey)).
-		Set(`"Vault3UserKeysUpdatedAt"`, sq.Expr(`now()`)).
-		Where(sq.Eq{`"Vault3UserKeysUserID"`: keys.UserID}).
-		ToSql()
-	if sqlErr != nil {
-		return fmt.Errorf("build replace user keys: %w", sqlErr)
-	}
-	if _, execErr := db.ExecContext(ctx, sqlStr, args...); execErr != nil {
-		return fmt.Errorf("replace user keys: %w", execErr)
-	}
-	return nil
-}
-
-// UpdateEncPrivateKey re-stores the private key ciphertext after the client
-// re-encrypts it under a new key-encryption key (Master Password change).
-func UpdateEncPrivateKey(
-	ctx context.Context,
-	db DbTx,
-	builder *sq.StatementBuilderType,
-	userID string,
-	encPrivateKey []byte,
-) error {
-	sqlStr, args, sqlErr := builder.
-		Update(`"vault3_user_keys"`).
-		Set(`"Vault3UserKeysEncPrivateKey"`, encPrivateKey).
-		Set(`"Vault3UserKeysUpdatedAt"`, sq.Expr(`now()`)).
-		Where(sq.Eq{`"Vault3UserKeysUserID"`: userID}).
-		ToSql()
-	if sqlErr != nil {
-		return fmt.Errorf("build update enc private key: %w", sqlErr)
-	}
-	if _, execErr := db.ExecContext(ctx, sqlStr, args...); execErr != nil {
-		return fmt.Errorf("update enc private key: %w", execErr)
-	}
-	return nil
 }
 
 // SetTempTwoFactorSecret stashes a pending (unverified) TOTP secret,
@@ -519,10 +375,7 @@ func execUserUpdate(
 	if sqlErr != nil {
 		return fmt.Errorf("build %s: %w", operation, sqlErr)
 	}
-	if _, execErr := db.ExecContext(ctx, sqlStr, args...); execErr != nil {
-		return fmt.Errorf("%s: %w", operation, execErr)
-	}
-	return nil
+	return execExpectingRow(ctx, db, sqlStr, args, operation)
 }
 
 // execUserAuthUpdate applies a column set to one vault3_user_auth row, always
@@ -544,8 +397,8 @@ func execUserAuthUpdate(
 	if sqlErr != nil {
 		return fmt.Errorf("build %s: %w", operation, sqlErr)
 	}
-	if _, execErr := db.ExecContext(ctx, sqlStr, args...); execErr != nil {
-		return fmt.Errorf("%s: %w", operation, execErr)
-	}
-	return nil
+	// Rotating credentials runs through here. A silent no-op would tell the
+	// user their Master Password changed while the old hash still stood —
+	// with their browser already holding keys re-wrapped under the new MUK.
+	return execExpectingRow(ctx, db, sqlStr, args, operation)
 }

@@ -48,10 +48,7 @@ export function CopyButton({
       onClick={() => copy(value)}
       aria-label={label ?? "Copy"}
       title={label ?? "Copy"}
-      className={
-        className ??
-        "p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-      }
+      className={className ?? "btn-icon"}
     >
       {copied ? <CheckIcon className="h-4 w-4 text-success" /> : <CopyIcon className="h-4 w-4" />}
     </button>

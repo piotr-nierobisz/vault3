@@ -42,484 +42,179 @@ func main() {
 
 	srv.SetDefaultLayout("base.gohtml")
 
+	authLayers := []string{"require_auth", "load_viewer"}
+	// viewerLayers never rejects, but gives a public page a .Viewer so a
+	// signed-in visitor is offered the way back into /app instead of a
+	// sign-up pair.
+	viewerLayers := []string{"optional_auth", "load_viewer"}
+
+	// --- Route registration ---
+	//
+	// Authentication is the default here, not a field each registration has
+	// to remember. api() and page() attach require_auth; the only way to
+	// publish something reachable without a session is to say so in the
+	// verb — openAPI, viewerPage, anonPage.
+	//
+	// That inversion is the point. In a flat list of ~40 routes, a missing
+	// `SecurityLayer:` line is invisible in review and ships an
+	// unauthenticated endpoint over the vault; a missing `open` prefix is a
+	// word that is not there in a name you are already reading. It also
+	// makes the entire public surface auditable in one command:
+	//
+	//	grep -n 'openAPI\|viewerPage\|anonPage' cmd/vault3/main.go
+
+	api := func(method, path string, handler func(*bungo.Request) (bungo.APIResponse, error)) {
+		srv.Api(bungo.ApiRoute{
+			Path: path, Version: "v1", Method: method,
+			SecurityLayer: authLayers, Handler: handler,
+		})
+	}
+	openAPI := func(method, path string, handler func(*bungo.Request) (bungo.APIResponse, error)) {
+		srv.Api(bungo.ApiRoute{
+			Path: path, Version: "v1", Method: method,
+			Handler: handler,
+		})
+	}
+	page := func(path, template, view string, handler func(*bungo.Request) (map[string]any, error)) {
+		srv.Page(bungo.PageRoute{
+			Path: path, Template: template, View: view,
+			SecurityLayer: authLayers, Handler: handler,
+		})
+	}
+	// viewerPage: public, but adapts when the visitor happens to be signed in.
+	viewerPage := func(path, template, view string, handler func(*bungo.Request) (map[string]any, error)) {
+		srv.Page(bungo.PageRoute{
+			Path: path, Template: template, View: view,
+			SecurityLayer: viewerLayers, Handler: handler,
+		})
+	}
+	// anonPage: public with no session lookup at all — the pre-sign-in pages
+	// and the share viewer, which must render for someone with no account.
+	anonPage := func(path, template, view string, handler func(*bungo.Request) (map[string]any, error)) {
+		srv.Page(bungo.PageRoute{
+			Path: path, Template: template, View: view,
+			Handler: handler,
+		})
+	}
+
 	// --- Marketing and public pages ---
-	// publicLayers = optional_auth + load_viewer: never rejects, but gives the
-	// marketing header a .Viewer so a signed-in visitor is offered the way back
-	// into /app instead of a sign-up pair. Every public page shares it.
-	publicLayers := []string{"optional_auth", "load_viewer"}
 
-	srv.Page(bungo.PageRoute{
-		Path:          "/",
-		Template:      "index.gohtml",
-		View:          "landing.ts",
-		SecurityLayer: publicLayers,
-		Handler:       rt.LandingPage,
-	})
-
-	srv.Page(bungo.PageRoute{
-		Path:          "/contact",
-		Template:      "contact.gohtml",
-		View:          "contact.tsx",
-		SecurityLayer: publicLayers,
-		Handler:       rt.ContactPage,
-	})
-
-	srv.Api(bungo.ApiRoute{
-		Path:    "/contact",
-		Version: "v1",
-		Method:  "POST",
-		Handler: rt.ContactSubmitAPI,
-	})
+	viewerPage("/", "index.gohtml", "landing.ts", rt.LandingPage)
+	viewerPage("/contact", "contact.gohtml", "contact.tsx", rt.ContactPage)
+	openAPI("POST", "/contact", rt.ContactSubmitAPI)
 
 	// --- Authentication ---
 
-	srv.Page(bungo.PageRoute{
-		Path:     "/login",
-		Template: "login.gohtml",
-		View:     "login.tsx",
-		Handler:  rt.LoginPage,
-	})
+	anonPage("/login", "login.gohtml", "login.tsx", rt.LoginPage)
 
-	// The pre-login KDF parameter exchange: public by necessity, throttled
-	// by the middleware, and enumeration-safe (decoy parameters for unknown
-	// emails).
-	srv.Api(bungo.ApiRoute{
-		Path:    "/auth/params",
-		Version: "v1",
-		Method:  "POST",
-		Handler: rt.AuthParamsAPI,
-	})
-
-	srv.Api(bungo.ApiRoute{
-		Path:    "/auth/login",
-		Version: "v1",
-		Method:  "POST",
-		Handler: rt.LoginAPI,
-	})
-
-	srv.Api(bungo.ApiRoute{
-		Path:    "/auth/logout",
-		Version: "v1",
-		Method:  "POST",
-		Handler: rt.LogoutAPI,
-	})
+	// The pre-login KDF parameter exchange: public by necessity and
+	// enumeration-safe (decoy parameters for unknown emails).
+	openAPI("POST", "/auth/params", rt.AuthParamsAPI)
+	openAPI("POST", "/auth/login", rt.LoginAPI)
+	// Logout reads the cookie itself and is idempotent, so it needs no layer.
+	openAPI("POST", "/auth/logout", rt.LogoutAPI)
 
 	// Onboarding: /join runs the whole crypto ceremony client-side and the
 	// register API persists the resulting bundle. The page is public; the
 	// API re-checks the public_registration_enabled platform gate.
-	srv.Page(bungo.PageRoute{
-		Path:     "/join",
-		Template: "join.gohtml",
-		View:     "join.tsx",
-		Handler:  rt.JoinPage,
-	})
-
-	srv.Api(bungo.ApiRoute{
-		Path:    "/auth/register",
-		Version: "v1",
-		Method:  "POST",
-		Handler: rt.RegisterAPI,
-	})
+	anonPage("/join", "join.gohtml", "join.tsx", rt.JoinPage)
+	openAPI("POST", "/auth/register", rt.RegisterAPI)
 
 	// Email verification: /verify-email redeems the emailed single-use token
 	// (?token=…) or requests a fresh link. The verify API is authenticated
 	// by the token it redeems; the resend API answers neutrally either way.
-	srv.Page(bungo.PageRoute{
-		Path:     "/verify-email",
-		Template: "verify-email.gohtml",
-		View:     "verify-email.tsx",
-		Handler:  rt.VerifyEmailPage,
-	})
+	anonPage("/verify-email", "verify-email.gohtml", "verify-email.tsx", rt.VerifyEmailPage)
+	openAPI("POST", "/auth/verify-email", rt.VerifyEmailAPI)
+	openAPI("POST", "/auth/resend-verification", rt.ResendVerificationAPI)
 
-	srv.Api(bungo.ApiRoute{
-		Path:    "/auth/verify-email",
-		Version: "v1",
-		Method:  "POST",
-		Handler: rt.VerifyEmailAPI,
-	})
-
-	srv.Api(bungo.ApiRoute{
-		Path:    "/auth/resend-verification",
-		Version: "v1",
-		Method:  "POST",
-		Handler: rt.ResendVerificationAPI,
-	})
-
-	// Account recovery: zero-knowledge means no password reset — /recover is
-	// an explicit, emailed, single-use account RESET that wipes the vault
-	// and reruns the crypto onboarding. The page says so in large letters.
-	srv.Page(bungo.PageRoute{
-		Path:     "/recover",
-		Template: "recover.gohtml",
-		View:     "recover.tsx",
-		Handler:  rt.RecoverPage,
-	})
-
-	srv.Api(bungo.ApiRoute{
-		Path:    "/auth/recover/request",
-		Version: "v1",
-		Method:  "POST",
-		Handler: rt.RecoverRequestAPI,
-	})
-
-	srv.Api(bungo.ApiRoute{
-		Path:    "/auth/recover/confirm",
-		Version: "v1",
-		Method:  "POST",
-		Handler: rt.RecoverConfirmAPI,
-	})
+	// There is deliberately no account recovery or reset flow: the server
+	// holds only ciphertext, so a lost Master Password or Secret Phrase is
+	// unrecoverable by construction. /security and the terms say exactly
+	// that, and the Emergency Kit is the user's only way back in.
 
 	// --- The vault ---
 
-	authLayers := []string{"require_auth", "load_viewer"}
+	page("/app", "app/index.gohtml", "vault.tsx", rt.AppVaultPage)
 
-	srv.Page(bungo.PageRoute{
-		Path:          "/app",
-		Template:      "app/index.gohtml",
-		View:          "vault.tsx",
-		SecurityLayer: authLayers,
-		Handler:       rt.AppVaultPage,
-	})
-
-	srv.Api(bungo.ApiRoute{
-		Path:          "/items",
-		Version:       "v1",
-		Method:        "GET",
-		SecurityLayer: authLayers,
-		Handler:       rt.ItemsAPI,
-	})
-
-	srv.Api(bungo.ApiRoute{
-		Path:          "/items/create",
-		Version:       "v1",
-		Method:        "POST",
-		SecurityLayer: authLayers,
-		Handler:       rt.CreateItemAPI,
-	})
-
-	srv.Api(bungo.ApiRoute{
-		Path:          "/items/update",
-		Version:       "v1",
-		Method:        "POST",
-		SecurityLayer: authLayers,
-		Handler:       rt.UpdateItemAPI,
-	})
-
-	srv.Api(bungo.ApiRoute{
-		Path:          "/items/trash",
-		Version:       "v1",
-		Method:        "POST",
-		SecurityLayer: authLayers,
-		Handler:       rt.TrashItemAPI,
-	})
-
-	srv.Api(bungo.ApiRoute{
-		Path:          "/items/restore",
-		Version:       "v1",
-		Method:        "POST",
-		SecurityLayer: authLayers,
-		Handler:       rt.RestoreItemAPI,
-	})
-
-	srv.Api(bungo.ApiRoute{
-		Path:          "/items/delete",
-		Version:       "v1",
-		Method:        "POST",
-		SecurityLayer: authLayers,
-		Handler:       rt.DeleteItemAPI,
-	})
+	api("GET", "/items", rt.ItemsAPI)
+	api("POST", "/items/create", rt.CreateItemAPI)
+	api("POST", "/items/update", rt.UpdateItemAPI)
+	api("POST", "/items/trash", rt.TrashItemAPI)
+	api("POST", "/items/restore", rt.RestoreItemAPI)
+	api("POST", "/items/delete", rt.DeleteItemAPI)
 
 	// --- Multiple vaults and membership ---
 
-	srv.Api(bungo.ApiRoute{
-		Path:          "/vaults",
-		Version:       "v1",
-		Method:        "GET",
-		SecurityLayer: authLayers,
-		Handler:       rt.VaultsAPI,
-	})
-
-	srv.Api(bungo.ApiRoute{
-		Path:          "/vaults/create",
-		Version:       "v1",
-		Method:        "POST",
-		SecurityLayer: authLayers,
-		Handler:       rt.CreateVaultAPI,
-	})
-
-	srv.Api(bungo.ApiRoute{
-		Path:          "/vaults/rename",
-		Version:       "v1",
-		Method:        "POST",
-		SecurityLayer: authLayers,
-		Handler:       rt.RenameVaultAPI,
-	})
-
-	srv.Api(bungo.ApiRoute{
-		Path:          "/vaults/delete",
-		Version:       "v1",
-		Method:        "POST",
-		SecurityLayer: authLayers,
-		Handler:       rt.DeleteVaultAPI,
-	})
-
-	srv.Api(bungo.ApiRoute{
-		Path:          "/vaults/members",
-		Version:       "v1",
-		Method:        "GET",
-		SecurityLayer: authLayers,
-		Handler:       rt.VaultMembersAPI,
-	})
-
-	srv.Api(bungo.ApiRoute{
-		Path:          "/vaults/members/remove",
-		Version:       "v1",
-		Method:        "POST",
-		SecurityLayer: authLayers,
-		Handler:       rt.RemoveVaultMemberAPI,
-	})
+	api("GET", "/vaults", rt.VaultsAPI)
+	api("POST", "/vaults/create", rt.CreateVaultAPI)
+	api("POST", "/vaults/rename", rt.RenameVaultAPI)
+	api("POST", "/vaults/delete", rt.DeleteVaultAPI)
+	api("GET", "/vaults/members", rt.VaultMembersAPI)
+	api("POST", "/vaults/members/remove", rt.RemoveVaultMemberAPI)
 
 	// Vault invites: create/revoke are owner actions; preview/accept run as
 	// the signed-in invitee. The decryption secret lives in the invite URL's
 	// fragment and never reaches these endpoints.
-	srv.Api(bungo.ApiRoute{
-		Path:          "/vaults/invites/create",
-		Version:       "v1",
-		Method:        "POST",
-		SecurityLayer: authLayers,
-		Handler:       rt.CreateVaultInviteAPI,
-	})
+	api("POST", "/vaults/invites/create", rt.CreateVaultInviteAPI)
+	api("POST", "/vaults/invites/revoke", rt.RevokeVaultInviteAPI)
+	api("POST", "/vaults/invites/preview", rt.InvitePreviewAPI)
+	api("POST", "/vaults/invites/accept", rt.AcceptVaultInviteAPI)
 
-	srv.Api(bungo.ApiRoute{
-		Path:          "/vaults/invites/revoke",
-		Version:       "v1",
-		Method:        "POST",
-		SecurityLayer: authLayers,
-		Handler:       rt.RevokeVaultInviteAPI,
-	})
-
-	srv.Api(bungo.ApiRoute{
-		Path:          "/vaults/invites/preview",
-		Version:       "v1",
-		Method:        "POST",
-		SecurityLayer: authLayers,
-		Handler:       rt.InvitePreviewAPI,
-	})
-
-	srv.Api(bungo.ApiRoute{
-		Path:          "/vaults/invites/accept",
-		Version:       "v1",
-		Method:        "POST",
-		SecurityLayer: authLayers,
-		Handler:       rt.AcceptVaultInviteAPI,
-	})
-
-	// The invite landing page: optional_auth so a signed-out recipient gets
-	// a sign-in prompt rather than a bare 401.
-	srv.Page(bungo.PageRoute{
-		Path:          "/app/invite",
-		Template:      "app/invite.gohtml",
-		View:          "invite.tsx",
-		SecurityLayer: []string{"optional_auth", "load_viewer"},
-		Handler:       rt.InvitePage,
-	})
+	// The invite landing page takes optional_auth so a signed-out recipient
+	// gets a sign-in prompt rather than a bare 401.
+	viewerPage("/app/invite", "app/invite.gohtml", "invite.tsx", rt.InvitePage)
 
 	// --- Share links ---
 
-	srv.Api(bungo.ApiRoute{
-		Path:          "/shares/create",
-		Version:       "v1",
-		Method:        "POST",
-		SecurityLayer: authLayers,
-		Handler:       rt.CreateShareLinkAPI,
-	})
+	api("POST", "/shares/create", rt.CreateShareLinkAPI)
+	api("GET", "/shares", rt.ItemShareLinksAPI)
+	api("POST", "/shares/revoke", rt.RevokeShareLinkAPI)
 
-	srv.Api(bungo.ApiRoute{
-		Path:          "/shares",
-		Version:       "v1",
-		Method:        "GET",
-		SecurityLayer: authLayers,
-		Handler:       rt.ItemShareLinksAPI,
-	})
-
-	srv.Api(bungo.ApiRoute{
-		Path:          "/shares/revoke",
-		Version:       "v1",
-		Method:        "POST",
-		SecurityLayer: authLayers,
-		Handler:       rt.RevokeShareLinkAPI,
-	})
-
-	// The one public sharing endpoint (fronted by the middleware throttle):
-	// redeems a share token for ciphertext only.
-	srv.Api(bungo.ApiRoute{
-		Path:    "/share/open",
-		Version: "v1",
-		Method:  "POST",
-		Handler: rt.OpenShareAPI,
-	})
-
-	srv.Page(bungo.PageRoute{
-		Path:     "/share",
-		Template: "share.gohtml",
-		View:     "share.tsx",
-		Handler:  rt.SharePage,
-	})
+	// The one public sharing endpoint: redeems a share token for ciphertext
+	// only. The key to open it never leaves the recipient's URL fragment.
+	openAPI("POST", "/share/open", rt.OpenShareAPI)
+	anonPage("/share", "share.gohtml", "share.tsx", rt.SharePage)
 
 	// Change-signal fallback: /events (SSE) is mounted on the outer mux
 	// below; this is the poll/reconnect endpoint.
-	srv.Api(bungo.ApiRoute{
-		Path:          "/sync/revision",
-		Version:       "v1",
-		Method:        "GET",
-		SecurityLayer: authLayers,
-		Handler:       rt.SyncRevisionAPI,
-	})
+	api("GET", "/sync/revision", rt.SyncRevisionAPI)
 
 	// --- Settings and account ---
 
-	srv.Page(bungo.PageRoute{
-		Path:          "/app/settings",
-		Template:      "app/settings.gohtml",
-		View:          "settings.tsx",
-		SecurityLayer: authLayers,
-		Handler:       rt.SettingsPage,
-	})
+	page("/app/settings", "app/settings.gohtml", "settings.tsx", rt.SettingsPage)
 
-	srv.Api(bungo.ApiRoute{
-		Path:          "/account/profile",
-		Version:       "v1",
-		Method:        "POST",
-		SecurityLayer: authLayers,
-		Handler:       rt.UpdateProfileAPI,
-	})
-
-	srv.Api(bungo.ApiRoute{
-		Path:          "/account/notifications",
-		Version:       "v1",
-		Method:        "POST",
-		SecurityLayer: authLayers,
-		Handler:       rt.UpdateNotificationPrefsAPI,
-	})
-
-	srv.Api(bungo.ApiRoute{
-		Path:          "/account/password",
-		Version:       "v1",
-		Method:        "POST",
-		SecurityLayer: authLayers,
-		Handler:       rt.ChangePasswordAPI,
-	})
-
-	srv.Api(bungo.ApiRoute{
-		Path:          "/account/2fa/setup",
-		Version:       "v1",
-		Method:        "POST",
-		SecurityLayer: authLayers,
-		Handler:       rt.TwoFactorSetupAPI,
-	})
-
-	srv.Api(bungo.ApiRoute{
-		Path:          "/account/2fa/verify",
-		Version:       "v1",
-		Method:        "POST",
-		SecurityLayer: authLayers,
-		Handler:       rt.TwoFactorVerifyAPI,
-	})
-
-	srv.Api(bungo.ApiRoute{
-		Path:          "/account/2fa/disable",
-		Version:       "v1",
-		Method:        "POST",
-		SecurityLayer: authLayers,
-		Handler:       rt.TwoFactorDisableAPI,
-	})
-
-	srv.Api(bungo.ApiRoute{
-		Path:          "/account/sessions/revoke",
-		Version:       "v1",
-		Method:        "POST",
-		SecurityLayer: authLayers,
-		Handler:       rt.RevokeSessionAPI,
-	})
-
-	srv.Api(bungo.ApiRoute{
-		Path:          "/account/delete",
-		Version:       "v1",
-		Method:        "POST",
-		SecurityLayer: authLayers,
-		Handler:       rt.DeleteAccountAPI,
-	})
+	api("POST", "/account/profile", rt.UpdateProfileAPI)
+	api("POST", "/account/notifications", rt.UpdateNotificationPrefsAPI)
+	api("POST", "/account/password", rt.ChangePasswordAPI)
+	api("POST", "/account/2fa/setup", rt.TwoFactorSetupAPI)
+	api("POST", "/account/2fa/verify", rt.TwoFactorVerifyAPI)
+	api("POST", "/account/2fa/disable", rt.TwoFactorDisableAPI)
+	api("POST", "/account/sessions/revoke", rt.RevokeSessionAPI)
+	api("POST", "/account/delete", rt.DeleteAccountAPI)
 
 	// --- Notifications ---
 
-	srv.Page(bungo.PageRoute{
-		Path:          "/app/notifications",
-		Template:      "app/notifications.gohtml",
-		View:          "notifications.tsx",
-		SecurityLayer: authLayers,
-		Handler:       rt.NotificationsPage,
-	})
+	page("/app/notifications", "app/notifications.gohtml", "notifications.tsx", rt.NotificationsPage)
 
-	srv.Api(bungo.ApiRoute{
-		Path:          "/notifications",
-		Version:       "v1",
-		Method:        "GET",
-		SecurityLayer: authLayers,
-		Handler:       rt.NotificationsAPI,
-	})
-
-	srv.Api(bungo.ApiRoute{
-		Path:          "/notifications/read",
-		Version:       "v1",
-		Method:        "POST",
-		SecurityLayer: authLayers,
-		Handler:       rt.MarkNotificationReadAPI,
-	})
-
-	srv.Api(bungo.ApiRoute{
-		Path:          "/notifications/read-all",
-		Version:       "v1",
-		Method:        "POST",
-		SecurityLayer: authLayers,
-		Handler:       rt.MarkAllNotificationsReadAPI,
-	})
+	api("GET", "/notifications", rt.NotificationsAPI)
+	api("POST", "/notifications/read", rt.MarkNotificationReadAPI)
+	api("POST", "/notifications/read-all", rt.MarkAllNotificationsReadAPI)
 
 	// --- Legal and security docs ---
-	// Part of the public surface, so they carry publicLayers too: the marketing
-	// header, with the vault link swapped in for signed-in readers.
+	// Part of the public surface, so they carry the viewer layers too: the
+	// marketing header, with the vault link swapped in for signed-in readers.
 
-	srv.Page(bungo.PageRoute{
-		Path:          "/security",
-		Template:      "legal/security.gohtml",
-		View:          "security.ts",
-		SecurityLayer: publicLayers,
-		Handler:       rt.SecurityPage,
-	})
-	srv.Page(bungo.PageRoute{
-		Path:          "/legal/terms",
-		Template:      "legal/terms.gohtml",
-		SecurityLayer: publicLayers,
-		Handler:       rt.LegalTermsPage,
-	})
-	srv.Page(bungo.PageRoute{
-		Path:          "/legal/privacy",
-		Template:      "legal/privacy.gohtml",
-		SecurityLayer: publicLayers,
-		Handler:       rt.LegalPrivacyPage,
-	})
-	srv.Page(bungo.PageRoute{
-		Path:          "/legal/cookies",
-		Template:      "legal/cookies.gohtml",
-		SecurityLayer: publicLayers,
-		Handler:       rt.LegalCookiesPage,
-	})
+	viewerPage("/security", "legal/security.gohtml", "security.ts", rt.SecurityPage)
+	viewerPage("/legal/terms", "legal/terms.gohtml", "", rt.LegalTermsPage)
+	viewerPage("/legal/privacy", "legal/privacy.gohtml", "", rt.LegalPrivacyPage)
+	viewerPage("/legal/cookies", "legal/cookies.gohtml", "", rt.LegalCookiesPage)
 
 	// BunGo compiles views and builds its route mux through the engine's
 	// public CreateHandler; the runtime middleware then wraps it with the
-	// transport hygiene BunGo has no hooks for (security headers, auth
-	// throttling, socket-IP injection), and the SSE change-signal endpoint
-	// mounts alongside — BunGo responses cannot stream. srv.Serve would do
-	// none of that, so the listener is assembled here instead.
+	// transport hygiene BunGo has no hooks for (security headers,
+	// cross-origin rejection, socket-IP injection), and the SSE change-signal
+	// endpoint mounts alongside — BunGo responses cannot stream. srv.Serve
+	// would do none of that, so the listener is assembled here instead.
 	handler, handlerErr := engineInstance.CreateHandler(srv)
 	if handlerErr != nil {
 		rt.Log.Fatal("failed to build handler", zap.Error(handlerErr))

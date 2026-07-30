@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { CardIcon, GlobeIcon, IdentityIcon, KeyIcon, NoteIcon, RestoreIcon, ShareIcon, StarIcon, TrashIcon } from "../icons";
 import { CopyButton, useCopy } from "../ui/copy-button";
+import { Loading } from "../ui/loading";
 import { SecretText } from "../ui/secret-text";
 import { EyeIcon, EyeOffIcon } from "../icons";
-import { openJSON, type ItemDetails } from "../../lib/crypto";
+import { openJSON, type ItemDetails, type ItemOverview } from "../../lib/crypto";
 import { formatTotpCode, parseTotp, totpCode, totpRemaining } from "../../lib/totp";
 import { CATEGORY_FIELDS, type DecryptedItem } from "../../types/vault";
 
@@ -30,7 +31,7 @@ export function categoryIcon(code: string, className: string) {
 function RowLabel({ label, copied }: { label: string; copied: boolean }) {
   return (
     <p
-      className="text-xs font-semibold tracking-widest uppercase mb-1 transition-colors"
+      className="field-label mb-1 transition-colors"
       style={{ color: copied ? "var(--success)" : "var(--muted-foreground)" }}
     >
       {copied ? "Copied" : label}
@@ -65,7 +66,7 @@ export function SecretRow({ label, value }: { label: string; value: string }) {
           type="button"
           aria-label={revealed ? "Conceal" : "Reveal"}
           onClick={() => setRevealed((v) => !v)}
-          className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          className="btn-icon"
         >
           {revealed ? <EyeOffIcon className="h-4 w-4" /> : <EyeIcon className="h-4 w-4" />}
         </button>
@@ -118,7 +119,7 @@ export function TotpRow({ label, value }: { label: string; value: string }) {
   if (!config) {
     return (
       <div className="py-3 border-b border-border-subtle last:border-0">
-        <p className="text-xs font-semibold tracking-widest uppercase text-muted-foreground mb-1">{label}</p>
+        <p className="field-label mb-1">{label}</p>
         <p className="text-sm text-muted-foreground">This one-time-code seed couldn't be read. Edit the item to re-enter it.</p>
       </div>
     );
@@ -173,11 +174,86 @@ export function TotpRow({ label, value }: { label: string; value: string }) {
 export function PlainRow({ label, value, copyable }: { label: string; value: string; copyable?: boolean }) {
   return (
     <div className="py-3 border-b border-border-subtle last:border-0">
-      <p className="text-xs font-semibold tracking-widest uppercase text-muted-foreground mb-1">{label}</p>
+      <p className="field-label mb-1">{label}</p>
       <div className="flex items-center gap-2">
         <span className="text-sm text-foreground flex-1 break-all">{value}</span>
         {copyable && <CopyButton value={value} label={`Copy ${label.toLowerCase()}`} />}
       </div>
+    </div>
+  );
+}
+
+// The three blocks below are the item as the share page also renders it — a
+// share link shows the same item to someone else, so they read from one
+// definition rather than two copies drifting apart.
+
+export function ItemHeading({ overview, as: Heading = "h2" }: { overview: ItemOverview; as?: "h1" | "h2" }) {
+  return (
+    <div className="flex items-center gap-3.5 min-w-0">
+      <div className="icon-tile icon-tile-lg flex-shrink-0">{categoryIcon(overview.category, "h-5 w-5")}</div>
+      <div className="min-w-0">
+        <Heading className="text-xl font-bold tracking-tight text-foreground truncate">{overview.title}</Heading>
+        {overview.subtitle && <p className="text-sm text-muted-foreground truncate">{overview.subtitle}</p>}
+      </div>
+    </div>
+  );
+}
+
+export function ItemUrlLink({ url }: { url: string }) {
+  return (
+    <a
+      href={url.startsWith("http") ? url : `https://${url}`}
+      target="_blank"
+      rel="noreferrer noopener"
+      className="inline-flex items-center gap-2 text-sm text-accent hover:text-accent-active transition-colors mb-4"
+    >
+      <GlobeIcon className="h-4 w-4" /> {url}
+    </a>
+  );
+}
+
+export function ItemFieldsCard({
+  category,
+  details,
+  failed,
+  className,
+}: {
+  category: string;
+  details: ItemDetails | null;
+  failed?: boolean;
+  className?: string;
+}) {
+  const specs = CATEGORY_FIELDS[category] ?? [];
+  return (
+    <div className={`card px-5 py-1${className ? ` ${className}` : ""}`}>
+      {failed && <p className="py-4 text-sm text-danger">This item couldn't be decrypted with the current keys.</p>}
+      {!details && !failed && <Loading />}
+      {details && (
+        <>
+          {specs.map((spec) => {
+            const value = details.fields[spec.key];
+            if (!value) return null;
+            // A shared item's blob is the live item's blob, so a seed stored
+            // on it is already in the recipient's hands; rendering the code
+            // is honest about that rather than hiding a field they hold.
+            if (spec.totp) return <TotpRow key={spec.key} label={spec.label} value={value} />;
+            return spec.secret ? (
+              <SecretRow key={spec.key} label={spec.label} value={value} />
+            ) : (
+              <PlainRow key={spec.key} label={spec.label} value={value} copyable />
+            );
+          })}
+          {details.notes && (
+            <div className="py-3">
+              <p className="field-label mb-1.5">Notes</p>
+              <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{details.notes}</p>
+            </div>
+          )}
+          {!details.notes && specs.every((s) => !details.fields[s.key]) && (
+            <p className="py-4 text-sm text-muted-foreground">Nothing stored in this item.</p>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -222,21 +298,12 @@ export function ItemDetail({
     };
   }, [item]);
 
-  const specs = CATEGORY_FIELDS[item.overview.category] ?? [];
   const url = item.overview.urls?.[0];
 
   return (
     <div className="animate-unseal" key={item.row.id}>
       <div className="flex items-start justify-between gap-4 mb-5">
-        <div className="flex items-center gap-3.5 min-w-0">
-          <div className="w-11 h-11 rounded-xl bg-accent-subtle text-accent flex items-center justify-center flex-shrink-0">
-            {categoryIcon(item.overview.category, "h-5 w-5")}
-          </div>
-          <div className="min-w-0">
-            <h2 className="text-xl font-bold tracking-tight text-foreground truncate">{item.overview.title}</h2>
-            {item.overview.subtitle && <p className="text-sm text-muted-foreground truncate">{item.overview.subtitle}</p>}
-          </div>
-        </div>
+        <ItemHeading overview={item.overview} />
         {!item.row.trashed && !readOnly && (
           <button
             type="button"
@@ -250,44 +317,9 @@ export function ItemDetail({
         )}
       </div>
 
-      {url && (
-        <a
-          href={url.startsWith("http") ? url : `https://${url}`}
-          target="_blank"
-          rel="noreferrer noopener"
-          className="inline-flex items-center gap-2 text-sm text-accent hover:text-accent-active transition-colors mb-4"
-        >
-          <GlobeIcon className="h-4 w-4" /> {url}
-        </a>
-      )}
+      {url && <ItemUrlLink url={url} />}
 
-      <div className="card px-5 py-1 mb-5">
-        {failed && <p className="py-4 text-sm text-danger">This item couldn't be decrypted with the current keys.</p>}
-        {!details && !failed && <p className="py-4 text-sm text-muted-foreground font-mono">unsealing…</p>}
-        {details && (
-          <>
-            {specs.map((spec) => {
-              const value = details.fields[spec.key];
-              if (!value) return null;
-              if (spec.totp) return <TotpRow key={spec.key} label={spec.label} value={value} />;
-              return spec.secret ? (
-                <SecretRow key={spec.key} label={spec.label} value={value} />
-              ) : (
-                <PlainRow key={spec.key} label={spec.label} value={value} copyable />
-              );
-            })}
-            {details.notes && (
-              <div className="py-3">
-                <p className="text-xs font-semibold tracking-widest uppercase text-muted-foreground mb-1.5">Notes</p>
-                <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{details.notes}</p>
-              </div>
-            )}
-            {!details.notes && specs.every((s) => !details.fields[s.key]) && (
-              <p className="py-4 text-sm text-muted-foreground">Nothing stored in this item yet.</p>
-            )}
-          </>
-        )}
-      </div>
+      <ItemFieldsCard category={item.overview.category} details={details} failed={failed} className="mb-5" />
 
       <div className="flex flex-wrap items-center gap-3">
         {readOnly ? (
@@ -296,24 +328,24 @@ export function ItemDetail({
           </span>
         ) : item.row.trashed ? (
           <>
-            <button type="button" onClick={onRestore} disabled={busy} className="btn btn-secondary text-sm">
+            <button type="button" onClick={onRestore} disabled={busy} className="btn btn-secondary btn-sm">
               <RestoreIcon className="h-4 w-4" /> Restore
             </button>
-            <button type="button" onClick={onDeleteForever} disabled={busy} className="btn btn-danger text-sm">
+            <button type="button" onClick={onDeleteForever} disabled={busy} className="btn btn-danger btn-sm">
               <TrashIcon className="h-4 w-4" /> Delete forever
             </button>
           </>
         ) : (
           <>
-            <button type="button" onClick={() => details && onEdit(details)} disabled={busy || !details} className="btn btn-secondary text-sm px-6">
+            <button type="button" onClick={() => details && onEdit(details)} disabled={busy || !details} className="btn btn-secondary btn-sm px-6">
               Edit
             </button>
             {onShare && (
-              <button type="button" onClick={onShare} disabled={busy} className="btn btn-secondary text-sm">
+              <button type="button" onClick={onShare} disabled={busy} className="btn btn-secondary btn-sm">
                 <ShareIcon className="h-4 w-4" /> Share
               </button>
             )}
-            <button type="button" onClick={onTrash} disabled={busy} className="btn btn-ghost text-sm text-danger">
+            <button type="button" onClick={onTrash} disabled={busy} className="btn btn-ghost btn-sm text-danger">
               <TrashIcon className="h-4 w-4" /> Move to trash
             </button>
           </>

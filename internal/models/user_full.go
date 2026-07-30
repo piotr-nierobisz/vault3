@@ -7,7 +7,6 @@ package models
 type UserFull struct {
 	User
 	Auth   *UserAuth   `json:"auth,omitempty"`
-	Keys   *UserKeys   `json:"keys,omitempty"`
 	Admin  *Admin      `json:"admin,omitempty"`
 	Vaults []UserVault `json:"vaults"`
 }

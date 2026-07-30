@@ -23,6 +23,9 @@ import (
 // fragment key alone can open. The server can revoke and expire links but
 // never read what they share.
 
+// shareLinkOwnerOnlyMessage is the 403 for managing an item's share links.
+const shareLinkOwnerOnlyMessage = "Only the vault owner can manage share links."
+
 // SharePage renders the public share viewer shell; share.tsx reads the
 // fragment and does everything else.
 func (r *Runtime) SharePage(_ *bungo.Request) (map[string]any, error) {
@@ -33,24 +36,23 @@ func (r *Runtime) SharePage(_ *bungo.Request) (map[string]any, error) {
 	}), nil
 }
 
+type createShareLinkPayload struct {
+	ItemID         string          `json:"itemId"`
+	WrappedItemKey json.RawMessage `json:"wrappedItemKey"`
+	ExpiresInHours int             `json:"expiresInHours"`
+}
+
 // CreateShareLinkAPI handles POST /api/v1/shares/create: owner-only, capped,
 // clamped expiry, token returned exactly once.
 func (r *Runtime) CreateShareLinkAPI(req *bungo.Request) (bungo.APIResponse, error) {
 	user := CurrentUser(req)
-	var payload struct {
-		ItemID         string          `json:"itemId"`
-		WrappedItemKey json.RawMessage `json:"wrappedItemKey"`
-		ExpiresInHours int             `json:"expiresInHours"`
+	payload, deny := decodeBody[createShareLinkPayload](req)
+	if deny != nil {
+		return *deny, nil
 	}
-	if unmarshalErr := json.Unmarshal(req.Body, &payload); unmarshalErr != nil {
-		return apiError(400, "Invalid request body"), nil
-	}
-	item, access, itemErr := r.loadAuthorisedItem(req, user.ID, payload.ItemID)
-	if itemErr != nil {
-		return apiError(404, "Item not found."), nil
-	}
-	if access.Role != "owner" {
-		return apiError(403, "Only the vault owner can share items."), nil
+	item, _, deny := r.requireItemOwner(req, user.ID, payload.ItemID, "Only the vault owner can share items.")
+	if deny != nil {
+		return *deny, nil
 	}
 	if item.DeletedAt != nil {
 		return apiError(422, "Items in the trash can't be shared."), nil
@@ -107,12 +109,8 @@ func (r *Runtime) CreateShareLinkAPI(req *bungo.Request) (bungo.APIResponse, err
 // list for the share dialog.
 func (r *Runtime) ItemShareLinksAPI(req *bungo.Request) (bungo.APIResponse, error) {
 	user := CurrentUser(req)
-	_, access, itemErr := r.loadAuthorisedItem(req, user.ID, req.Params["itemId"])
-	if itemErr != nil {
-		return apiError(404, "Item not found."), nil
-	}
-	if access.Role != "owner" {
-		return apiError(403, "Only the vault owner can manage share links."), nil
+	if _, _, deny := r.requireItemOwner(req, user.ID, req.Params["itemId"], shareLinkOwnerOnlyMessage); deny != nil {
+		return *deny, nil
 	}
 	links, linksErr := database.SelectItemShareLinks(req.Context, r.GetDb(), &r.Builder, req.Params["itemId"])
 	if linksErr != nil {
@@ -127,11 +125,9 @@ func (r *Runtime) ItemShareLinksAPI(req *bungo.Request) (bungo.APIResponse, erro
 // RevokeShareLinkAPI handles POST /api/v1/shares/revoke {id}.
 func (r *Runtime) RevokeShareLinkAPI(req *bungo.Request) (bungo.APIResponse, error) {
 	user := CurrentUser(req)
-	var payload struct {
-		ID string `json:"id"`
-	}
-	if unmarshalErr := json.Unmarshal(req.Body, &payload); unmarshalErr != nil {
-		return apiError(400, "Invalid request body"), nil
+	payload, deny := decodeBody[idPayload](req)
+	if deny != nil {
+		return *deny, nil
 	}
 	link, linkErr := database.SelectShareLinkByID(req.Context, r.GetDb(), &r.Builder, payload.ID)
 	if linkErr != nil {
@@ -140,12 +136,8 @@ func (r *Runtime) RevokeShareLinkAPI(req *bungo.Request) (bungo.APIResponse, err
 		}
 		return apiError(404, "Share link not found."), nil
 	}
-	_, access, itemErr := r.loadAuthorisedItem(req, user.ID, link.ItemID)
-	if itemErr != nil {
-		return apiError(404, "Share link not found."), nil
-	}
-	if access.Role != "owner" {
-		return apiError(403, "Only the vault owner can manage share links."), nil
+	if _, _, deny := r.requireItemOwner(req, user.ID, link.ItemID, shareLinkOwnerOnlyMessage); deny != nil {
+		return *deny, nil
 	}
 	if revokeErr := database.RevokeShareLink(req.Context, r.GetDb(), &r.Builder, link.ID); revokeErr != nil {
 		return bungo.APIResponse{}, revokeErr
@@ -159,11 +151,9 @@ func (r *Runtime) RevokeShareLinkAPI(req *bungo.Request) (bungo.APIResponse, err
 // only: the wrapped item key plus the item's live blobs. Missing, revoked,
 // expired and trashed all collapse into the same 404.
 func (r *Runtime) OpenShareAPI(req *bungo.Request) (bungo.APIResponse, error) {
-	var payload struct {
-		Token string `json:"token"`
-	}
-	if unmarshalErr := json.Unmarshal(req.Body, &payload); unmarshalErr != nil {
-		return apiError(400, "Invalid request body"), nil
+	payload, deny := decodeBody[tokenPayload](req)
+	if deny != nil {
+		return *deny, nil
 	}
 	if payload.Token == "" {
 		return apiError(400, "Missing share token."), nil

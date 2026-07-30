@@ -288,18 +288,18 @@ mounting; only Api() routes can be registered.
 
 These apply on top of the framework rules above when working in this repository:
 
-- Register page/API/security handlers as methods on `*runtime.Runtime` and pass them
-  to `srv.Page` / `srv.Api` / `srv.Security` (see [backend.md](./backend.md)).
-- Chain security layers to build request context once: authenticated routes use
-  `authLayers` (`require_auth` + `load_viewer`); every public page uses
-  `publicLayers` (`optional_auth` + `load_viewer`). Both are declared once in
-  `cmd/vault3/main.go` — a new route reuses one of them rather than spelling
-  out its own slice.
+- Register page/API/security handlers as methods on `*runtime.Runtime`.
+- **Never write a `bungo.ApiRoute` / `PageRoute` literal inline.** Routes go through
+  the five closures at the top of `cmd/vault3/main.go` — `api` / `page` (authenticated,
+  the default), `openAPI` / `anonPage` (public), `viewerPage` (public but
+  viewer-aware). Authentication is thereby the default and going public costs a
+  visible word in the name, so the whole public surface stays greppable. Full
+  table in [backend.md](./backend.md).
 - **Vault3 does not call `srv.Serve`.** `cmd/vault3/main.go` builds the handler via
   the engine's public `CreateHandler`, mounts the native `/events` SSE endpoint
   beside it (BunGo responses cannot stream), and wraps everything in
-  `rt.WrapHandler` (security headers, auth throttling, socket-IP injection) before
-  `http.ListenAndServe`. All through public API — the framework stays unmodified.
+  `rt.WrapHandler` (security headers, cross-origin rejection, socket-IP injection)
+  before `http.ListenAndServe`. All through public API — the framework stays unmodified.
 - To set or clear session cookies, populate `APIResponse.Cookies` from the API
   handler — never reach into `http.ResponseWriter`.
 - A page handler's returned map is serialized verbatim into `window.__BUNGO_DATA__`

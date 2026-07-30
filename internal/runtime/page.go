@@ -91,8 +91,8 @@ func (r *Runtime) LoginPage(_ *bungo.Request) (map[string]any, error) {
 	}), nil
 }
 
-// JoinPage lives in register_view.go, VerifyEmailPage in
-// email_verification_view.go, and RecoverPage in recover_view.go, each
+// JoinPage lives in register_view.go and VerifyEmailPage in
+// email_verification_view.go, each
 // alongside the APIs they share token/crypto handling with. AppVaultPage
 // lives in vault_view.go, SettingsPage in account_view.go, and
 // NotificationsPage in notifications_view.go, same rule.
@@ -127,7 +127,7 @@ func (r *Runtime) LegalTermsPage(req *bungo.Request) (map[string]any, error) {
 	return r.legalPageData(req,
 		"Terms of Service | Vault3",
 		"Terms of Service",
-		"The agreement between you and Octa Systems Ltd (trading as Octa Digital) for using Vault3 — short, readable, and plain about what zero knowledge means for your account.",
+		"The agreement between you and Octa Systems Ltd (trading as Octa Digital) for using Vault3 — short, readable, and plain about what holding the only keys to your vault means for your account.",
 		"terms"), nil
 }
 
@@ -135,7 +135,7 @@ func (r *Runtime) LegalPrivacyPage(req *bungo.Request) (map[string]any, error) {
 	return r.legalPageData(req,
 		"Privacy Policy | Vault3",
 		"Privacy Policy",
-		"Exactly what Vault3 can and cannot see, the short list of data we process and why, how long we keep it, and your GDPR rights. Your vault is ciphertext to us.",
+		"Exactly what Vault3 can and cannot see, the short list of what we hold and why, how long we keep it, and your GDPR rights. Your vault reaches us already locked, and we have no way to open it.",
 		"privacy"), nil
 }
 
@@ -154,6 +154,6 @@ func (r *Runtime) SecurityPage(req *bungo.Request) (map[string]any, error) {
 	return r.legalPageData(req,
 		"Security — how Vault3 encrypts your vault | Vault3",
 		"How Vault3 protects you",
-		"How Vault3's zero-knowledge encryption works: two secrets combined in your browser, 650,000 PBKDF2 rounds, AES-256-GCM on every item, and what a breach of our servers would actually yield.",
+		"How Vault3's zero-knowledge encryption works, in plain language: two secrets combined in your browser, 1,000,000 PBKDF2 rounds and Argon2id at 64 MiB behind your Master Password, AES-256-GCM on every item, and what a breach of our servers would actually yield.",
 		"security"), nil
 }

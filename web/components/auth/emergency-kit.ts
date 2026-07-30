@@ -26,16 +26,17 @@ export function downloadKitText(email: string, phrase: string): void {
       `Created:        ${created}`,
       `Account email:  ${email}`,
       "",
-      "Secret Phrase (9 words, in order):",
+      "Secret Phrase (12 words, in order):",
       "",
       `    ${phrase}`,
       "",
       "Your Master Password is NOT in this kit — it lives in your head.",
       "",
-      "Vault3 is zero-knowledge: without your Master Password AND this",
-      "Secret Phrase, your vault cannot be opened by anyone, including",
-      "Vault3. Keep this kit somewhere safe and offline (printed, in a",
-      "drawer, in a safe). Do not store it next to your Master Password.",
+      "Without your Master Password AND this Secret Phrase, nobody can",
+      "open your vault: not you, not Vault3, not anyone. There is no",
+      "reset and no way around it. Keep this kit somewhere safe and",
+      "offline — printed, in a drawer or a safe — and never beside your",
+      "Master Password.",
       "",
       "Sign in at: https://vault3.com/login",
       "",
@@ -71,12 +72,12 @@ export function downloadKitHTML(email: string, phrase: string): void {
 <tr><td style="color:#888;width:160px;padding:6px 0;">Account email</td><td style="font-weight:600;">${email}</td></tr>
 <tr><td style="color:#888;padding:6px 0;">Master Password</td><td style="font-style:italic;color:#888;">write it here by hand: ______________________</td></tr>
 </table>
-<h2 style="font-size:17px;">Secret Phrase — 9 words, in order</h2>
+<h2 style="font-size:17px;">Secret Phrase — 12 words, in order</h2>
 <table style="border-collapse:separate;border-spacing:8px;">${cells}</table>
 <p style="color:#555;font-size:14px;line-height:1.6;margin-top:24px;">
-Vault3 is zero-knowledge: without your Master Password <strong>and</strong> this Secret Phrase,
-your vault cannot be opened by anyone — including Vault3. Keep this kit somewhere safe
-and offline. Never store it beside your Master Password.</p>
+Without your Master Password <strong>and</strong> this Secret Phrase, nobody can open your
+vault — not you, not Vault3. There is no reset and no way around it. Keep this kit
+somewhere safe and offline, and never beside your Master Password.</p>
 <p style="color:#888;font-size:13px;">Sign in at https://vault3.com/login</p>
 </body></html>`,
   );

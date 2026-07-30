@@ -263,7 +263,7 @@ func DeleteOtherUserSessions(
 	return nil
 }
 
-// SelectUserAuthKeyHash returns the auth-key bcrypt hash for an active,
+// SelectUserAuthKeyHash returns the auth-key storage hash (Argon2id) for an active,
 // unarchived user looked up by email. Returns sql.ErrNoRows when no live
 // user has that email.
 func SelectUserAuthKeyHash(
@@ -308,11 +308,14 @@ func SelectKdfParamsByEmail(
 	db DbTx,
 	builder *sq.StatementBuilderType,
 	email string,
-) (kdfSalt string, kdfIterations int, err error) {
+) (kdfSalt string, costs models.KdfCosts, err error) {
 	sqlStr, args, sqlErr := builder.
 		Select(
 			`a."Vault3UserAuthKdfSalt"`,
 			`a."Vault3UserAuthKdfIterations"`,
+			`a."Vault3UserAuthArgon2MemoryKiB"`,
+			`a."Vault3UserAuthArgon2Time"`,
+			`a."Vault3UserAuthArgon2Lanes"`,
 		).
 		From(`"vault3_user" u`).
 		Join(`"vault3_user_auth" a ON a."Vault3UserAuthUserID" = u."Vault3UserID"`).
@@ -323,17 +326,23 @@ func SelectKdfParamsByEmail(
 		Where(sq.Expr(`u."Vault3UserArchivedAt" IS NULL`)).
 		ToSql()
 	if sqlErr != nil {
-		return "", 0, fmt.Errorf("build select kdf params: %w", sqlErr)
+		return "", models.KdfCosts{}, fmt.Errorf("build select kdf params: %w", sqlErr)
 	}
 
-	scanErr := db.QueryRowContext(ctx, sqlStr, args...).Scan(&kdfSalt, &kdfIterations)
+	scanErr := db.QueryRowContext(ctx, sqlStr, args...).Scan(
+		&kdfSalt,
+		&costs.KdfIterations,
+		&costs.Argon2MemoryKiB,
+		&costs.Argon2Time,
+		&costs.Argon2Lanes,
+	)
 	if scanErr != nil {
 		if errors.Is(scanErr, sql.ErrNoRows) {
-			return "", 0, sql.ErrNoRows
+			return "", models.KdfCosts{}, sql.ErrNoRows
 		}
-		return "", 0, fmt.Errorf("select kdf params: %w", scanErr)
+		return "", models.KdfCosts{}, fmt.Errorf("select kdf params: %w", scanErr)
 	}
-	return kdfSalt, kdfIterations, nil
+	return kdfSalt, costs, nil
 }
 
 // sessionSelect is the shared projection for session reads.

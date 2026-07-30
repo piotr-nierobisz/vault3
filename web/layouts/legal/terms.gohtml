@@ -5,57 +5,57 @@
         <aside class="hidden md:block">{{template "legalSidebar" .}}</aside>
         <article class="legal-prose max-w-2xl">
             <h1 class="text-3xl font-extrabold tracking-tighter text-foreground mb-2">Terms of Service</h1>
-            <p class="text-sm text-muted-foreground mb-8">Last updated: 24 July 2026</p>
+            <p class="text-sm text-muted-foreground mb-8">Last updated: 30 July 2026</p>
 
-            <p>These terms are an agreement between you and <strong>{{.Site.CompanyLegalName}}</strong>, trading as <a href="{{.Site.CompanyURL}}" rel="noopener noreferrer">{{.Site.CompanyName}}</a> ("we", "us") — the company that makes and operates Vault3. They apply whenever you use the Vault3 service at vault3.com. By creating an account or using the service, you accept them. We have tried to keep them short and readable; if anything is unclear, write to us at hello@vault3.com.</p>
+            <p>These terms are the agreement between you and <strong>{{.Site.CompanyLegalName}}</strong>, trading as <a href="{{.Site.CompanyURL}}" rel="noopener noreferrer">{{.Site.CompanyName}}</a> ("we", "us") — the company that makes and runs Vault3. They apply whenever you use Vault3 at vault3.com, and you accept them by creating an account or using the service. We have kept them short and readable on purpose; if anything is unclear, write to us at hello@vault3.com.</p>
 
-            <h2>1. What Vault3 is</h2>
-            <p>Vault3 is a zero-knowledge password manager, made and operated by {{.Site.CompanyLegalName}} (trading as {{.Site.CompanyName}}). Everything you store in your vault — logins, notes, cards, identities, including item titles — is encrypted on your device before it reaches us, using keys derived from your Master Password and your nine-word Secret Phrase. Our servers store only ciphertext. We cannot read your vault, and we have deliberately built the service so that we never can.</p>
+            <h2>1. What you are signing up for</h2>
+            <p>Vault3 is a place to keep passwords, notes, cards and identities where only you can read them. Everything you save is locked on your device before it reaches us, using a key made from your Master Password and your twelve-word Secret Phrase. What that means for this agreement is unusual and worth stating early: the service we provide is storage and syncing of material we cannot open, so several things you might expect from an online account — a password reset, support looking something up for you, recovering deleted contents — are not on offer here, and the sections below say so plainly.</p>
 
-            <h2>2. Your account and your secrets</h2>
-            <p>Zero knowledge cuts both ways. Because we never hold your Master Password or Secret Phrase, we cannot reset them, recover them, or decrypt your vault on your behalf. You are the sole custodian of these secrets.</p>
+            <h2>2. You are the only key-holder</h2>
+            <p>Because we never hold your Master Password or your Secret Phrase, we cannot reset them, recover them, or open your vault for you. Nobody can do that but you, and that is the arrangement you are agreeing to.</p>
             <ul>
-                <li>Keep your Master Password and Secret Phrase safe. We recommend storing your Emergency Kit somewhere secure and offline.</li>
-                <li>If you lose both your Master Password and your Secret Phrase, your vault contents are permanently unreadable — by you and by us. The only way forward is an explicit account reset, which <strong>erases your vault</strong>.</li>
-                <li>Keep your account email address current: it is how you sign in and how we send you security notifications.</li>
-                <li>You are responsible for activity that happens under your account. If you believe your account has been compromised, change your Master Password promptly and review your active sessions in Settings.</li>
+                <li>Keep both secrets safe. Your Emergency Kit is made for this: keep it somewhere secure, and preferably off your computer.</li>
+                <li>If you lose your Master Password <strong>and</strong> your Secret Phrase, what is in your vault cannot be read again — by you or by us. The only way onwards is to delete the account and start a new one, which <strong>erases everything in it</strong>.</li>
+                <li>Keep your email address up to date: it is how you sign in and how security alerts reach you.</li>
+                <li>What happens under your account is your responsibility. If you think someone else has got in, change your Master Password straight away and check your signed-in devices in Settings.</li>
             </ul>
 
             <h2>3. Acceptable use</h2>
-            <p>You may use Vault3 only for lawful purposes. You agree not to:</p>
+            <p>Use Vault3 for lawful purposes only. Please do not:</p>
             <ul>
-                <li>use the service to store or distribute material that is illegal, or that infringes someone else's rights;</li>
-                <li>attempt to gain unauthorised access to other users' accounts or vaults, or to any part of our infrastructure;</li>
-                <li>probe, scan, or test the service for vulnerabilities without our prior written agreement, or interfere with its operation (for example by circumventing rate limits or authentication);</li>
-                <li>resell, sublicense, or provide the service to third parties as your own offering;</li>
-                <li>use the service in a way that places unreasonable load on it or degrades it for others.</li>
+                <li>store or pass on material that is illegal, or that infringes someone else's rights;</li>
+                <li>try to get into other people's accounts or vaults, or into any part of our systems;</li>
+                <li>probe, scan or test the service for weaknesses without asking us first, or interfere with how it runs — for example by working around rate limits or sign-in checks;</li>
+                <li>resell the service, license it on, or offer it to other people as your own;</li>
+                <li>put unreasonable load on it, or spoil it for everybody else.</li>
             </ul>
-            <p>If you find a security vulnerability, please report it to hello@vault3.com. We take reports seriously and will respond.</p>
+            <p>If you find a security weakness, please tell us at hello@vault3.com. We take reports seriously and we will reply.</p>
 
             <h2>4. Beta status and availability</h2>
-            <p>Vault3 is currently offered as a free beta. We work hard to keep it reliable, but we do not promise uninterrupted availability, and features may change, be added, or be removed as the product develops. Where a change materially affects you, we will give reasonable notice by email or in-app.</p>
-            <p>Your encrypted vault is yours. Whatever changes we make to the service, we will never gain the ability to read it.</p>
+            <p>Vault3 is a free beta at the moment. We work hard to keep it dependable, but we cannot promise it will never be unavailable, and features may change, arrive or disappear while the product finds its shape. If a change affects you in a way that matters, we will give you reasonable notice by email or in the app.</p>
+            <p>Your locked vault stays yours whatever we change. One thing we will never add is the ability to read it.</p>
 
             <h2>5. Limitation of liability</h2>
-            <p>The service is provided "as is" and "as available", without warranties of any kind, whether express or implied, to the fullest extent permitted by law.</p>
-            <p>To the fullest extent permitted by law, {{.Site.CompanyLegalName}} is not liable for indirect or consequential losses, loss of profits, or loss of data arising from your use of the service — including loss of access to your vault caused by a forgotten Master Password or Secret Phrase, which by design we cannot prevent or remedy. For a free beta service, our total liability to you for all claims is limited to £100.</p>
-            <p>Nothing in these terms limits or excludes liability that cannot be limited or excluded under the law of England and Wales, including liability for death or personal injury caused by negligence, or for fraud.</p>
+            <p>The service is provided "as is" and "as available", without warranties of any kind, express or implied, as far as the law allows.</p>
+            <p>As far as the law allows, {{.Site.CompanyLegalName}} is not liable for indirect or knock-on losses, lost profits, or lost data arising from your use of the service — including losing access to your vault because a Master Password or Secret Phrase was forgotten, which by design we can neither prevent nor put right. For a free beta service, our total liability to you across all claims is limited to £100.</p>
+            <p>Nothing here limits liability that cannot be limited under the law of England and Wales, including liability for death or personal injury caused by negligence, or for fraud.</p>
 
             <h2>6. Changes to these terms</h2>
-            <p>We may update these terms from time to time, for example when we add features or when the law changes. If a change is material, we will notify you by email or in-app at least 14 days before it takes effect. Continuing to use the service after a change takes effect means you accept the updated terms. If you do not accept them, you may delete your account at any time.</p>
+            <p>We may update these terms now and then — when we add features, or when the law changes. If a change is significant, we will tell you by email or in the app at least 14 days before it applies. Carrying on using Vault3 after that means you accept the new version; if you would rather not, you can delete your account at any time.</p>
 
-            <h2>7. Termination and deletion</h2>
+            <h2>7. Ending your account</h2>
             <ul>
-                <li>You may delete your account at any time from Settings. Deletion is self-serve, immediate, and permanent: your encrypted vault and account data are removed and cannot be restored.</li>
-                <li>Items you move to the trash are retained for 30 days and then purged permanently.</li>
-                <li>We may suspend or terminate your account if you materially breach these terms, or where we are required to by law. Where practical and lawful, we will warn you first and give you the opportunity to export your data.</li>
+                <li>You can delete your account yourself, from Settings, whenever you like. It is immediate and final: your locked vault and account details are removed and cannot be brought back.</li>
+                <li>Items you move to the trash stay there for 30 days, then go for good.</li>
+                <li>We may suspend or close an account that seriously breaches these terms, or where the law requires it. Where it is practical and lawful, we will warn you first and give you a chance to copy your things out.</li>
             </ul>
 
             <h2>8. Governing law</h2>
-            <p>These terms, and any dispute arising from them or from your use of the service, are governed by the law of England and Wales. The courts of England and Wales have exclusive jurisdiction, although if you are a consumer you keep the benefit of any mandatory protections of the law of the country you live in.</p>
+            <p>These terms, and any dispute arising from them or from your use of Vault3, are governed by the law of England and Wales, and the courts of England and Wales have exclusive jurisdiction. If you are a consumer, you keep whatever protections the law of your own country gives you regardless.</p>
 
             <h2>9. Who we are, and how to reach us</h2>
-            <p>Vault3 is made and operated by {{.Site.CompanyLegalName}}, trading as {{.Site.CompanyName}} (<a href="{{.Site.CompanyURL}}" rel="noopener noreferrer">octa.sh</a>). Questions about these terms? Email us at hello@vault3.com.</p>
+            <p>Vault3 is made and run by {{.Site.CompanyLegalName}}, trading as {{.Site.CompanyName}} (<a href="{{.Site.CompanyURL}}" rel="noopener noreferrer">octa.sh</a>). Questions about these terms? Email hello@vault3.com.</p>
         </article>
     </div>
     {{template "siteFooter" .}}

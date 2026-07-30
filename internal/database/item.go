@@ -150,10 +150,7 @@ func UpdateItemBlobs(
 	if sqlErr != nil {
 		return fmt.Errorf("build update item: %w", sqlErr)
 	}
-	if _, execErr := db.ExecContext(ctx, sqlStr, args...); execErr != nil {
-		return fmt.Errorf("update item: %w", execErr)
-	}
-	return nil
+	return execExpectingRow(ctx, db, sqlStr, args, "update item")
 }
 
 // TrashItem soft-deletes an item; RestoreItem brings it back. Both are
@@ -194,10 +191,7 @@ func DeleteItem(
 	if sqlErr != nil {
 		return fmt.Errorf("build delete item: %w", sqlErr)
 	}
-	if _, execErr := db.ExecContext(ctx, sqlStr, args...); execErr != nil {
-		return fmt.Errorf("delete item: %w", execErr)
-	}
-	return nil
+	return execExpectingRow(ctx, db, sqlStr, args, "delete item")
 }
 
 func itemSelect(builder *sq.StatementBuilderType) sq.SelectBuilder {
@@ -250,8 +244,5 @@ func execItemUpdate(
 	if sqlErr != nil {
 		return fmt.Errorf("build %s: %w", operation, sqlErr)
 	}
-	if _, execErr := db.ExecContext(ctx, sqlStr, args...); execErr != nil {
-		return fmt.Errorf("%s: %w", operation, execErr)
-	}
-	return nil
+	return execExpectingRow(ctx, db, sqlStr, args, operation)
 }

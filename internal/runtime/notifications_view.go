@@ -1,7 +1,6 @@
 package runtime
 
 import (
-	"encoding/json"
 	"strings"
 
 	"vault3/internal/database"
@@ -56,11 +55,9 @@ func (r *Runtime) NotificationsAPI(req *bungo.Request) (bungo.APIResponse, error
 // MarkNotificationReadAPI handles POST /api/v1/notifications/read {id}.
 func (r *Runtime) MarkNotificationReadAPI(req *bungo.Request) (bungo.APIResponse, error) {
 	user := CurrentUser(req)
-	var payload struct {
-		ID string `json:"id"`
-	}
-	if unmarshalErr := json.Unmarshal(req.Body, &payload); unmarshalErr != nil {
-		return apiError(400, "Invalid request body"), nil
+	payload, deny := decodeBody[idPayload](req)
+	if deny != nil {
+		return *deny, nil
 	}
 	if strings.TrimSpace(payload.ID) == "" {
 		return apiError(400, "id is required."), nil

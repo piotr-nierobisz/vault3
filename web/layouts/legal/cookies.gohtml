@@ -5,34 +5,34 @@
         <aside class="hidden md:block">{{template "legalSidebar" .}}</aside>
         <article class="legal-prose max-w-2xl">
             <h1 class="text-3xl font-extrabold tracking-tighter text-foreground mb-2">Cookie Policy</h1>
-            <p class="text-sm text-muted-foreground mb-8">Last updated: 24 July 2026</p>
+            <p class="text-sm text-muted-foreground mb-8">Last updated: 30 July 2026</p>
 
-            <p>This is a short policy, because Vault3 sets exactly one cookie.</p>
+            <p>This policy is short because Vault3 sets exactly one cookie.</p>
 
             <h2>1. The one cookie</h2>
-            <p>When you sign in, we set a single first-party cookie named <code>vault3_session</code>. It contains an opaque token — a random value with no meaning outside our servers, where only a hash of it is stored. It is strictly necessary: without it, you could not stay signed in.</p>
+            <p>When you sign in, we set a single cookie of our own named <code>vault3_session</code>. All it holds is a long random value that means nothing anywhere else, and we keep only a fingerprint of it rather than the value itself. It is strictly necessary: without it you could not stay signed in.</p>
             <ul>
                 <li><strong>Name:</strong> <code>vault3_session</code></li>
                 <li><strong>Purpose:</strong> keeping you signed in to your account</li>
                 <li><strong>Lifetime:</strong> 30 days, or until you sign out</li>
                 <li><strong>Attributes:</strong> <code>HttpOnly</code>, <code>Secure</code> (in production), <code>SameSite=Lax</code></li>
             </ul>
-            <p>That is the only cookie Vault3 sets. There are no analytics cookies, no advertising cookies, and no third-party cookies of any kind.</p>
+            <p>That is the only cookie Vault3 sets. No analytics cookies, no advertising cookies, and nothing belonging to anyone else.</p>
 
-            <h2>2. Storage on your device</h2>
-            <p>The Vault3 app also keeps a small amount of data in your browser's localStorage and sessionStorage. This data lives on your device only and is never sent to our servers:</p>
+            <h2>2. What stays on your device</h2>
+            <p>The app also keeps a little information in your browser's own storage. It never leaves your device:</p>
             <ul>
-                <li><strong>Remembered device</strong> — your email address and Secret Phrase, kept locally so you do not have to re-enter them on a device you trust.</li>
-                <li><strong>Unlocked keys</strong> — while your vault is unlocked, the derived encryption keys are held in sessionStorage so the app can decrypt your items; they are discarded when the session ends.</li>
+                <li><strong>A remembered device</strong> — your email address and Secret Phrase, held locally so you do not have to type them again on a device you trust.</li>
+                <li><strong>Your unlocked keys</strong> — while the vault is open, the keys that decrypt your items live in the browser tab so the app can read them. They are thrown away when the tab closes, when you lock, and when you sign out.</li>
             </ul>
-            <p>Clearing your browser's site data for vault3.com removes all of this. You would simply need to sign in and unlock your vault again.</p>
+            <p>Clearing site data for vault3.com in your browser removes all of it. You would just sign in and unlock again.</p>
 
             <h2>3. Why we tell you rather than ask you</h2>
-            <p>Consent banners exist because most websites track their visitors. We do not. Our single cookie is strictly necessary for the service to function, which under UK and EU law requires no consent — so there is nothing to ask you about.</p>
-            <p>The short notice you see on your first visit says exactly that, and it is the whole of it: one button to acknowledge it, no choices to configure, nothing recorded on our servers. Dismissing it stores a single flag in your browser's localStorage so it does not come back.</p>
+            <p>Consent banners exist because most websites follow their visitors around. We do not. Our one cookie is strictly necessary to keep you signed in, and under UK and EU law that kind needs no consent — so there is genuinely nothing to ask you about.</p>
+            <p>The little notice on your first visit says that and no more: one button to acknowledge it, nothing to configure, nothing recorded on our side. Dismissing it leaves a single flag in your browser so it does not come back.</p>
 
             <h2>4. Questions</h2>
-            <p>Vault3 is made and operated by {{.Site.CompanyLegalName}}, trading as {{.Site.CompanyName}} (<a href="{{.Site.CompanyURL}}" rel="noopener noreferrer">octa.sh</a>). If anything here is unclear, email us at hello@vault3.com.</p>
+            <p>Vault3 is made and run by {{.Site.CompanyLegalName}}, trading as {{.Site.CompanyName}} (<a href="{{.Site.CompanyURL}}" rel="noopener noreferrer">octa.sh</a>). If anything here is unclear, email hello@vault3.com.</p>
         </article>
     </div>
     {{template "siteFooter" .}}

@@ -99,7 +99,7 @@ export function ItemForm({
         )}
 
         <div className="space-y-1.5">
-          <label htmlFor="item-title" className="text-xs font-semibold tracking-widest uppercase text-muted-foreground">Title</label>
+          <label htmlFor="item-title" className="field-label">Title</label>
           <input
             id="item-title"
             className="input"
@@ -114,7 +114,7 @@ export function ItemForm({
 
         {category === "login" && (
           <div className="space-y-1.5">
-            <label htmlFor="item-url" className="text-xs font-semibold tracking-widest uppercase text-muted-foreground">Website</label>
+            <label htmlFor="item-url" className="field-label">Website</label>
             <input id="item-url" className="input" type="url" placeholder="https://acme-bank.com" value={url} onChange={(e) => setUrl(e.target.value)} disabled={busy} />
           </div>
         )}
@@ -122,7 +122,7 @@ export function ItemForm({
         {specs.map((spec) => (
           <div key={spec.key} className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <label htmlFor={`item-${spec.key}`} className="text-xs font-semibold tracking-widest uppercase text-muted-foreground">
+              <label htmlFor={`item-${spec.key}`} className="field-label">
                 {spec.label}
               </label>
               {spec.generator && (
@@ -173,7 +173,7 @@ export function ItemForm({
         ))}
 
         <div className="space-y-1.5">
-          <label htmlFor="item-notes" className="text-xs font-semibold tracking-widest uppercase text-muted-foreground">
+          <label htmlFor="item-notes" className="field-label">
             Notes {category !== "secure_note" && <span className="normal-case font-normal">(optional)</span>}
           </label>
           <textarea

@@ -62,8 +62,8 @@ func (r *Runtime) ItemsAPI(req *bungo.Request) (bungo.APIResponse, error) {
 		}
 		vaultID = user.Vaults[0].Vault.ID
 	}
-	if _, accessErr := r.requireVaultAccess(req, user.ID, vaultID); accessErr != nil {
-		return apiError(404, "Vault not found."), nil
+	if _, deny := r.requireVaultAccess(req, user.ID, vaultID); deny != nil {
+		return *deny, nil
 	}
 
 	items, itemsErr := database.SelectVaultItems(req.Context, r.GetDb(), &r.Builder, vaultID)
@@ -94,21 +94,17 @@ type itemWritePayload struct {
 // CreateItemAPI handles POST /api/v1/items/create.
 func (r *Runtime) CreateItemAPI(req *bungo.Request) (bungo.APIResponse, error) {
 	user := CurrentUser(req)
-	var payload itemWritePayload
-	if unmarshalErr := json.Unmarshal(req.Body, &payload); unmarshalErr != nil {
-		return apiError(400, "Invalid request body"), nil
+	payload, deny := decodeBody[itemWritePayload](req)
+	if deny != nil {
+		return *deny, nil
 	}
 	if payload.VaultID == "" {
 		return apiError(400, "vaultId is required."), nil
 	}
-	access, accessErr := r.requireVaultAccess(req, user.ID, payload.VaultID)
-	if accessErr != nil {
-		return apiError(404, "Vault not found."), nil
+	if _, deny := r.requireVaultOwner(req, user.ID, payload.VaultID, memberReadOnlyMessage); deny != nil {
+		return *deny, nil
 	}
-	if access.Role != "owner" {
-		return apiError(403, "Members can view this vault but not change it."), nil
-	}
-	if envErr := validateItemEnvelopes(&payload); envErr != nil {
+	if envErr := validateItemEnvelopes(payload); envErr != nil {
 		return apiError(400, envErr.Error()), nil
 	}
 
@@ -127,22 +123,14 @@ func (r *Runtime) CreateItemAPI(req *bungo.Request) (bungo.APIResponse, error) {
 		Overview:       payload.Overview,
 		Details:        payload.Details,
 	}
-	var revisions map[string]int64
-	transactionErr := WithTransaction(r, req.Context, func(txRt *Runtime) error {
-		if insertErr := database.InsertItem(req.Context, txRt.GetDb(), &txRt.Builder, item); insertErr != nil {
-			return insertErr
-		}
-		var signalErr error
-		revisions, signalErr = SignalVaultChanged(req.Context, txRt, payload.VaultID)
-		return signalErr
-	})
-	if transactionErr != nil {
-		return bungo.APIResponse{}, transactionErr
+	revisions, commitErr := r.commitVaultChange(req, user.ID, payload.VaultID, "item_created", "item", item.ID,
+		func(txRt *Runtime) error {
+			return database.InsertItem(req.Context, txRt.GetDb(), &txRt.Builder, item)
+		})
+	if commitErr != nil {
+		return bungo.APIResponse{}, commitErr
 	}
 	revision := revisions[user.ID]
-
-	r.PublishChanges(req, revisions)
-	r.audit(req, user.ID, "item_created", "item", item.ID, "")
 
 	stored, loadErr := database.SelectItemByID(req.Context, r.GetDb(), &r.Builder, item.ID)
 	if loadErr != nil {
@@ -158,38 +146,27 @@ func (r *Runtime) CreateItemAPI(req *bungo.Request) (bungo.APIResponse, error) {
 // (re-sealed client-side under the item's existing key).
 func (r *Runtime) UpdateItemAPI(req *bungo.Request) (bungo.APIResponse, error) {
 	user := CurrentUser(req)
-	var payload itemWritePayload
-	if unmarshalErr := json.Unmarshal(req.Body, &payload); unmarshalErr != nil {
-		return apiError(400, "Invalid request body"), nil
+	payload, deny := decodeBody[itemWritePayload](req)
+	if deny != nil {
+		return *deny, nil
 	}
-	item, access, itemErr := r.loadAuthorisedItem(req, user.ID, payload.ID)
-	if itemErr != nil {
-		return apiError(404, "Item not found."), nil
+	item, _, deny := r.requireItemOwner(req, user.ID, payload.ID, memberReadOnlyMessage)
+	if deny != nil {
+		return *deny, nil
 	}
-	if access.Role != "owner" {
-		return apiError(403, "Members can view this vault but not change it."), nil
-	}
-	if envErr := validateItemEnvelopes(&payload); envErr != nil {
+	if envErr := validateItemEnvelopes(payload); envErr != nil {
 		return apiError(400, envErr.Error()), nil
 	}
 
-	var revisions map[string]int64
-	transactionErr := WithTransaction(r, req.Context, func(txRt *Runtime) error {
-		if updateErr := database.UpdateItemBlobs(req.Context, txRt.GetDb(), &txRt.Builder,
-			item.ID, payload.Overview, payload.Details); updateErr != nil {
-			return updateErr
-		}
-		var signalErr error
-		revisions, signalErr = SignalVaultChanged(req.Context, txRt, item.VaultID)
-		return signalErr
-	})
-	if transactionErr != nil {
-		return bungo.APIResponse{}, transactionErr
+	revisions, commitErr := r.commitVaultChange(req, user.ID, item.VaultID, "item_updated", "item", item.ID,
+		func(txRt *Runtime) error {
+			return database.UpdateItemBlobs(req.Context, txRt.GetDb(), &txRt.Builder,
+				item.ID, payload.Overview, payload.Details)
+		})
+	if commitErr != nil {
+		return bungo.APIResponse{}, commitErr
 	}
 	revision := revisions[user.ID]
-
-	r.PublishChanges(req, revisions)
-	r.audit(req, user.ID, "item_updated", "item", item.ID, "")
 
 	stored, loadErr := database.SelectItemByID(req.Context, r.GetDb(), &r.Builder, item.ID)
 	if loadErr != nil {
@@ -221,73 +198,121 @@ type itemLifecycleFn func(ctx context.Context, db database.DbTx, builder *sq.Sta
 
 func (r *Runtime) itemLifecycleAPI(req *bungo.Request, action string, mutate itemLifecycleFn) (bungo.APIResponse, error) {
 	user := CurrentUser(req)
-	var payload struct {
-		ID string `json:"id"`
+	payload, deny := decodeBody[idPayload](req)
+	if deny != nil {
+		return *deny, nil
 	}
-	if unmarshalErr := json.Unmarshal(req.Body, &payload); unmarshalErr != nil {
-		return apiError(400, "Invalid request body"), nil
-	}
-	item, access, itemErr := r.loadAuthorisedItem(req, user.ID, payload.ID)
-	if itemErr != nil {
-		return apiError(404, "Item not found."), nil
-	}
-	if access.Role != "owner" {
-		return apiError(403, "Members can view this vault but not change it."), nil
+	item, _, deny := r.requireItemOwner(req, user.ID, payload.ID, memberReadOnlyMessage)
+	if deny != nil {
+		return *deny, nil
 	}
 
-	var revisions map[string]int64
-	transactionErr := WithTransaction(r, req.Context, func(txRt *Runtime) error {
-		if mutateErr := mutate(req.Context, txRt.GetDb(), &txRt.Builder, item.ID); mutateErr != nil {
-			return mutateErr
-		}
-		var signalErr error
-		revisions, signalErr = SignalVaultChanged(req.Context, txRt, item.VaultID)
-		return signalErr
-	})
-	if transactionErr != nil {
-		return bungo.APIResponse{}, transactionErr
+	revisions, commitErr := r.commitVaultChange(req, user.ID, item.VaultID, action, "item", item.ID,
+		func(txRt *Runtime) error {
+			return mutate(req.Context, txRt.GetDb(), &txRt.Builder, item.ID)
+		})
+	if commitErr != nil {
+		return bungo.APIResponse{}, commitErr
 	}
-	revision := revisions[user.ID]
-
-	r.PublishChanges(req, revisions)
-	r.audit(req, user.ID, action, "item", item.ID, "")
 
 	return bungo.APIResponse{
 		StatusCode: 200,
-		Body:       map[string]any{"ok": true, "revision": revision},
+		Body:       map[string]any{"ok": true, "revision": revisions[user.ID]},
 	}, nil
 }
 
-// requireVaultAccess loads the access row binding the user to the vault.
-func (r *Runtime) requireVaultAccess(req *bungo.Request, userID, vaultID string) (*models.VaultAccess, error) {
+// --- Authorisation ---------------------------------------------------------
+//
+// Every vault and item handler authorises through one of the four helpers
+// below, and none of them re-implements the check inline. They return either
+// the loaded row(s) or a ready-to-return denial, so a handler reads:
+//
+//	access, deny := r.requireVaultOwner(req, user.ID, vaultID, "…")
+//	if deny != nil {
+//	    return *deny, nil
+//	}
+//
+// Two properties are deliberately built in rather than left to each caller:
+//
+//   - "Does not exist" and "is not yours" collapse into the same 404. A
+//     distinguishable response would turn any id into an existence oracle.
+//   - The role requirement is in the function name. Members hold read access
+//     to a shared vault, so the owner check is the only thing standing between
+//     a member and someone else's data; a handler that wants it must say so,
+//     and one that forgets is visible as `requireVaultAccess` in review rather
+//     than as a missing line.
+
+const (
+	vaultNotFoundMessage = "Vault not found."
+	itemNotFoundMessage  = "Item not found."
+	// memberReadOnlyMessage is the 403 for every item mutation: members read a
+	// shared vault, owners write it.
+	memberReadOnlyMessage = "Members can view this vault but not change it."
+)
+
+// requireVaultAccess resolves the caller's access row for a vault. Any role
+// passes: use it for reads that every member is entitled to.
+func (r *Runtime) requireVaultAccess(req *bungo.Request, userID, vaultID string) (*models.VaultAccess, *bungo.APIResponse) {
 	access, accessErr := database.SelectVaultAccess(req.Context, r.GetDb(), &r.Builder, userID, vaultID)
 	if accessErr != nil {
 		if !errors.Is(accessErr, sql.ErrNoRows) {
 			r.Log.Error("vault access lookup failed", zap.Error(accessErr))
 		}
-		return nil, accessErr
+		deny := apiError(404, vaultNotFoundMessage)
+		return nil, &deny
 	}
 	return access, nil
 }
 
-// loadAuthorisedItem loads an item and verifies the user can access its
-// vault, collapsing "missing" and "not yours" into one error so responses
-// never reveal foreign item ids exist. The access row rides along so callers
-// can gate mutations on its role.
-func (r *Runtime) loadAuthorisedItem(req *bungo.Request, userID, itemID string) (*models.Item, *models.VaultAccess, error) {
+// requireVaultOwner is requireVaultAccess plus the owner check, denying with
+// ownerOnly (403) when the caller holds access but only as a member.
+func (r *Runtime) requireVaultOwner(req *bungo.Request, userID, vaultID, ownerOnly string) (*models.VaultAccess, *bungo.APIResponse) {
+	access, deny := r.requireVaultAccess(req, userID, vaultID)
+	if deny != nil {
+		return nil, deny
+	}
+	if access.Role != models.RoleOwner {
+		forbidden := apiError(403, ownerOnly)
+		return nil, &forbidden
+	}
+	return access, nil
+}
+
+// requireItemAccess loads an item and the caller's access to its vault. A
+// missing item, a foreign item and a blank id are one 404.
+func (r *Runtime) requireItemAccess(req *bungo.Request, userID, itemID string) (*models.Item, *models.VaultAccess, *bungo.APIResponse) {
+	notFound := apiError(404, itemNotFoundMessage)
 	if strings.TrimSpace(itemID) == "" {
-		return nil, nil, sql.ErrNoRows
+		return nil, nil, &notFound
 	}
 	item, itemErr := database.SelectItemByID(req.Context, r.GetDb(), &r.Builder, itemID)
 	if itemErr != nil {
 		if !errors.Is(itemErr, sql.ErrNoRows) {
 			r.Log.Error("item lookup failed", zap.Error(itemErr))
 		}
-		return nil, nil, itemErr
+		return nil, nil, &notFound
 	}
-	access, accessErr := r.requireVaultAccess(req, userID, item.VaultID)
+	// Deliberately not requireVaultAccess: its 404 names the vault, which
+	// would let an item id be probed by the wording of the refusal.
+	access, accessErr := database.SelectVaultAccess(req.Context, r.GetDb(), &r.Builder, userID, item.VaultID)
 	if accessErr != nil {
-		return nil, nil, accessErr
+		if !errors.Is(accessErr, sql.ErrNoRows) {
+			r.Log.Error("vault access lookup failed", zap.Error(accessErr))
+		}
+		return nil, nil, &notFound
+	}
+	return item, access, nil
+}
+
+// requireItemOwner is requireItemAccess plus the owner check.
+func (r *Runtime) requireItemOwner(req *bungo.Request, userID, itemID, ownerOnly string) (*models.Item, *models.VaultAccess, *bungo.APIResponse) {
+	item, access, deny := r.requireItemAccess(req, userID, itemID)
+	if deny != nil {
+		return nil, nil, deny
+	}
+	if access.Role != models.RoleOwner {
+		forbidden := apiError(403, ownerOnly)
+		return nil, nil, &forbidden
 	}
 	return item, access, nil
 }
@@ -295,7 +320,7 @@ func (r *Runtime) loadAuthorisedItem(req *bungo.Request, userID, itemID string) 
 // validateItemEnvelopes structurally checks an item write's three envelopes.
 func validateItemEnvelopes(payload *itemWritePayload) error {
 	if len(payload.WrappedItemKey) > 0 {
-		if envErr := models.ValidateCipherEnvelope(payload.WrappedItemKey, 1024); envErr != nil {
+		if envErr := models.ValidateCipherEnvelope(payload.WrappedItemKey, config.MaxWrappedKeyBytes); envErr != nil {
 			return fmt.Errorf("malformed item key envelope: %w", envErr)
 		}
 	}

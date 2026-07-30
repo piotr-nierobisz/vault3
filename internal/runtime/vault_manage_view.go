@@ -46,16 +46,18 @@ func (r *Runtime) VaultsAPI(req *bungo.Request) (bungo.APIResponse, error) {
 	}, nil
 }
 
+type createVaultPayload struct {
+	EncName    json.RawMessage `json:"encName"`
+	WrappedKey json.RawMessage `json:"wrappedKey"`
+}
+
 // CreateVaultAPI handles POST /api/v1/vaults/create: a new vault whose key
 // and encrypted name were minted client-side.
 func (r *Runtime) CreateVaultAPI(req *bungo.Request) (bungo.APIResponse, error) {
 	user := CurrentUser(req)
-	var payload struct {
-		EncName    json.RawMessage `json:"encName"`
-		WrappedKey json.RawMessage `json:"wrappedKey"`
-	}
-	if unmarshalErr := json.Unmarshal(req.Body, &payload); unmarshalErr != nil {
-		return apiError(400, "Invalid request body"), nil
+	payload, deny := decodeBody[createVaultPayload](req)
+	if deny != nil {
+		return *deny, nil
 	}
 	if envErr := models.ValidateCipherEnvelope(payload.EncName, config.MaxVaultNameBytes); envErr != nil {
 		return apiError(400, "Malformed vault name envelope."), nil
@@ -75,35 +77,28 @@ func (r *Runtime) CreateVaultAPI(req *bungo.Request) (bungo.APIResponse, error) 
 	vault := &models.Vault{
 		ID:          newUUID(),
 		OwnerUserID: user.ID,
-		Kind:        "personal",
+		Kind:        models.VaultKindPersonal,
 		EncName:     payload.EncName,
 	}
 	access := &models.VaultAccess{
 		ID:         newUUID(),
 		VaultID:    vault.ID,
 		UserID:     user.ID,
-		Role:       "owner",
-		WrapAlgo:   "muk",
+		Role:       models.RoleOwner,
+		WrapAlgo:   models.WrapAlgoMUK,
 		WrappedKey: payload.WrappedKey,
 	}
-	var revision int64
-	transactionErr := WithTransaction(r, req.Context, func(txRt *Runtime) error {
-		if insertErr := database.InsertVault(req.Context, txRt.GetDb(), &txRt.Builder, vault); insertErr != nil {
-			return insertErr
-		}
-		if accessErr := database.InsertVaultAccess(req.Context, txRt.GetDb(), &txRt.Builder, access); accessErr != nil {
-			return accessErr
-		}
-		var bumpErr error
-		revision, bumpErr = SignalUserChanged(req.Context, txRt, user.ID)
-		return bumpErr
-	})
-	if transactionErr != nil {
-		return bungo.APIResponse{}, transactionErr
+	revision, commitErr := r.commitUserChange(req, user.ID, "vault_created", "vault", vault.ID,
+		func(txRt *Runtime) error {
+			if insertErr := database.InsertVault(req.Context, txRt.GetDb(), &txRt.Builder, vault); insertErr != nil {
+				return insertErr
+			}
+			return database.InsertVaultAccess(req.Context, txRt.GetDb(), &txRt.Builder, access)
+		})
+	if commitErr != nil {
+		return bungo.APIResponse{}, commitErr
 	}
 
-	r.PublishChange(req, user.ID, revision)
-	r.audit(req, user.ID, "vault_created", "vault", vault.ID, "")
 	return bungo.APIResponse{
 		StatusCode: 200,
 		Body: map[string]any{
@@ -121,66 +116,55 @@ func (r *Runtime) CreateVaultAPI(req *bungo.Request) (bungo.APIResponse, error) 
 	}, nil
 }
 
+type renameVaultPayload struct {
+	VaultID string          `json:"vaultId"`
+	EncName json.RawMessage `json:"encName"`
+}
+
 // RenameVaultAPI handles POST /api/v1/vaults/rename: replaces the encrypted
 // name (sealed under the vault key, so every member still reads it).
 func (r *Runtime) RenameVaultAPI(req *bungo.Request) (bungo.APIResponse, error) {
 	user := CurrentUser(req)
-	var payload struct {
-		VaultID string          `json:"vaultId"`
-		EncName json.RawMessage `json:"encName"`
+	payload, deny := decodeBody[renameVaultPayload](req)
+	if deny != nil {
+		return *deny, nil
 	}
-	if unmarshalErr := json.Unmarshal(req.Body, &payload); unmarshalErr != nil {
-		return apiError(400, "Invalid request body"), nil
-	}
-	access, accessErr := r.requireVaultAccess(req, user.ID, payload.VaultID)
-	if accessErr != nil {
-		return apiError(404, "Vault not found."), nil
-	}
-	if access.Role != "owner" {
-		return apiError(403, "Only the vault owner can rename it."), nil
+	if _, deny := r.requireVaultOwner(req, user.ID, payload.VaultID, "Only the vault owner can rename it."); deny != nil {
+		return *deny, nil
 	}
 	if envErr := models.ValidateCipherEnvelope(payload.EncName, config.MaxVaultNameBytes); envErr != nil {
 		return apiError(400, "Malformed vault name envelope."), nil
 	}
 
-	var revisions map[string]int64
-	transactionErr := WithTransaction(r, req.Context, func(txRt *Runtime) error {
-		if updateErr := database.UpdateVaultEncName(req.Context, txRt.GetDb(), &txRt.Builder,
-			payload.VaultID, payload.EncName); updateErr != nil {
-			return updateErr
-		}
-		var signalErr error
-		revisions, signalErr = SignalVaultChanged(req.Context, txRt, payload.VaultID)
-		return signalErr
-	})
-	if transactionErr != nil {
-		return bungo.APIResponse{}, transactionErr
+	revisions, commitErr := r.commitVaultChange(req, user.ID, payload.VaultID, "vault_renamed", "vault", payload.VaultID,
+		func(txRt *Runtime) error {
+			return database.UpdateVaultEncName(req.Context, txRt.GetDb(), &txRt.Builder,
+				payload.VaultID, payload.EncName)
+		})
+	if commitErr != nil {
+		return bungo.APIResponse{}, commitErr
 	}
 
-	r.PublishChanges(req, revisions)
-	r.audit(req, user.ID, "vault_renamed", "vault", payload.VaultID, "")
 	return bungo.APIResponse{
 		StatusCode: 200,
 		Body:       map[string]any{"ok": true, "revision": revisions[user.ID]},
 	}, nil
 }
 
+type vaultIDPayload struct {
+	VaultID string `json:"vaultId"`
+}
+
 // DeleteVaultAPI handles POST /api/v1/vaults/delete: owner-only, forbidden
 // on the account's last vault, permanent (items cascade).
 func (r *Runtime) DeleteVaultAPI(req *bungo.Request) (bungo.APIResponse, error) {
 	user := CurrentUser(req)
-	var payload struct {
-		VaultID string `json:"vaultId"`
+	payload, deny := decodeBody[vaultIDPayload](req)
+	if deny != nil {
+		return *deny, nil
 	}
-	if unmarshalErr := json.Unmarshal(req.Body, &payload); unmarshalErr != nil {
-		return apiError(400, "Invalid request body"), nil
-	}
-	access, accessErr := r.requireVaultAccess(req, user.ID, payload.VaultID)
-	if accessErr != nil {
-		return apiError(404, "Vault not found."), nil
-	}
-	if access.Role != "owner" {
-		return apiError(403, "Only the vault owner can delete it."), nil
+	if _, deny := r.requireVaultOwner(req, user.ID, payload.VaultID, "Only the vault owner can delete it."); deny != nil {
+		return *deny, nil
 	}
 	count, countErr := database.CountUserVaults(req.Context, r.GetDb(), &r.Builder, user.ID)
 	if countErr != nil {
@@ -196,21 +180,14 @@ func (r *Runtime) DeleteVaultAPI(req *bungo.Request) (bungo.APIResponse, error) 
 		return bungo.APIResponse{}, memberErr
 	}
 
-	var revisions map[string]int64
-	transactionErr := WithTransaction(r, req.Context, func(txRt *Runtime) error {
-		if deleteErr := database.DeleteVault(req.Context, txRt.GetDb(), &txRt.Builder, payload.VaultID); deleteErr != nil {
-			return deleteErr
-		}
-		var signalErr error
-		revisions, signalErr = signalUsersChanged(req.Context, txRt, memberIDs)
-		return signalErr
-	})
-	if transactionErr != nil {
-		return bungo.APIResponse{}, transactionErr
+	revisions, commitErr := r.commitAudienceChange(req, user.ID, memberIDs, "vault_deleted", "vault", payload.VaultID,
+		func(txRt *Runtime) error {
+			return database.DeleteVault(req.Context, txRt.GetDb(), &txRt.Builder, payload.VaultID)
+		})
+	if commitErr != nil {
+		return bungo.APIResponse{}, commitErr
 	}
 
-	r.PublishChanges(req, revisions)
-	r.audit(req, user.ID, "vault_deleted", "vault", payload.VaultID, "")
 	for _, memberID := range memberIDs {
 		if memberID == user.ID {
 			continue
@@ -230,9 +207,9 @@ func (r *Runtime) DeleteVaultAPI(req *bungo.Request) (bungo.APIResponse, error) 
 func (r *Runtime) VaultMembersAPI(req *bungo.Request) (bungo.APIResponse, error) {
 	user := CurrentUser(req)
 	vaultID := strings.TrimSpace(req.Params["vaultId"])
-	access, accessErr := r.requireVaultAccess(req, user.ID, vaultID)
-	if accessErr != nil {
-		return apiError(404, "Vault not found."), nil
+	access, deny := r.requireVaultAccess(req, user.ID, vaultID)
+	if deny != nil {
+		return *deny, nil
 	}
 
 	members, membersErr := database.SelectVaultMembers(req.Context, r.GetDb(), &r.Builder, r.Cipher, vaultID)
@@ -244,7 +221,7 @@ func (r *Runtime) VaultMembersAPI(req *bungo.Request) (bungo.APIResponse, error)
 		"role":    access.Role,
 		"invites": []view.VaultInviteRow{},
 	}
-	if access.Role == "owner" {
+	if access.Role == models.RoleOwner {
 		invites, invitesErr := database.SelectVaultInvites(req.Context, r.GetDb(), &r.Builder, vaultID)
 		if invitesErr != nil {
 			return bungo.APIResponse{}, invitesErr
@@ -254,23 +231,21 @@ func (r *Runtime) VaultMembersAPI(req *bungo.Request) (bungo.APIResponse, error)
 	return bungo.APIResponse{StatusCode: 200, Body: body}, nil
 }
 
+type createInvitePayload struct {
+	VaultID         string          `json:"vaultId"`
+	WrappedVaultKey json.RawMessage `json:"wrappedVaultKey"`
+}
+
 // CreateVaultInviteAPI handles POST /api/v1/vaults/invites/create: mints a
 // single-use invite whose token is returned exactly once.
 func (r *Runtime) CreateVaultInviteAPI(req *bungo.Request) (bungo.APIResponse, error) {
 	user := CurrentUser(req)
-	var payload struct {
-		VaultID         string          `json:"vaultId"`
-		WrappedVaultKey json.RawMessage `json:"wrappedVaultKey"`
+	payload, deny := decodeBody[createInvitePayload](req)
+	if deny != nil {
+		return *deny, nil
 	}
-	if unmarshalErr := json.Unmarshal(req.Body, &payload); unmarshalErr != nil {
-		return apiError(400, "Invalid request body"), nil
-	}
-	access, accessErr := r.requireVaultAccess(req, user.ID, payload.VaultID)
-	if accessErr != nil {
-		return apiError(404, "Vault not found."), nil
-	}
-	if access.Role != "owner" {
-		return apiError(403, "Only the vault owner can invite people."), nil
+	if _, deny := r.requireVaultOwner(req, user.ID, payload.VaultID, "Only the vault owner can invite people."); deny != nil {
+		return *deny, nil
 	}
 	if envErr := models.ValidateCipherEnvelope(payload.WrappedVaultKey, config.MaxWrappedKeyBytes); envErr != nil {
 		return apiError(400, "Malformed invite key envelope."), nil
@@ -301,7 +276,7 @@ func (r *Runtime) CreateVaultInviteAPI(req *bungo.Request) (bungo.APIResponse, e
 		CreatedByUserID: user.ID,
 		TokenHash:       tokenHash,
 		WrappedVaultKey: payload.WrappedVaultKey,
-		Role:            "member",
+		Role:            models.RoleMember,
 		ExpiresAt:       time.Now().Add(config.VaultInviteTTL),
 		// Set for the immediate response; the DB default is authoritative.
 		CreatedAt: time.Now(),
@@ -323,11 +298,9 @@ func (r *Runtime) CreateVaultInviteAPI(req *bungo.Request) (bungo.APIResponse, e
 // RevokeVaultInviteAPI handles POST /api/v1/vaults/invites/revoke {id}.
 func (r *Runtime) RevokeVaultInviteAPI(req *bungo.Request) (bungo.APIResponse, error) {
 	user := CurrentUser(req)
-	var payload struct {
-		ID string `json:"id"`
-	}
-	if unmarshalErr := json.Unmarshal(req.Body, &payload); unmarshalErr != nil {
-		return apiError(400, "Invalid request body"), nil
+	payload, deny := decodeBody[idPayload](req)
+	if deny != nil {
+		return *deny, nil
 	}
 	invite, inviteErr := database.SelectVaultInviteByID(req.Context, r.GetDb(), &r.Builder, payload.ID)
 	if inviteErr != nil {
@@ -336,12 +309,8 @@ func (r *Runtime) RevokeVaultInviteAPI(req *bungo.Request) (bungo.APIResponse, e
 		}
 		return apiError(404, "Invite not found."), nil
 	}
-	access, accessErr := r.requireVaultAccess(req, user.ID, invite.VaultID)
-	if accessErr != nil {
-		return apiError(404, "Invite not found."), nil
-	}
-	if access.Role != "owner" {
-		return apiError(403, "Only the vault owner can revoke invites."), nil
+	if _, deny := r.requireVaultOwner(req, user.ID, invite.VaultID, "Only the vault owner can revoke invites."); deny != nil {
+		return *deny, nil
 	}
 	if revokeErr := database.RevokeVaultInvite(req.Context, r.GetDb(), &r.Builder, invite.ID); revokeErr != nil {
 		return bungo.APIResponse{}, revokeErr
@@ -355,11 +324,9 @@ func (r *Runtime) RevokeVaultInviteAPI(req *bungo.Request) (bungo.APIResponse, e
 // ciphertext or already visible to the inviter (their email).
 func (r *Runtime) InvitePreviewAPI(req *bungo.Request) (bungo.APIResponse, error) {
 	user := CurrentUser(req)
-	var payload struct {
-		Token string `json:"token"`
-	}
-	if unmarshalErr := json.Unmarshal(req.Body, &payload); unmarshalErr != nil {
-		return apiError(400, "Invalid request body"), nil
+	payload, deny := decodeBody[tokenPayload](req)
+	if deny != nil {
+		return *deny, nil
 	}
 	if payload.Token == "" {
 		return apiError(400, "Missing invite token."), nil
@@ -383,7 +350,7 @@ func (r *Runtime) InvitePreviewAPI(req *bungo.Request) (bungo.APIResponse, error
 	inviterEmail := ""
 	alreadyMember := false
 	for _, m := range members {
-		if m.Role == "owner" {
+		if m.Role == models.RoleOwner {
 			inviterEmail = m.Email
 		}
 		if m.UserID == user.ID {
@@ -404,17 +371,19 @@ func (r *Runtime) InvitePreviewAPI(req *bungo.Request) (bungo.APIResponse, error
 	}, nil
 }
 
+type acceptInvitePayload struct {
+	Token      string          `json:"token"`
+	WrappedKey json.RawMessage `json:"wrappedKey"`
+}
+
 // AcceptVaultInviteAPI handles POST /api/v1/vaults/invites/accept {token,
 // wrappedKey}: claims the single-use invite and grants membership with the
 // vault key re-wrapped under the acceptor's own key-encryption key.
 func (r *Runtime) AcceptVaultInviteAPI(req *bungo.Request) (bungo.APIResponse, error) {
 	user := CurrentUser(req)
-	var payload struct {
-		Token      string          `json:"token"`
-		WrappedKey json.RawMessage `json:"wrappedKey"`
-	}
-	if unmarshalErr := json.Unmarshal(req.Body, &payload); unmarshalErr != nil {
-		return apiError(400, "Invalid request body"), nil
+	payload, deny := decodeBody[acceptInvitePayload](req)
+	if deny != nil {
+		return *deny, nil
 	}
 	if payload.Token == "" {
 		return apiError(400, "Missing invite token."), nil
@@ -455,37 +424,32 @@ func (r *Runtime) AcceptVaultInviteAPI(req *bungo.Request) (bungo.APIResponse, e
 		ID:         newUUID(),
 		VaultID:    pending.VaultID,
 		UserID:     user.ID,
-		Role:       "member",
-		WrapAlgo:   "muk",
+		Role:       models.RoleMember,
+		WrapAlgo:   models.WrapAlgoMUK,
 		WrappedKey: payload.WrappedKey,
 	}
-	var revisions map[string]int64
+	// The signal audience is resolved after the mutation, so the acceptor's
+	// own new access row is included and their other devices refresh too.
 	var claimed *models.VaultInvite
-	transactionErr := WithTransaction(r, req.Context, func(txRt *Runtime) error {
-		var claimErr error
-		claimed, claimErr = database.ClaimVaultInvite(req.Context, txRt.GetDb(), &txRt.Builder, tokenHash, user.ID)
-		if claimErr != nil {
-			return claimErr
-		}
-		if accessErr := database.InsertVaultAccess(req.Context, txRt.GetDb(), &txRt.Builder, access); accessErr != nil {
-			return accessErr
-		}
-		if kindErr := database.UpdateVaultKind(req.Context, txRt.GetDb(), &txRt.Builder, claimed.VaultID, "shared"); kindErr != nil {
-			return kindErr
-		}
-		var signalErr error
-		revisions, signalErr = SignalVaultChanged(req.Context, txRt, claimed.VaultID)
-		return signalErr
-	})
-	if transactionErr != nil {
-		if errors.Is(transactionErr, sql.ErrNoRows) {
+	revisions, commitErr := r.commitVaultChange(req, user.ID, pending.VaultID, "vault_invite_accepted", "vault_invite", pending.ID,
+		func(txRt *Runtime) error {
+			var claimErr error
+			claimed, claimErr = database.ClaimVaultInvite(req.Context, txRt.GetDb(), &txRt.Builder, tokenHash, user.ID)
+			if claimErr != nil {
+				return claimErr
+			}
+			if accessErr := database.InsertVaultAccess(req.Context, txRt.GetDb(), &txRt.Builder, access); accessErr != nil {
+				return accessErr
+			}
+			return database.UpdateVaultKind(req.Context, txRt.GetDb(), &txRt.Builder, claimed.VaultID, models.VaultKindShared)
+		})
+	if commitErr != nil {
+		if errors.Is(commitErr, sql.ErrNoRows) {
 			return apiError(404, "This invite is invalid, expired or revoked."), nil
 		}
-		return bungo.APIResponse{}, transactionErr
+		return bungo.APIResponse{}, commitErr
 	}
 
-	r.PublishChanges(req, revisions)
-	r.audit(req, user.ID, "vault_invite_accepted", "vault_invite", claimed.ID, "")
 	if notifyErr := r.Notify(req.Context, &VaultMemberJoined{OwnerUserID: claimed.CreatedByUserID, MemberEmail: user.Email}); notifyErr != nil {
 		r.Log.Warn("invite accept: owner notification failed", zap.Error(notifyErr))
 	}
@@ -515,31 +479,35 @@ func (r *Runtime) AcceptVaultInviteAPI(req *bungo.Request) (bungo.APIResponse, e
 	}, nil
 }
 
+type removeMemberPayload struct {
+	VaultID string `json:"vaultId"`
+	UserID  string `json:"userId"`
+}
+
 // RemoveVaultMemberAPI handles POST /api/v1/vaults/members/remove {vaultId,
 // userId}: the owner removes a member, or a member removes themselves
 // (leaves). The owner cannot be removed — delete the vault instead.
 func (r *Runtime) RemoveVaultMemberAPI(req *bungo.Request) (bungo.APIResponse, error) {
 	user := CurrentUser(req)
-	var payload struct {
-		VaultID string `json:"vaultId"`
-		UserID  string `json:"userId"`
+	payload, deny := decodeBody[removeMemberPayload](req)
+	if deny != nil {
+		return *deny, nil
 	}
-	if unmarshalErr := json.Unmarshal(req.Body, &payload); unmarshalErr != nil {
-		return apiError(400, "Invalid request body"), nil
-	}
-	access, accessErr := r.requireVaultAccess(req, user.ID, payload.VaultID)
-	if accessErr != nil {
-		return apiError(404, "Vault not found."), nil
+	// Not requireVaultOwner: a member is allowed to remove themselves
+	// (leaving), so the role requirement depends on who the target is.
+	access, deny := r.requireVaultAccess(req, user.ID, payload.VaultID)
+	if deny != nil {
+		return *deny, nil
 	}
 	leaving := payload.UserID == user.ID
-	if !leaving && access.Role != "owner" {
+	if !leaving && access.Role != models.RoleOwner {
 		return apiError(403, "Only the vault owner can remove members."), nil
 	}
 	target, targetErr := database.SelectVaultAccess(req.Context, r.GetDb(), &r.Builder, payload.UserID, payload.VaultID)
 	if targetErr != nil {
 		return apiError(404, "That person doesn't have access to this vault."), nil
 	}
-	if target.Role == "owner" {
+	if target.Role == models.RoleOwner {
 		return apiError(422, "The owner can't be removed. Delete the vault instead."), nil
 	}
 
@@ -549,31 +517,29 @@ func (r *Runtime) RemoveVaultMemberAPI(req *bungo.Request) (bungo.APIResponse, e
 		return bungo.APIResponse{}, memberErr
 	}
 
-	var revisions map[string]int64
-	transactionErr := WithTransaction(r, req.Context, func(txRt *Runtime) error {
-		if deleteErr := database.DeleteVaultAccess(req.Context, txRt.GetDb(), &txRt.Builder, payload.VaultID, payload.UserID); deleteErr != nil {
-			return deleteErr
-		}
-		remaining, remainingErr := database.CountVaultMembers(req.Context, txRt.GetDb(), &txRt.Builder, payload.VaultID)
-		if remainingErr != nil {
-			return remainingErr
-		}
-		if remaining <= 1 {
-			if kindErr := database.UpdateVaultKind(req.Context, txRt.GetDb(), &txRt.Builder, payload.VaultID, "personal"); kindErr != nil {
-				return kindErr
+	action := "vault_member_removed"
+	if leaving {
+		action = "vault_left"
+	}
+	revisions, commitErr := r.commitAudienceChange(req, user.ID, memberIDs, action, "vault", payload.VaultID,
+		func(txRt *Runtime) error {
+			if deleteErr := database.DeleteVaultAccess(req.Context, txRt.GetDb(), &txRt.Builder, payload.VaultID, payload.UserID); deleteErr != nil {
+				return deleteErr
 			}
-		}
-		var signalErr error
-		revisions, signalErr = signalUsersChanged(req.Context, txRt, memberIDs)
-		return signalErr
-	})
-	if transactionErr != nil {
-		return bungo.APIResponse{}, transactionErr
+			remaining, remainingErr := database.CountVaultMembers(req.Context, txRt.GetDb(), &txRt.Builder, payload.VaultID)
+			if remainingErr != nil {
+				return remainingErr
+			}
+			if remaining <= 1 {
+				return database.UpdateVaultKind(req.Context, txRt.GetDb(), &txRt.Builder, payload.VaultID, models.VaultKindPersonal)
+			}
+			return nil
+		})
+	if commitErr != nil {
+		return bungo.APIResponse{}, commitErr
 	}
 
-	r.PublishChanges(req, revisions)
 	if leaving {
-		r.audit(req, user.ID, "vault_left", "vault", payload.VaultID, "")
 		ownerID := ""
 		if vault, vaultErr := database.SelectVaultByID(req.Context, r.GetDb(), &r.Builder, payload.VaultID); vaultErr == nil {
 			ownerID = vault.OwnerUserID

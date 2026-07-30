@@ -1,8 +1,10 @@
 import React, { useState } from "react";
-import { AlertIcon, VaultMark } from "../icons";
+import { VaultMark } from "../icons";
+import { ErrorBanner } from "../ui/error-banner";
 import { PasswordInput } from "../ui/password-input";
 import { postJSON } from "../../lib/api";
-import { deriveKeys, open, validateSecretPhrase } from "../../lib/crypto";
+import { deriveKeys, open, validateSecretPhrase, type DerivationStage } from "../../lib/crypto";
+import { DerivationProgress } from "../ui/derivation-progress";
 import { loadIdentity, forgetIdentity, saveKeys } from "../../lib/keystore";
 import type { KeysetDto } from "../../types/vault";
 
@@ -28,6 +30,7 @@ export function LockScreen({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
+  const [stage, setStage] = useState<DerivationStage | null>(null);
 
   const unlock = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,7 +43,8 @@ export function LockScreen({
     }
     setBusy(true);
     try {
-      const { encKeyRaw } = await deriveKeys(email, password, phrase, keyset.kdfSalt, keyset.kdfIterations);
+      const { encKeyRaw } = await deriveKeys(email, password, phrase, keyset, setStage);
+      setStage(null);
       const vaultKeys: Record<string, Uint8Array> = {};
       let openedAny = false;
       for (const vault of keyset.vaults) {
@@ -62,11 +66,12 @@ export function LockScreen({
       setAttempt((a) => a + 1);
     } finally {
       setBusy(false);
+      setStage(null);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-40 lock-veil flex items-center justify-center p-6 overflow-hidden">
+    <div className="fixed inset-0 z-40 scrim flex items-center justify-center p-6 overflow-hidden">
       <div
         className="glow-orb"
         style={{ "--orb": "var(--accent-glow)", width: "620px", height: "620px", top: "50%", left: "50%", transform: "translate(-50%,-50%)" } as React.CSSProperties}
@@ -83,7 +88,7 @@ export function LockScreen({
 
         <form onSubmit={unlock} className="space-y-4" noValidate aria-busy={busy}>
           <div className="space-y-1.5">
-            <label htmlFor="lock-password" className="text-xs font-semibold tracking-widest uppercase text-muted-foreground">
+            <label htmlFor="lock-password" className="field-label">
               Master Password
             </label>
             <PasswordInput
@@ -99,7 +104,7 @@ export function LockScreen({
 
           {!usingRemembered && (
             <div className="space-y-1.5">
-              <label htmlFor="lock-phrase" className="text-xs font-semibold tracking-widest uppercase text-muted-foreground">
+              <label htmlFor="lock-phrase" className="field-label">
                 Secret Phrase
               </label>
               <textarea
@@ -109,7 +114,7 @@ export function LockScreen({
                 autoComplete="off"
                 spellCheck={false}
                 className="input font-mono resize-none"
-                placeholder="nine words from your Emergency Kit"
+                placeholder="twelve words from your Emergency Kit"
                 value={phrase}
                 onChange={(e) => setPhrase(e.target.value)}
                 disabled={busy}
@@ -117,15 +122,12 @@ export function LockScreen({
             </div>
           )}
 
-          {error && (
-            <div key={attempt} className="animate-shake flex items-start gap-2 text-sm rounded-md border border-danger px-3 py-2.5 text-danger" role="alert" style={{ background: "var(--danger-subtle)" }}>
-              <AlertIcon className="h-4 w-4 mt-0.5 flex-shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
+          {error && <ErrorBanner key={attempt} message={error} />}
 
-          <button type="submit" disabled={busy || !password} className="btn btn-primary w-full h-11 text-base">
-            {busy ? "Deriving keys…" : "Unlock"}
+          <DerivationProgress stage={stage} />
+
+          <button type="submit" disabled={busy || !password} className="btn btn-primary btn-lg w-full">
+            {busy ? "Unlocking…" : "Unlock"}
           </button>
         </form>
 

@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -20,7 +19,6 @@ import (
 	bungo "github.com/piotr-nierobisz/BunGo"
 	"github.com/pquerna/otp/totp"
 	"go.uber.org/zap"
-	"golang.org/x/crypto/bcrypt"
 )
 
 // RequireAuth is the security-layer handler that gates pages and APIs behind
@@ -69,7 +67,7 @@ func (r *Runtime) OptionalAuth(req *bungo.Request) bool {
 // writes and stashes nothing in req.Internal; callers decide whether a
 // missing user is fatal (require_auth) or fine (optional_auth).
 func (r *Runtime) resolveSession(req *bungo.Request) (*models.Session, *models.UserFull) {
-	token := readSessionCookie(req)
+	token := r.readSessionCookie(req)
 	if token == "" {
 		return nil, nil
 	}
@@ -105,31 +103,36 @@ func (r *Runtime) resolveSession(req *bungo.Request) (*models.Session, *models.U
 // parameters (an HMAC of the address under the server key) so the response
 // shape and timing never reveal whether an account exists.
 func (r *Runtime) AuthParamsAPI(req *bungo.Request) (bungo.APIResponse, error) {
-	var payload struct {
-		Email string `json:"email"`
-	}
-	if unmarshalErr := json.Unmarshal(req.Body, &payload); unmarshalErr != nil {
-		return apiError(400, "Invalid request body"), nil
+	payload, deny := decodeBody[emailPayload](req)
+	if deny != nil {
+		return *deny, nil
 	}
 	email := strings.ToLower(strings.TrimSpace(payload.Email))
 	if email == "" {
 		return apiError(400, "Email is required."), nil
 	}
 
-	salt, iterations, lookupErr := database.SelectKdfParamsByEmail(req.Context, r.GetDb(), &r.Builder, email)
+	salt, costs, lookupErr := database.SelectKdfParamsByEmail(req.Context, r.GetDb(), &r.Builder, email)
 	if lookupErr != nil {
 		if !errors.Is(lookupErr, sql.ErrNoRows) {
 			r.Log.Error("auth params: lookup failed", zap.Error(lookupErr))
 		}
+		// Decoys must be the *current defaults*, not anything distinctive: an
+		// unknown address has to look exactly like an account registered
+		// today, or the response itself answers the question this endpoint
+		// exists to refuse.
 		salt = r.decoyKdfSalt(email)
-		iterations = config.KdfDefaultIterations
+		costs = defaultKdfCosts()
 	}
 
 	return bungo.APIResponse{
 		StatusCode: 200,
 		Body: map[string]any{
-			"kdfSalt":       salt,
-			"kdfIterations": iterations,
+			"kdfSalt":         salt,
+			"kdfIterations":   costs.KdfIterations,
+			"argon2MemoryKiB": costs.Argon2MemoryKiB,
+			"argon2Time":      costs.Argon2Time,
+			"argon2Lanes":     costs.Argon2Lanes,
 		},
 	}, nil
 }
@@ -145,19 +148,21 @@ func (r *Runtime) decoyKdfSalt(email string) string {
 	return base64.RawURLEncoding.EncodeToString(raw[:config.KdfSaltBytes])
 }
 
+type loginPayload struct {
+	Email   string `json:"email"`
+	AuthKey string `json:"authKey"`
+	Code    string `json:"code"`
+}
+
 // LoginAPI handles POST /api/v1/auth/login. The client has already run the
 // two-secret derivation locally and sends only the derived auth key — never
 // the Master Password or Secret Key. On any failure (missing user, missing
 // hash, mismatched auth key) it returns the same generic 401 so attackers
 // cannot enumerate accounts.
 func (r *Runtime) LoginAPI(req *bungo.Request) (bungo.APIResponse, error) {
-	var payload struct {
-		Email   string `json:"email"`
-		AuthKey string `json:"authKey"`
-		Code    string `json:"code"`
-	}
-	if unmarshalErr := json.Unmarshal(req.Body, &payload); unmarshalErr != nil {
-		return apiError(400, "Invalid request body"), nil
+	payload, deny := decodeBody[loginPayload](req)
+	if deny != nil {
+		return *deny, nil
 	}
 
 	email := strings.ToLower(strings.TrimSpace(payload.Email))
@@ -177,7 +182,7 @@ func (r *Runtime) LoginAPI(req *bungo.Request) (bungo.APIResponse, error) {
 		r.Log.Warn("login: user has no auth key hash", zap.String("user_id", userID))
 		return apiError(401, config.GenericLoginError), nil
 	}
-	if compareErr := bcrypt.CompareHashAndPassword([]byte(authKeyHash), []byte(authKey)); compareErr != nil {
+	if !crypto.CompareAuthKey(authKeyHash, authKey) {
 		r.audit(req, userID, "login_failed", "", "", "")
 		return apiError(401, config.GenericLoginError), nil
 	}
@@ -299,7 +304,7 @@ func (r *Runtime) createSession(req *bungo.Request, userID string) (*models.Sess
 // callers can treat logout as idempotent. The client clears its key store
 // before calling this — locking never depends on the network.
 func (r *Runtime) LogoutAPI(req *bungo.Request) (bungo.APIResponse, error) {
-	if token := readSessionCookie(req); token != "" {
+	if token := r.readSessionCookie(req); token != "" {
 		if delErr := database.DeleteSessionByTokenHash(req.Context, r.GetDb(), &r.Builder, crypto.HashToken(token)); delErr != nil {
 			r.Log.Warn("logout: delete session failed", zap.Error(delErr))
 		}
@@ -322,12 +327,24 @@ func (r *Runtime) SyncRevisionAPI(req *bungo.Request) (bungo.APIResponse, error)
 	return bungo.APIResponse{StatusCode: 200, Body: map[string]any{"revision": revision}}, nil
 }
 
+// sessionCookieName is the cookie this deployment issues and reads. Production
+// earns the browser-enforced __Host- prefix; dev, served over plain HTTP,
+// cannot set Secure and so must use the bare name.
+func (r *Runtime) sessionCookieName() string {
+	if r.Config.MustBool("PRODUCTION_BOOL") {
+		return config.SessionCookieNameSecure
+	}
+	return config.SessionCookieName
+}
+
 // sessionCookie builds the Set-Cookie payload for a fresh login. Secure is
-// flipped on in production so the cookie never travels over plain HTTP.
+// flipped on in production so the cookie never travels over plain HTTP — and
+// the __Host- prefix the production name carries is only honoured by browsers
+// together with Secure and Path=/, both set here.
 func (r *Runtime) sessionCookie(token string, expires time.Time) bungo.Cookie {
 	production := r.Config.MustBool("PRODUCTION_BOOL")
 	return bungo.Cookie{
-		Name:     config.SessionCookieName,
+		Name:     r.sessionCookieName(),
 		Value:    token,
 		Path:     "/",
 		Expires:  expires,
@@ -338,30 +355,34 @@ func (r *Runtime) sessionCookie(token string, expires time.Time) bungo.Cookie {
 }
 
 // clearSessionCookie returns a Set-Cookie that drops the session cookie on
-// the client (MaxAge < 0 instructs the engine to delete it).
+// the client (MaxAge < 0 instructs the engine to delete it). The attributes
+// must mirror the ones it was set with, or a __Host- cookie will not match.
 func (r *Runtime) clearSessionCookie() bungo.Cookie {
+	production := r.Config.MustBool("PRODUCTION_BOOL")
 	return bungo.Cookie{
-		Name:     config.SessionCookieName,
+		Name:     r.sessionCookieName(),
 		Path:     "/",
 		MaxAge:   -1,
 		HttpOnly: true,
+		Secure:   production,
 		SameSite: bungo.SameSiteLax,
 	}
 }
 
-// readSessionCookie extracts the vault3_session cookie value from the
+// readSessionCookie extracts this deployment's session cookie value from the
 // incoming request. Returns "" when no cookie is present.
-func readSessionCookie(req *bungo.Request) string {
+func (r *Runtime) readSessionCookie(req *bungo.Request) string {
 	raw := req.Headers["Cookie"]
 	if raw == "" {
 		return ""
 	}
+	wanted := r.sessionCookieName()
 	for _, pair := range strings.Split(raw, ";") {
 		name, value, ok := strings.Cut(strings.TrimSpace(pair), "=")
 		if !ok {
 			continue
 		}
-		if name == config.SessionCookieName {
+		if name == wanted {
 			return value
 		}
 	}

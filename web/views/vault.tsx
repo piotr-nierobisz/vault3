@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PlusIcon, SearchIcon, StarIcon, TrashIcon, VaultMark } from "../components/icons";
+import { Loading } from "../components/ui/loading";
+import { StatusPanel } from "../components/ui/status-panel";
 import { ToastProvider, useToasts } from "../components/ui/toast";
 import { LockScreen } from "../components/vault/lock-screen";
 import { ItemForm, type ItemFormValue } from "../components/vault/item-form";
@@ -19,6 +21,8 @@ import {
 } from "../lib/crypto";
 import { addVaultKey, loadKeys, lock, removeVaultKey, saveKeys, startAutoLockWatch } from "../lib/keystore";
 import { startSync } from "../lib/sync";
+import { useAction } from "../lib/use-action";
+import { ROLE_OWNER } from "../types/vault";
 import type {
   DecryptedItem,
   ItemRowDto,
@@ -76,13 +80,13 @@ function VaultApp() {
   const [editing, setEditing] = useState<{ item: DecryptedItem; value: ItemFormValue } | null>(null);
   const [manageOpen, setManageOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const { busy, run } = useAction({ onError: (message) => toast("error", message), network: "Network error. Try again." });
   const revisionRef = useRef(data.Revision);
   const initialItemsConsumed = useRef(false);
 
   const vaultKey = keys?.vaultKeys[activeVaultId];
   const activeVault = vaults.find((v) => v.id === activeVaultId);
-  const readOnly = (activeVault?.role ?? "owner") !== "owner";
+  const readOnly = (activeVault?.role ?? ROLE_OWNER) !== ROLE_OWNER;
 
   // Complete the keystore whenever a vault lacks its key (fresh login
   // stashed only the encKey; a new vault arrived via sync or invite). Every
@@ -136,21 +140,41 @@ function VaultApp() {
     })();
   }, [keys, vaults]);
 
+  // Deliberately not routed through useAction: refetch also runs from the
+  // sync callback, so a shared busy flag would disable the whole vault every
+  // time ANOTHER device wrote. It does need its own failure handling though —
+  // the vault-switch effect blanks `items` first, so a silent failure here
+  // leaves "unsealing your vault…" on screen forever with no way out but a
+  // reload.
   const refetch = useCallback(async () => {
     const key = loadKeys()?.vaultKeys[activeVaultId];
     if (!key) return;
-    const res = await getJSON<ItemsResponse>(`/api/v1/items?vaultId=${encodeURIComponent(activeVaultId)}`);
-    if (res.ok && res.data) {
-      revisionRef.current = res.data.revision;
-      setItems(await decryptRows(key, res.data.items));
+    try {
+      const res = await getJSON<ItemsResponse>(`/api/v1/items?vaultId=${encodeURIComponent(activeVaultId)}`);
+      if (res.ok && res.data) {
+        revisionRef.current = res.data.revision;
+        setItems(await decryptRows(key, res.data.items));
+        return;
+      }
+      setItems((prev) => prev ?? []);
+      toast("error", "Couldn't load this vault's items.");
+    } catch {
+      setItems((prev) => prev ?? []);
+      toast("error", "Network error loading this vault.");
     }
-  }, [activeVaultId]);
+  }, [activeVaultId, toast]);
 
+  // Same reasoning as refetch. Failure here is non-fatal — the existing vault
+  // list stays on screen — so it only needs to not reject unhandled.
   const refetchVaults = useCallback(async () => {
-    const res = await getJSON<VaultsResponse>("/api/v1/vaults");
-    if (res.ok && res.data) {
-      revisionRef.current = res.data.revision;
-      setVaults(res.data.vaults);
+    try {
+      const res = await getJSON<VaultsResponse>("/api/v1/vaults");
+      if (res.ok && res.data) {
+        revisionRef.current = res.data.revision;
+        setVaults(res.data.vaults);
+      }
+    } catch {
+      // Keep the vaults we already have; the next signal or reload retries.
     }
   }, []);
 
@@ -235,75 +259,64 @@ function VaultApp() {
 
   const createItem = async (value: ItemFormValue) => {
     if (!vaultKey) return;
-    setBusy(true);
-    try {
-      const sealed = await sealItem(vaultKey, value.overview, value.details);
-      const res = await postJSON<ItemWriteResponse>("/api/v1/items/create", { vaultId: activeVaultId, ...sealed });
-      if (!res.ok || !res.data) {
-        toast("error", "Couldn't seal that item. Try again.");
-        return;
-      }
-      revisionRef.current = res.data.revision;
-      const itemKey = await unwrapItemKey(vaultKey, res.data.item.wrappedItemKey);
-      applyWrite(res.data.item, itemKey, value.overview);
-      setFormOpen(false);
-      setSelectedID(res.data.item.id);
-      toast("success", "Item sealed");
-    } catch {
-      toast("error", "Network error. Try again.");
-    } finally {
-      setBusy(false);
-    }
+    await run(
+      async () => {
+        const sealed = await sealItem(vaultKey, value.overview, value.details);
+        return postJSON<ItemWriteResponse>("/api/v1/items/create", { vaultId: activeVaultId, ...sealed });
+      },
+      {
+        onOK: async (written) => {
+          revisionRef.current = written.revision;
+          const itemKey = await unwrapItemKey(vaultKey, written.item.wrappedItemKey);
+          applyWrite(written.item, itemKey, value.overview);
+          setFormOpen(false);
+          setSelectedID(written.item.id);
+          toast("success", "Item sealed");
+        },
+        fail: "Couldn't seal that item. Try again.",
+      },
+    );
   };
 
   const updateItem = async (item: DecryptedItem, value: ItemFormValue) => {
-    setBusy(true);
-    try {
-      const sealed = await sealItem(vaultKey!, value.overview, value.details, item.itemKey);
-      const res = await postJSON<ItemWriteResponse>("/api/v1/items/update", {
-        id: item.row.id,
-        overview: sealed.overview,
-        details: sealed.details,
-      });
-      if (!res.ok || !res.data) {
-        toast("error", "Couldn't save the changes. Try again.");
-        return;
-      }
-      revisionRef.current = res.data.revision;
-      applyWrite(res.data.item, item.itemKey, value.overview);
-      setEditing(null);
-      setFormOpen(false);
-      toast("success", "Changes sealed");
-    } catch {
-      toast("error", "Network error. Try again.");
-    } finally {
-      setBusy(false);
-    }
+    await run(
+      async () => {
+        const sealed = await sealItem(vaultKey!, value.overview, value.details, item.itemKey);
+        return postJSON<ItemWriteResponse>("/api/v1/items/update", {
+          id: item.row.id,
+          overview: sealed.overview,
+          details: sealed.details,
+        });
+      },
+      {
+        onOK: (written) => {
+          revisionRef.current = written.revision;
+          applyWrite(written.item, item.itemKey, value.overview);
+          setEditing(null);
+          setFormOpen(false);
+          toast("success", "Changes sealed");
+        },
+        fail: "Couldn't save the changes. Try again.",
+      },
+    );
   };
 
   const lifecycle = async (item: DecryptedItem, action: "trash" | "restore" | "delete") => {
-    setBusy(true);
-    try {
-      const res = await postJSON<{ ok?: boolean; revision?: number }>(`/api/v1/items/${action}`, { id: item.row.id });
-      if (!res.ok) {
-        toast("error", "That didn't work. Try again.");
-        return;
-      }
-      if (res.data?.revision) revisionRef.current = res.data.revision;
-      setItems((prev) => {
-        if (!prev) return prev;
-        if (action === "delete") return prev.filter((i) => i.row.id !== item.row.id);
-        return prev.map((i) =>
-          i.row.id === item.row.id ? { ...i, row: { ...i.row, trashed: action === "trash" } } : i,
-        );
-      });
-      if (action !== "restore") setSelectedID("");
-      toast("success", action === "trash" ? "Moved to trash" : action === "restore" ? "Restored" : "Deleted forever");
-    } catch {
-      toast("error", "Network error. Try again.");
-    } finally {
-      setBusy(false);
-    }
+    await run(() => postJSON<{ ok?: boolean; revision?: number }>(`/api/v1/items/${action}`, { id: item.row.id }), {
+      onOK: (written) => {
+        if (written.revision) revisionRef.current = written.revision;
+        setItems((prev) => {
+          if (!prev) return prev;
+          if (action === "delete") return prev.filter((i) => i.row.id !== item.row.id);
+          return prev.map((i) =>
+            i.row.id === item.row.id ? { ...i, row: { ...i.row, trashed: action === "trash" } } : i,
+          );
+        });
+        if (action !== "restore") setSelectedID("");
+        toast("success", action === "trash" ? "Moved to trash" : action === "restore" ? "Restored" : "Deleted forever");
+      },
+      fail: "That didn't work. Try again.",
+    });
   };
 
   const toggleFavorite = async (item: DecryptedItem) => {
@@ -331,31 +344,31 @@ function VaultApp() {
 
   const createVault = async (name: string): Promise<boolean> => {
     if (!keys) return false;
-    setBusy(true);
-    try {
-      const bundle = await createVaultBundle(keys.encKey, name);
-      const res = await postJSON<VaultWriteResponse>("/api/v1/vaults/create", {
-        encName: bundle.encName,
-        wrappedKey: bundle.wrappedKey,
-      });
-      if (!res.ok || !res.data) {
-        const message = (res.data as { message?: string } | null)?.message;
-        toast("error", message ?? "Couldn't create the vault.");
-        return false;
-      }
-      revisionRef.current = res.data.revision;
-      addVaultKey(res.data.vault.id, bundle.vaultKeyRaw);
-      setKeys(loadKeys());
-      setVaults((prev) => [...prev, res.data!.vault]);
-      selectVault(res.data.vault.id);
-      toast("success", `"${name}" sealed and ready`);
-      return true;
-    } catch {
-      toast("error", "Network error. Try again.");
-      return false;
-    } finally {
-      setBusy(false);
-    }
+    // The new vault key is minted with the envelope the server is about to
+    // store, but only the keystore ever sees it — so it is held here rather
+    // than read back off the response.
+    let vaultKeyRaw: Uint8Array;
+    return run(
+      async () => {
+        const bundle = await createVaultBundle(keys.encKey, name);
+        vaultKeyRaw = bundle.vaultKeyRaw;
+        return postJSON<VaultWriteResponse>("/api/v1/vaults/create", {
+          encName: bundle.encName,
+          wrappedKey: bundle.wrappedKey,
+        });
+      },
+      {
+        onOK: (written) => {
+          revisionRef.current = written.revision;
+          addVaultKey(written.vault.id, vaultKeyRaw);
+          setKeys(loadKeys());
+          setVaults((prev) => [...prev, written.vault]);
+          selectVault(written.vault.id);
+          toast("success", `"${name}" sealed and ready`);
+        },
+        fail: "Couldn't create the vault.",
+      },
+    );
   };
 
   const dropVault = (id: string, message: string) => {
@@ -370,9 +383,8 @@ function VaultApp() {
 
   if (!data.Keyset) {
     return (
-      <div className="max-w-md mx-auto mt-24 panel p-10 text-center">
-        <VaultMark className="h-10 w-10 text-accent mx-auto mb-5" />
-        <p className="text-sm text-muted-foreground">This account has no vault yet. Contact support.</p>
+      <div className="max-w-md mx-auto mt-24">
+        <StatusPanel mark body="This account has no vault yet. Contact support." />
       </div>
     );
   }
@@ -445,7 +457,7 @@ function VaultApp() {
                 "Favourites",
                 counts.favorites,
               )}
-              <div className="pt-3 pb-1 px-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground select-none">Categories</div>
+              <div className="field-label select-none px-3 pt-3 pb-1">Categories</div>
               {data.Categories.map((c) =>
                 sidebarButton(
                   filter.kind === "category" && filter.code === c.code,
@@ -475,7 +487,7 @@ function VaultApp() {
             </div>
 
             <div className="panel divide-y divide-border-subtle">
-              {items === null && <p className="px-4 py-8 text-sm text-muted-foreground font-mono text-center">unsealing your vault…</p>}
+              {items === null && <Loading label="unsealing your vault…" className="px-4 text-center" />}
               {items !== null && visible.length === 0 && (
                 <div className="px-4 py-12 text-center">
                   <p className="text-sm text-muted-foreground">
@@ -532,9 +544,8 @@ function VaultApp() {
                 />
               </div>
             ) : (
-              <div className="panel p-12 text-center hidden lg:block">
-                <VaultMark className="h-11 w-11 text-accent mx-auto mb-4 mark-pulse" />
-                <p className="text-sm text-muted-foreground">Select an item to unseal it.</p>
+              <div className="hidden lg:block">
+                <StatusPanel mark pulse body="Select an item to unseal it." />
               </div>
             )}
           </section>

@@ -5,11 +5,27 @@ import (
 	"time"
 )
 
+// Vault access roles and wrap algorithms — the only values the
+// Vault3VaultAccessRole and Vault3VaultAccessWrapAlgo CHECK constraints
+// accept (scripts/sql/003.sql).
+//
+// RoleOwner is the authorisation boundary for every vault and item mutation:
+// members read, owners write. Because that comparison is what stands between
+// a member and someone else's data, it must never be spelled out by hand —
+// a mistyped literal would compare unequal and quietly deny, or worse, be
+// inverted somewhere and quietly allow.
+const (
+	RoleOwner   = "owner"
+	RoleMember  = "member"
+	WrapAlgoMUK = "muk"
+)
+
 // VaultAccess mirrors vault3_vault_access (see scripts/sql/003.sql).
-// One row per (vault, user): the vault key wrapped for that user.
-// WrapAlgo 'muk' = wrapped under the user's own key-encryption key;
-// 'rsa-oaep' is reserved for wrapping to another user's public key when
-// shared vaults ship.
+// One row per (vault, user): the vault key wrapped for that user. WrapAlgo is
+// always 'muk' — wrapped under that user's own key-encryption key. It is the
+// only value the CHECK constraint accepts, and the column is kept as an
+// explicit record of which construction sealed the row rather than as a
+// branch point.
 // VaultMember is the members-dialog projection of one access row joined
 // with its user: who can open the vault and with what role. DisplayName is
 // decrypted from FieldCipher storage by the database layer.

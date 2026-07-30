@@ -264,6 +264,47 @@ input[data-secret] {
 }
 .btn:disabled { opacity: 0.55; cursor: not-allowed; }
 
+/* Three sizes, and only three. A Tailwind `text-sm`/`text-base` utility on a
+   button loads after this sheet and silently beats .btn's font-size, which is
+   how the same button ended up rendering at two sizes across pages — so size
+   is a class here, and never a type utility at the call site.
+   .btn is the default: its box is deliberately identical to .input's (same
+   padding, border and font-size), so a button sitting beside a field lines up
+   without anyone reaching for a pixel height. */
+.btn-sm {
+  /* Fixed, unlike the other tiers: dense app chrome (dialog rows, toolbars)
+     must not grow with the viewport the way body copy does. */
+  font-size: 0.875rem;
+  min-height: 2.25rem;
+  padding: 0.375rem 0.875rem;
+}
+.btn-lg {
+  font-size: var(--text-base);
+  min-height: 2.75rem;
+  padding: 0.5rem 1.5rem;
+}
+
+/* Icon-only button: a glyph in a hit target, quiet until hovered. */
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.375rem;
+  border-radius: var(--radius-md);
+  border: 0;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: color var(--duration-base) var(--ease-out),
+    background-color var(--duration-base) var(--ease-out);
+}
+.btn-icon:hover:not(:disabled) {
+  color: var(--foreground);
+  background-color: var(--muted);
+}
+/* The variant for a button that takes something away — revoke, remove. */
+.btn-icon-danger:hover:not(:disabled) { color: var(--danger-fg); }
+
 /* The primary button carries a shallow slice of the brand gradient —
    the violet shifts warm-to-cool across its face rather than sitting
    flat. Deliberately narrow: this button also appears in dense app UI. */
@@ -356,6 +397,32 @@ input[data-secret] {
 .panel-danger::before {
   background-image: linear-gradient(90deg, transparent, var(--danger), transparent);
 }
+
+/* The layer a modal sits on: the page stays visible but sealed. One scrim for
+   every overlay — the lock screen and a dialog are the same gesture, so they
+   must not blur the page by different amounts. */
+.scrim {
+  background: color-mix(in srgb, var(--background) 55%, transparent);
+  backdrop-filter: blur(18px) saturate(0.8);
+}
+
+/* The small uppercase label that names a field, a dialog section or a sidebar
+   group. Same voice as .eyebrow, without the gradient rule — this one labels
+   working UI rather than opening a marketing section. Its size is fixed for
+   the same reason .btn-sm's is: it is chrome, not copy. */
+.field-label {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: var(--letter-widest);
+  color: var(--muted-foreground);
+}
+/* Two tinted variants, because a label that names a fresh secret or a
+   destructive section says so in its own colour. Declared here rather than
+   composed from .text-accent/.text-danger, which sit earlier in this sheet
+   and would lose to the colour above. */
+.field-label-accent { color: var(--accent); }
+.field-label-danger { color: var(--danger-fg); }
 
 .input {
   width: 100%;
