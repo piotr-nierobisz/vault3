@@ -194,18 +194,32 @@
 <header class="sticky top-0 z-30 w-full bg-background/70" style="backdrop-filter:blur(14px) saturate(1.4)">
     <div class="max-w-5xl mx-auto flex items-center justify-between px-6 py-4">
         <a href="/" class="hover:opacity-80 transition-opacity">{{template "wordmark" .}}</a>
+        {{/* Three destinations is the most this row takes before it starts
+             fighting the CTA pair, so Contact — the one also sitting in the
+             footer and the menu below — waits for md. */}}
         <nav class="flex items-center gap-2 sm:gap-5">
+            <a href="/features" class="hidden sm:block text-sm text-muted-foreground hover:text-foreground transition-colors">Features</a>
             <a href="/security" class="hidden sm:block text-sm text-muted-foreground hover:text-foreground transition-colors">Security</a>
-            <a href="/contact" class="hidden sm:block text-sm text-muted-foreground hover:text-foreground transition-colors">Contact</a>
+            <a href="/contact" class="hidden md:block text-sm text-muted-foreground hover:text-foreground transition-colors">Contact</a>
+            {{/* Navigation says what the destination is, not what it does for
+                 you: Security, not "How Vault3 protects you"; Login, not
+                 "Unlock". The product's own verbs still belong inside the
+                 app and in body copy — a nav label is a signpost. */}}
             {{if .Viewer}}
-            <a href="/app" class="btn btn-primary btn-sm px-3 sm:px-4 py-2">Open your vault</a>
+            <a href="/app" class="btn btn-primary btn-sm">Your vault</a>
             {{else}}
-            <a href="/login" class="hidden sm:inline-flex text-sm text-muted-foreground hover:text-foreground border border-border hover:border-border-strong px-4 py-2 rounded-md transition-colors">Unlock</a>
-            <a href="/join" class="btn btn-primary btn-sm px-3 sm:px-4 py-2">Create your vault</a>
+            {{/* Both are real .btn variants. Login used to be hand-rolled
+                 Tailwind — its own border, padding, radius and font-size —
+                 which is precisely the drift the "size is a class, never a
+                 utility" rule exists to stop: it kept its square corners
+                 when buttons became pills. */}}
+            <a href="/login" class="hidden sm:inline-flex btn btn-sm btn-secondary">Login</a>
+            <a href="/join" class="btn btn-primary btn-sm">Register</a>
             {{end}}
             {{/* Below sm there is no room for the nav beside the CTA, so it
                  collapses in here rather than disappearing — Security is the
-                 page the whole product argument rests on. */}}
+                 page the whole product argument rests on. Between sm and md
+                 only Contact is hidden, and the footer carries it. */}}
             <div class="relative sm:hidden" data-site-menu>
                 <button type="button" data-site-menu-trigger aria-label="Menu" aria-haspopup="menu" aria-expanded="false"
                         class="btn-icon p-2 -mr-2">
@@ -213,11 +227,12 @@
                 </button>
                 <div role="menu" aria-label="Site" data-site-menu-panel
                      class="hidden animate-pop absolute right-0 top-full mt-2 w-52 rounded-xl border border-border bg-popover shadow-lg py-1 z-50">
+                    <a role="menuitem" href="/features" class="block px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors">Features</a>
                     <a role="menuitem" href="/security" class="block px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors">Security</a>
                     <a role="menuitem" href="/contact" class="block px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors">Contact</a>
                     {{if not .Viewer}}
                     <div class="border-t border-border my-1"></div>
-                    <a role="menuitem" href="/login" class="block px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors">Unlock your vault</a>
+                    <a role="menuitem" href="/login" class="block px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors">Login</a>
                     {{end}}
                 </div>
             </div>
@@ -264,7 +279,7 @@
                 {{/* The footer is the last thing a visitor reads, so it says
                      the one thing worth remembering rather than repeating the
                      hero's claim: you are the only key-holder. */}}
-                <p class="text-sm text-muted-foreground leading-relaxed">A password manager where you hold the only keys. No ads, no trackers, nothing about you to sell — and nothing readable we could hand over, however politely we were asked.</p>
+                <p class="text-sm text-muted-foreground leading-relaxed">A password manager where you hold the only keys. No ads, no trackers, and nothing readable to hand over to anyone who asks.</p>
                 {{/* Colophon: who built it, what with, and where the source
                      is. Quiet, but not hidden — it sits with the brand it
                      credits rather than trailing off the bottom edge. */}}
@@ -280,9 +295,11 @@
                 <div class="space-y-3">
                     <h4 class="text-sm font-bold text-foreground">Product</h4>
                     <ul class="space-y-2 text-sm text-muted-foreground" style="list-style:none;padding:0">
-                        <li><a href="/security" class="hover:text-accent transition-colors">How Vault3 protects you</a></li>
-                        <li><a href="/join" class="hover:text-accent transition-colors">Create your vault</a></li>
-                        <li><a href="/contact" class="hover:text-accent transition-colors">Contact us</a></li>
+                        <li><a href="/features" class="hover:text-accent transition-colors">Features</a></li>
+                        <li><a href="/security" class="hover:text-accent transition-colors">Security</a></li>
+                        <li><a href="/whitepaper" class="hover:text-accent transition-colors">Whitepaper</a></li>
+                        <li><a href="/join" class="hover:text-accent transition-colors">Register</a></li>
+                        <li><a href="/contact" class="hover:text-accent transition-colors">Contact</a></li>
                     </ul>
                 </div>
                 <div class="space-y-3">
@@ -326,11 +343,11 @@
                 {{/* Both destinations are visible at every width: below sm the
                      labels drop and the icons carry them. */}}
                 <div class="flex items-center gap-1">
-                    <a href="/app" title="Vault" class="inline-flex items-center text-sm font-medium rounded-lg px-2 sm:px-3.5 py-1.5 {{if eq .ActiveNav "vault"}}bg-accent-subtle text-accent border border-accent-border pointer-events-none{{else}}text-muted-foreground border border-transparent hover:bg-muted hover:text-foreground transition-colors{{end}}">
+                    <a href="/app" title="Vault" class="inline-flex items-center text-sm font-medium rounded-full px-2.5 sm:px-3.5 py-1.5 {{if eq .ActiveNav "vault"}}bg-accent-subtle text-accent border border-accent-border pointer-events-none{{else}}text-muted-foreground border border-transparent hover:bg-muted hover:text-foreground transition-colors{{end}}">
                         <svg class="h-4 w-4 sm:hidden" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="15" fill="currentColor" mask="url(#v3-cut)"/></svg>
                         <span class="hidden sm:inline">Vault</span>
                     </a>
-                    <a href="/app/settings" title="Settings" class="inline-flex items-center text-sm font-medium rounded-lg px-2 sm:px-3.5 py-1.5 {{if eq .ActiveNav "settings"}}bg-accent-subtle text-accent border border-accent-border pointer-events-none{{else}}text-muted-foreground border border-transparent hover:bg-muted hover:text-foreground transition-colors{{end}}">
+                    <a href="/app/settings" title="Settings" class="inline-flex items-center text-sm font-medium rounded-full px-2.5 sm:px-3.5 py-1.5 {{if eq .ActiveNav "settings"}}bg-accent-subtle text-accent border border-accent-border pointer-events-none{{else}}text-muted-foreground border border-transparent hover:bg-muted hover:text-foreground transition-colors{{end}}">
                         <svg class="h-4 w-4 sm:hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                         <span class="hidden sm:inline">Settings</span>
                     </a>
@@ -340,7 +357,7 @@
                 {{/* Lock now: clears the tab's unlocked keys and reloads into
                      the lock screen. Locking is local-only by design. */}}
                 <button type="button" data-lock-vault title="Lock vault"
-                        class="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-md hover:bg-muted transition-colors">
+                        class="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-full hover:bg-muted transition-colors">
                     <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
                     <span class="hidden sm:inline">Lock</span>
                 </button>
@@ -373,7 +390,7 @@
                 {{/* Sign out: like Lock, it wipes this tab's keys first — the
                      server call is what ends the session, not what locks it. */}}
                 <button type="button" data-sign-out title="Sign out as {{.Viewer.Email}}"
-                        class="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-md hover:bg-muted transition-colors">
+                        class="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-full hover:bg-muted transition-colors">
                     <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
                     <span class="hidden sm:inline">Sign out</span>
                 </button>
@@ -560,6 +577,7 @@
 <div class="field-label select-none px-3 pb-1">Trust</div>
 <div class="space-y-0.5 mb-6">
     <a href="/security" class="block w-full text-left px-3 py-1.5 rounded-md text-sm transition-colors{{if eq .LegalSlug "security"}} bg-muted text-foreground font-semibold{{else}} text-muted-foreground hover:bg-muted{{end}}">Security</a>
+    <a href="/whitepaper" class="block w-full text-left px-3 py-1.5 rounded-md text-sm transition-colors{{if eq .LegalSlug "whitepaper"}} bg-muted text-foreground font-semibold{{else}} text-muted-foreground hover:bg-muted{{end}}">Whitepaper</a>
 </div>
 <div class="field-label select-none px-3 pb-1">Legal</div>
 <div class="space-y-0.5">

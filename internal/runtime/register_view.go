@@ -54,7 +54,7 @@ func hashAuthKey(authKey string) (string, error) {
 // state so the view can show a closed notice instead of a dead form.
 func (r *Runtime) JoinPage(req *bungo.Request) (map[string]any, error) {
 	return r.PageData(map[string]any{
-		"PageTitle":        "Create your vault | Vault3",
+		"PageTitle":        "Register | Vault3",
 		"PageDescription":  "Create a Vault3 account. Your Master Password and Secret Phrase never leave your device.",
 		"CanonicalURL":     config.SITE_URL + "/join",
 		"RegistrationOpen": r.PublicRegistrationEnabled(req.Context),

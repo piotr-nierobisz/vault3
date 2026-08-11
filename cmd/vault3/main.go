@@ -100,6 +100,7 @@ func main() {
 	// --- Marketing and public pages ---
 
 	viewerPage("/", "index.gohtml", "landing.ts", rt.LandingPage)
+	viewerPage("/features", "features.gohtml", "features.ts", rt.FeaturesPage)
 	viewerPage("/contact", "contact.gohtml", "contact.tsx", rt.ContactPage)
 	openAPI("POST", "/contact", rt.ContactSubmitAPI)
 
@@ -200,11 +201,14 @@ func main() {
 	api("POST", "/notifications/read", rt.MarkNotificationReadAPI)
 	api("POST", "/notifications/read-all", rt.MarkAllNotificationsReadAPI)
 
-	// --- Legal and security docs ---
+	// --- Trust and legal docs ---
 	// Part of the public surface, so they carry the viewer layers too: the
 	// marketing header, with the vault link swapped in for signed-in readers.
+	// /security and /whitepaper are the same argument at two depths — the
+	// overview a visitor arrives for, and the construction behind it.
 
 	viewerPage("/security", "legal/security.gohtml", "security.ts", rt.SecurityPage)
+	viewerPage("/whitepaper", "legal/whitepaper.gohtml", "whitepaper.ts", rt.WhitepaperPage)
 	viewerPage("/legal/terms", "legal/terms.gohtml", "", rt.LegalTermsPage)
 	viewerPage("/legal/privacy", "legal/privacy.gohtml", "", rt.LegalPrivacyPage)
 	viewerPage("/legal/cookies", "legal/cookies.gohtml", "", rt.LegalCookiesPage)

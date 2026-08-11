@@ -24,7 +24,7 @@ export function PhraseGrid({ phrase, withCopy }: { phrase: string; withCopy?: bo
           <CopyButton
             value={phrase}
             label="Copy Secret Phrase"
-            className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-muted transition-colors"
+            className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full hover:bg-muted transition-colors"
           />
         </div>
       )}

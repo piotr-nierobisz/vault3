@@ -15,24 +15,29 @@ Vault3 (vault3.com) is a zero-knowledge password manager for individuals. A user
 | Master Password | The secret in the user's head | password, passphrase |
 | Secret Phrase | The twelve generated words in the Emergency Kit | secret key, seed phrase, mnemonic |
 | Emergency Kit | The downloadable .txt/printable record of email + Secret Phrase | backup, recovery kit |
-| Unlock / Lock / Seal | Opening and closing the vault; encrypting an item | log in (for the vault), decrypt (in UI copy) |
+| Unlock / Lock / Seal | Opening and closing the vault; encrypting an item | decrypt (as a button or label) |
 | Item | One stored entry (login, secure note, payment card, identity) | record, credential |
 | Trash | Soft-deleted items, kept 30 days | archive |
 
-"Unlock" is the sign-in verb; "seal" is the brand's encryption verb (buttons say "Seal item", the wizard step is "Seal"). The lock action is local and instant — copy should never imply the server is involved in locking.
+"Unlock" is the sign-in verb, and "seal" is the brand's encryption verb, **in the app's own controls and labels**: buttons say "Seal item", the wizard step is "Seal", the header action is Lock. The lock action is local and instant, and copy should never imply the server is involved in locking.
 
-## What v1 does
+Explanatory prose on the public pages is the exception and uses **encrypt / decrypt** plainly, because that is the word a password-manager reader already knows and the sentence's job there is to be understood rather than to be branded. "Sealed" survives in the chips and figure labels, where it reads as a state rather than as a euphemism.
 
-- Personal vault with four item categories (login, secure note, payment card, identity), favourites, client-side search, trash with 30-day retention, permanent delete.
-- Password generator (character and passphrase modes, honest entropy meter).
-- Registration ceremony with Secret Phrase minting and mandatory Emergency Kit confirmation; verify-email flow. There is deliberately **no** account recovery or reset flow (see [security.md](./security.md)); account deletion is the only way out.
-- TOTP two-factor authentication; per-device session list with revocation; Master Password change with full client-side re-wrap that signs out other devices.
-- Live cross-device sync: any change on one device signals every other signed-in client to refresh within a second (SSE + per-user revision).
-- Security notifications (new-device sign-in, password change, 2FA changes) in-app and by email; notification preferences; auto-lock preference.
-- **Multiple vaults**: create, rename and delete vaults from the sidebar switcher; every vault has its own key.
-- **Shared vaults**: a vault owner sends a single-use invite link (`/app/invite#…`, 7-day expiry, revocable); accepting grants **view access** — members can open and read every item but change nothing. Owners manage people and pending invites from the vault settings dialog; members can leave. Changes in a shared vault live-sync to every member.
-- **Share links**: expose one item to anyone via `/share#…` (expiry up to 30 days, revocable, view-counted). The decryption key rides in the URL fragment and never reaches the server — see [security.md](./security.md).
-- Marketing landing, security explainer (`/security`), contact form, Terms / Privacy / Cookie legal docs, and a first-visit cookie notice.
+**Navigation is the exception and names destinations plainly.** Header, mobile menu, footer columns and legal sidebar say **Features, Security, Whitepaper, Login, Register, Contact** — never "How Vault3 protects you" or "Unlock". A signpost's job is to be recognised, not voiced; the brand's verbs earn their keep in the sentence after the click. Page `<h1>`s, `PageTitle` and `OGTitle` follow the same rule. In-page CTA buttons are copy rather than signposts and keep "Create your vault".
+
+## v1 scope
+
+`/features` is the canonical inventory of what ships — this section carries only the scope rules that constrain future work.
+
+- **Four item categories**: login, secure note, payment card, identity. Adding a fifth is a product decision, not a form change.
+- **No account recovery or reset flow**, deliberately ([security.md](./security.md)). Account deletion is the only way out, and the Emergency Kit step in registration is mandatory rather than dismissible.
+- **Every vault has its own key.** Sharing one must never expose another.
+- **Shared-vault members are read-only.** Invites are single-use, 7-day, revocable; write access is gated server-side on the `owner` role.
+- **Share links expose one item**, up to 30 days, revocable, view-counted. The decryption key rides in the URL fragment and never reaches the server ([security.md](./security.md)).
+- **Trash retains for 30 days**, then purges. Permanent delete is immediate and irreversible.
+- Live cross-device sync is expected behaviour, not a nice-to-have: a change on one device reaches every other signed-in client within a second.
+- In-app security alerts **cannot** be switched off; only their emails can.
+- Four public pages (`/`, `/features`, `/security`, `/whitepaper`) plus contact and the legal docs. Their divided remit is in the copy rules below.
 
 ## What v1 deliberately does not do
 
@@ -45,9 +50,24 @@ Vault3 (vault3.com) is a zero-knowledge password manager for individuals. A user
 
 - **Honesty over reassurance.** The zero-knowledge trade-off (lost secrets = lost vault) is stated plainly wherever it is relevant — the landing page, the join wizard, `/security`, the settings danger zone. Never soften it into "contact support to recover", and never imply a reset exists.
 - Precise, calm, confident. No hype words ("military-grade", "unhackable", "bank-level"). The numbers speak: AES-256-GCM, Argon2id at 64 MiB, 1,000,000 PBKDF2 rounds, 132 bits.
-- **Plain sentence, exact chip.** Prose is written for someone who has never heard of a KDF: locked/unlocked rather than encrypted/decrypted where either works, scrambled text rather than ciphertext, randomness rather than entropy, "made on your device" rather than "derived client-side". The precision is not dropped — it moves into the monospace badges, `.fig-label`s and figures beside the sentence, where the exact primitive and parameters belong. A reader should be able to skip every chip and still understand the product, and read only the chips and still audit it.
-- **Every page answers, not just asserts.** `/` carries a plain-answers FAQ (what if I forget my password, what would a hacker get, is it free) and `/security` opens with a glossary of its own jargon. The FAQ copy and the `FAQPage` JSON-LD on the landing page are the same six answers twice — change one and change the other in the same edit.
-- **Repeated claims get a fresh angle, not a fresh paste.** The zero-knowledge argument recurs on the landing page, `/security`, the Terms and the Privacy Policy; each states it from its own vantage (what it means for you, how it works, what you are agreeing to, why the policy is short). No two pages should carry the same sentence — the footer, the two CTAs and the meta descriptions included.
+- **Declarative, not rhetorical.** Public-page copy states what the product is and does. Three habits are specifically out, because at volume each one reads as defensiveness rather than confidence:
+  - **Say it positively where the positive is the claim.** "Both stay on your device", not "neither is ever sent to us". Negations are for the places where the absence genuinely *is* the news — no reset route, no trackers, no readable copy on the server — and they lose force if every other sentence is one too. Roughly one negation per 40+ words of prose; `/security` runs denser because impossibility is its subject.
+  - **No aphoristic endings.** A paragraph ends on its substance, not on a short counterweight clause after an em dash or colon ("…, which is the point", "…, ours included", "…, by construction"). One per section at most; em dashes are rare rather than structural.
+  - **No two-part headline template.** A heading is one declarative statement. Clause + `<br/>` + counterweight ("Serious protection. / Ordinary, everyday use.") is banned outright: it reads as a formula the moment a second heading on the page uses it. A `<br/>` for typographic balance inside a single sentence is fine.
+- **Plain sentence, exact chip.** Prose is written for someone who has never heard of a KDF: "encrypted" rather than "sealed" or "ciphertext", randomness rather than entropy, "made on your device" rather than "derived client-side". **No parameter appears in prose** — not "132 bits of randomness", not "64 MB of memory". Precision moves into the monospace badges, `.fig-label`s and figures beside the sentence. A reader should be able to skip every chip and still understand the product, and read only the chips and still audit it. Chips use binary units (`64 MiB`) and prose never restates them in decimal.
+- **The server is the subject, not "us".** Prefer "the server stores a hash" over "we keep only a fingerprint". The argument is structural, so let the structure talk: casting the operator as the antagonist in sentence after sentence invites the reader to think about being betrayed rather than about why betrayal is impossible. First person is right where the commitment genuinely is ours (security reports, the beta, what we will not build) and in `/whitepaper`'s threat model, where "us acting in bad faith" is a named adversary.
+- **Every page answers, not just asserts.** `/` carries a plain-answers FAQ (what if I forget my password, what would a hacker get, is it free) and `/whitepaper` opens with a glossary of every term it is about to use. The FAQ copy and the `FAQPage` JSON-LD on the landing page are the same six answers twice — change one and change the other in the same edit.
+- **Four public pages, four jobs, and they do not overlap.** This is the rule that keeps the site from becoming four versions of the same argument:
+
+  | Page | Answers | Never carries |
+  |---|---|---|
+  | `/` | why you would want this at all | the inventory, or any mechanism |
+  | `/features` | what you can do, and what it costs you in effort | how any of it works |
+  | `/security` | what happens to your data, and what that makes impossible | feature detail (lifetimes, limits, controls) |
+  | `/whitepaper` | the construction, exhaustively | anything the product does that is not a security property |
+
+  Two sanctioned exceptions, and only two: `/` may touch anything briefly, because a highlight reel is its job; `/whitepaper` may restate anything on `/security`, because being exhaustive is its job. Everywhere else, a claim lives on exactly one page and the others link to it. When a `/features` sentence starts explaining a key or a fragment, it belongs on `/security`; when a `/security` section grows a second paragraph of mechanism, it belongs in the whitepaper.
+- **Repeated claims get a fresh angle, not a fresh paste.** The zero-knowledge argument recurs across the public pages, the Terms and the Privacy Policy, each from its own vantage (what it means for you, how it works, what you are agreeing to, why the policy is short). Even where overlap is sanctioned above the sentences differ: `/security` draws the key hierarchy as plain-language nodes, the whitepaper as a tree. Footer, CTAs and meta descriptions are included in this.
 - **"Post-quantum" is a claim about structure, not a badge.** Say why it holds — no asymmetric cryptography to break, widths chosen to survive Grover — and never imply a quantum computer exists today that would otherwise read the vault.
 - British English. Sentence case for headings and buttons ("Create your vault", not "Create Your Vault").
 - Security claims in copy must be literally true of the implementation; when the implementation changes, the copy changes in the same task.
@@ -57,15 +77,16 @@ Vault3 (vault3.com) is a zero-knowledge password manager for individuals. A user
 
 ## Brand and motion language
 
-- Wordmark: lowercase **vault** + **3** in the brand gradient; mark: a rounded tile carrying the brand gradient with a triangle cut out of it — three sides for the three, and the cut goes all the way through. The cutout is the `v3-cut` mask in `base.gohtml`'s hidden defs, never a background-coloured stroke, so the mark keeps its hole on the page, on a panel or on a tinted surface; in monochrome contexts the tile takes `currentColor`. The favicon is the same drawing with the cut painted `--background` instead of masked, because a standalone image has no surface to show through. One theme, dark. There is no light mode and no theme switch — the palette in [frontend.md](./frontend.md) is the palette.
+- Wordmark: lowercase **vault** + **3** in the brand gradient. Mark: a rounded gradient tile with a triangle cut through it — three sides for the three. The cutout is the `v3-cut` mask in `base.gohtml`'s hidden defs, **never** a background-coloured stroke, so the hole survives on a panel or tinted surface; monochrome contexts take `currentColor`. The favicon paints the cut `--background` instead, because a standalone image has no surface to show through.
+- **One theme, dark.** No light mode, no theme switch; the palette in [frontend.md](./frontend.md) is the palette.
 - Violet is the brand colour. It has two companions — a signal cyan and a sealed magenta — used only for gradients, ambient light and accent-on-accent detail, never alone as a second brand colour. See the spectrum tokens in [frontend.md](./frontend.md).
 - The motion metaphor is **sealing/unsealing**: content resolves from scramble/blur into clarity (hero cipher scramble, `animate-unseal`), the accent breathes as a glow, wrong credentials shake. All motion respects `prefers-reduced-motion`. Tokens and keyframes live in `web/static/theme.css`.
 
 ## Roadmap runway (design for, don't build)
 
-1. **Editor role for shared vaults** — the access row's role column and server-side write gate are the extension point. Note that `WrapAlgo` is now `'muk'` only: the reserved public-key value was removed with the keypair, and server-mediated (email-addressed) invites would need a post-quantum KEM decided up front — see [security.md](./security.md).
-2. **Browser extension / desktop clients** — same APIs, same envelopes; the JSON API is already the full product surface.
-3. **Subscriptions** — organisation-less individual billing; keep user hub clean of plan data until then.
+- **Editor role for shared vaults** — extension point is the access row's role column plus the server-side write gate. `WrapAlgo` is `'muk'` only; server-mediated (email-addressed) invites would need a post-quantum KEM decided up front ([security.md](./security.md)).
+- **Browser extension / desktop clients** — same APIs, same envelopes; the JSON API is already the full product surface.
+- **Subscriptions** — individual billing, no organisations; keep the user hub free of plan data until then.
 4. **Admin console** — gate on `vault3_admin`, mount under `config.AdminConsolePath`.
 
 ## Maintenance

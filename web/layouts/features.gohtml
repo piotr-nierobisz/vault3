@@ -1,0 +1,363 @@
+{{define "content"}}
+{{/* The product inventory. Everything Vault3 does, once each.
+
+     Scope discipline, because three public pages describe the same
+     product from different places:
+       /            highlights — allowed to touch anything, briefly
+       /features    what you can do, and what it costs you in effort
+       /security    what happens to your data, and what that prevents
+       /whitepaper  the construction, exhaustively
+
+     So this page never explains a mechanism. "Encrypted before it leaves
+     your device" is the frame it is allowed to state; the moment a
+     sentence here starts explaining a key, a fragment or an envelope, it
+     belongs on /security or /whitepaper instead — and the link is the
+     right answer.
+
+     Its figures are its own too: no seal bars, no phrase grid, no
+     countdown dial, no drifting ciphertext. See the Features block in
+     styles.css. */}}
+{{/* An ItemList of the product surface: the page most likely to be asked
+     "what can it do", answered in a form an answer engine can lift whole.
+     Keep it in step with the sections below. */}}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "ItemList",
+  "@id": "{{.CanonicalURL}}/#features",
+  "name": "Vault3 features",
+  "isPartOf": { "@id": "{{.Site.URL}}/#website" },
+  "about": { "@id": "{{.Site.URL}}/#app" },
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "Four item types: logins, secure notes, payment cards and identities" },
+    { "@type": "ListItem", "position": 2, "name": "Password and passphrase generator with an honest strength meter" },
+    { "@type": "ListItem", "position": 3, "name": "One-time codes stored on a login and generated in your browser" },
+    { "@type": "ListItem", "position": 4, "name": "Multiple vaults, each with its own key" },
+    { "@type": "ListItem", "position": 5, "name": "Shared vaults with read-only members, by single-use invite link" },
+    { "@type": "ListItem", "position": 6, "name": "Share links for one item, revocable and time-limited" },
+    { "@type": "ListItem", "position": 7, "name": "Live sync across every signed-in device" },
+    { "@type": "ListItem", "position": 8, "name": "Two-factor authentication and per-device session revocation" },
+    { "@type": "ListItem", "position": 9, "name": "Trash with 30-day retention and permanent delete" },
+    { "@type": "ListItem", "position": 10, "name": "Auto-lock, security alerts and a printable Emergency Kit" }
+  ]
+}
+</script>
+<div class="min-h-screen flex flex-col text-foreground overflow-x-hidden">
+    <div class="site-canvas" aria-hidden="true">
+        <div class="glow-orb glow-orb-a" style="--orb:var(--accent-2-glow);width:56vw;height:56vw;top:-26vw;left:-16vw"></div>
+        <div class="glow-orb glow-orb-b" style="--orb:var(--accent-3-glow);width:46vw;height:46vw;bottom:-24vw;right:-16vw"></div>
+    </div>
+
+    {{template "publicHeader" .}}
+
+    {{/* ───────── Hero ─────────
+         The inventory itself, as the opening image: every capability on the
+         page as a chip, with the light travelling across them. It previews
+         the page rather than illustrating one claim from it. */}}
+    <section class="relative px-6 pt-12 pb-10 sm:pt-20 sm:pb-14">
+        <div class="glow-orb" style="--orb:var(--accent-glow);width:520px;height:340px;top:-110px;left:50%;transform:translateX(-50%);opacity:0.65"></div>
+        <div class="relative max-w-3xl mx-auto text-center">
+            <h1 class="text-5xl font-extrabold tracking-tighter leading-tight mb-6">
+                <span class="text-gradient">Features</span>
+            </h1>
+            <p class="text-lg text-muted-foreground leading-relaxed max-w-xl mx-auto mb-9">
+                A password manager that does the everyday things well, and encrypts everything on your device before it is sent. Here is the whole of it, feature by feature.
+            </p>
+            <div class="cap-cloud mb-9" aria-hidden="true">
+                <span class="cap-chip" style="--i:0">logins</span>
+                <span class="cap-chip" style="--i:1">secure notes</span>
+                <span class="cap-chip" style="--i:2">payment cards</span>
+                <span class="cap-chip" style="--i:3">identities</span>
+                <span class="cap-chip" style="--i:4">password generator</span>
+                <span class="cap-chip" style="--i:5">passphrases</span>
+                <span class="cap-chip" style="--i:6">one-time codes</span>
+                <span class="cap-chip" style="--i:7">search</span>
+                <span class="cap-chip" style="--i:8">favourites</span>
+                <span class="cap-chip" style="--i:9">multiple vaults</span>
+                <span class="cap-chip" style="--i:10">shared vaults</span>
+                <span class="cap-chip" style="--i:11">share links</span>
+                <span class="cap-chip" style="--i:12">live sync</span>
+                <span class="cap-chip" style="--i:13">two-factor</span>
+                <span class="cap-chip" style="--i:14">device list</span>
+                <span class="cap-chip" style="--i:15">auto-lock</span>
+                <span class="cap-chip" style="--i:16">alerts</span>
+                <span class="cap-chip" style="--i:17">30-day trash</span>
+                <span class="cap-chip" style="--i:18">Emergency Kit</span>
+                <span class="cap-chip" style="--i:19">no trackers</span>
+            </div>
+            <div class="flex flex-wrap items-center justify-center gap-4">
+                <a href="/join" class="btn btn-primary btn-lg">Create your vault</a>
+                <a href="/security" class="btn btn-ghost btn-lg">How it is protected &rarr;</a>
+            </div>
+        </div>
+    </section>
+
+    {{/* ───────── What you keep ───────── */}}
+    <section class="px-6 py-12 sm:py-16 scroll-reveal">
+        <div class="max-w-5xl mx-auto">
+            <p class="eyebrow mb-4">What you keep</p>
+            <h2 class="text-3xl font-bold tracking-tight mb-8 sm:mb-12 max-w-xl">Four item types, each with the right fields</h2>
+
+            <div class="lg:grid lg:gap-10 lg:items-center" style="grid-template-columns:minmax(0,1fr) minmax(0,1.1fr)">
+                <div>
+                    <p class="text-muted-foreground leading-relaxed mb-6">A login asks for a username and a password. A card asks for the number, the expiry and the security code. An identity holds the personal details you fill into forms. All four take free-form notes as well, and all four are encrypted the moment you save them.</p>
+                    {{/* Real tabs: features.ts cycles them, and clicking one
+                         takes over. With JavaScript off the first category
+                         stays selected and the panel still reads. */}}
+                    <div class="seg mb-8 lg:mb-0" role="tablist" aria-label="Item types" data-cat-tabs>
+                        <button type="button" class="seg-item" role="tab" aria-selected="true" data-cat="login">Login</button>
+                        <button type="button" class="seg-item" role="tab" aria-selected="false" data-cat="secure_note">Secure note</button>
+                        <button type="button" class="seg-item" role="tab" aria-selected="false" data-cat="card">Payment card</button>
+                        <button type="button" class="seg-item" role="tab" aria-selected="false" data-cat="identity">Identity</button>
+                    </div>
+                </div>
+
+                <div class="panel p-6 sm:p-7 scroll-reveal-child">
+                    <div class="flex items-center justify-between mb-4">
+                        <p class="text-sm font-semibold" data-spec-title>Acme Bank</p>
+                        <span class="badge badge-accent font-mono text-[11px]">sealed</span>
+                    </div>
+                    <div class="spec-body" data-spec-body>
+                        <p class="spec-field"><span>Username / email</span><span>nora@fastmail.com</span></p>
+                        <p class="spec-field"><span>Password</span><span class="is-secret">••••••••••••</span></p>
+                        <p class="spec-field"><span>One-time code</span><span>481 207</span></p>
+                        <p class="spec-field"><span>Notes</span><span>joint account</span></p>
+                    </div>
+                </div>
+            </div>
+
+            {{/* The one field above that needs explaining, explained where
+                 the reader has just met it. */}}
+            <div class="panel panel-interactive p-6 sm:p-7 mt-5 sm:mt-6 scroll-reveal-child">
+                <div class="lg:flex lg:items-center lg:gap-10">
+                    <div class="lg:w-3/5">
+                        <h3 class="font-semibold mb-1.5">One-time codes, stored with the password</h3>
+                        <p class="text-sm text-muted-foreground leading-relaxed">Paste the setup key a site gives you into the login that already holds its password, and Vault3 shows the six digits beside it whenever you open the item. Your browser computes them locally.</p>
+                    </div>
+                    <div class="fig mt-5 lg:mt-0 lg:flex-1" aria-hidden="true">
+                        <p class="spec-field"><span>Password</span><span class="is-secret">••••••••••••</span></p>
+                        <p class="spec-field"><span>One-time code</span><span style="color:var(--accent-2);letter-spacing:0.18em">481 207</span></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    {{/* ───────── Vaults and people ───────── */}}
+    <section class="px-6 py-12 sm:py-16 scroll-reveal">
+        <div class="max-w-5xl mx-auto">
+            <p class="eyebrow mb-4">Vaults and people</p>
+            <h2 class="text-3xl font-bold tracking-tight mb-8 sm:mb-12 max-w-xl">Multiple vaults, and people to share them with</h2>
+
+            <div class="grid sm:grid-cols-2 lg:grid-cols-6 gap-5 sm:gap-6">
+                {{/* Vaults as a stack: the only depth on the site, so "you
+                     can have several" reads before the sentence does. */}}
+                <div class="panel panel-interactive p-6 scroll-reveal-child lg:col-span-2 flex flex-col">
+                    <h3 class="font-semibold mb-1.5">Separate vaults for separate things</h3>
+                    <p class="text-sm text-muted-foreground leading-relaxed mb-6">Make as many vaults as you need, and switch between them from the sidebar. Each one has its own key, so sharing one has no effect on the others.</p>
+                    <div class="deck mt-auto" aria-hidden="true">
+                        <div class="deck-card" style="--d:0"><span class="deck-key" style="--tint:var(--accent-3)"></span>Flat</div>
+                        <div class="deck-card" style="--d:1"><span class="deck-key" style="--tint:var(--accent-2)"></span>Work</div>
+                        <div class="deck-card" style="--d:2"><span class="deck-key"></span>Personal</div>
+                    </div>
+                </div>
+
+                <div class="panel panel-interactive p-6 scroll-reveal-child lg:col-span-4 flex flex-col justify-center">
+                    <div class="lg:flex lg:items-center lg:gap-8">
+                        <div class="lg:w-1/2">
+                            <h3 class="font-semibold mb-1.5">Share a whole vault</h3>
+                            <p class="text-sm text-muted-foreground leading-relaxed">Send someone a single-use invite link and they join with read-only access: they can open everything in that vault and edit nothing. Anything you add appears for them within the second. You can revoke their access at any time, and they can leave on their own.</p>
+                        </div>
+                        <div class="fig mt-5 lg:mt-0 lg:flex-1" aria-hidden="true">
+                            <p class="fig-label mb-2.5">Flat &middot; people with access</p>
+                            <ul class="people">
+                                <li class="person"><span class="person-face">N</span>You<span class="person-role">owner</span></li>
+                                <li class="person"><span class="person-face">J</span>Jo<span class="person-role">view only</span></li>
+                                <li class="person"><span class="person-face">S</span>Sam<span class="person-role">invited</span></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel panel-interactive p-6 scroll-reveal-child lg:col-span-6">
+                    <div class="lg:flex lg:items-center lg:gap-10">
+                        <div class="lg:w-[46%]">
+                            <h3 class="font-semibold mb-1.5">Share a single item with someone who has no account</h3>
+                            <p class="text-sm text-muted-foreground leading-relaxed">Make a link, set how long it should last (an hour, a day, up to thirty), and send it. You can see how many times it has been opened, and revoke it at any point. Moving the item to the Trash revokes its links as well.</p>
+                        </div>
+                        <div class="fig mt-5 lg:mt-0 lg:flex-1" aria-hidden="true">
+                            <p class="fig-label mb-2.5">links for &ldquo;Guest wifi&rdquo;</p>
+                            <div class="link-row">
+                                <svg class="h-4 w-4 flex-shrink-0 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>
+                                <span class="link-name">created 4 Aug</span>
+                                <span class="link-meta">expires 11 Aug &middot; 3 views</span>
+                            </div>
+                            <div class="link-row is-dead">
+                                <svg class="h-4 w-4 flex-shrink-0 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>
+                                <span class="link-name">created 22 Jul</span>
+                                <span class="link-meta">revoked &middot; 11 views</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <p class="text-sm text-muted-foreground leading-relaxed mt-8 max-w-2xl scroll-reveal-child">
+                Sharing may sound impossible for a service that cannot read your vault. <a href="/security" class="text-accent hover:text-accent-active">The security page explains how it works</a>.
+            </p>
+        </div>
+    </section>
+
+    {{/* ───────── Everywhere, instantly ───────── */}}
+    <section class="px-6 py-12 sm:py-16 scroll-reveal">
+        <div class="max-w-5xl mx-auto">
+            <p class="eyebrow mb-4">Everywhere</p>
+            <h2 class="text-3xl font-bold tracking-tight mb-8 sm:mb-12 max-w-xl">Saved on one device, present on the rest</h2>
+
+            <div class="grid sm:grid-cols-2 lg:grid-cols-6 gap-5 sm:gap-6">
+                {{/* Sync proved by the only evidence that matters: the same
+                     second, on two devices. */}}
+                <div class="panel panel-interactive p-6 scroll-reveal-child lg:col-span-4 flex flex-col justify-center">
+                    <div class="lg:flex lg:items-center lg:gap-8">
+                        <div class="lg:w-[46%]">
+                            <h3 class="font-semibold mb-1.5">Live sync</h3>
+                            <p class="text-sm text-muted-foreground leading-relaxed">Change something on your laptop and every other signed-in device updates within the second. Updates are pushed as they happen, so no device is left showing an older version of your vault.</p>
+                        </div>
+                        <div class="echo mt-5 lg:mt-0 lg:flex-1" aria-hidden="true">
+                            <div class="echo-row">
+                                <svg class="h-4 w-4 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M2 20h20"/></svg>
+                                saved on MacBook<time>10:02:11</time>
+                            </div>
+                            <div class="echo-row">
+                                <svg class="h-4 w-4 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg>
+                                appeared on iPhone<time>10:02:11</time>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel panel-interactive p-6 scroll-reveal-child lg:col-span-2 flex flex-col justify-center">
+                    <h3 class="font-semibold mb-1.5">Nothing to install</h3>
+                    <p class="text-sm text-muted-foreground leading-relaxed">Any up-to-date browser, on any machine. There is no download and no extension to keep updated. Browser extensions and desktop apps are planned, and they will use the same account and the same encrypted data.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    {{/* ───────── Keeping the door shut ─────────
+         Account-protection features stated as things you can do. What they
+         put in the database, and why, is /whitepaper's business. */}}
+    <section class="px-6 py-12 sm:py-16 scroll-reveal">
+        <div class="max-w-5xl mx-auto">
+            <p class="eyebrow mb-4">Account protection</p>
+            <h2 class="text-3xl font-bold tracking-tight mb-8 sm:mb-12 max-w-xl">The controls you need when something goes wrong</h2>
+
+            <div class="grid sm:grid-cols-2 lg:grid-cols-6 gap-5 sm:gap-6">
+                <div class="panel panel-interactive p-6 scroll-reveal-child lg:col-span-4">
+                    <h3 class="font-semibold mb-3">What you can control</h3>
+                    <ul class="spec-list">
+                        <li><strong>Two-factor</strong><span>Ask for a code from your authenticator app at every sign-in, on top of the two secrets you already hold.</span></li>
+                        <li><strong>Your devices</strong><span>See every browser this account is signed in on, with where and when. Sign any of them out from any other.</span></li>
+                        <li><strong>Auto-lock</strong><span>Set how long the vault stays open while you are away. You can also lock it yourself from the button in the header.</span></li>
+                        <li><strong>Alerts</strong><span>Sign-ins from a new location, changes to your Master Password, two-factor switched on or off: all of it reaches you in the app and by email. You can turn the emails off; the in-app alerts stay on.</span></li>
+                        <li><strong>Change your Master Password</strong><span>Pick a new one and your vault is re-encrypted under it, on your device. Every other signed-in device is signed out immediately.</span></li>
+                        <li><strong>Delete everything</strong><span>Close the account at any time. Everything is removed immediately, and no copy is kept.</span></li>
+                    </ul>
+                </div>
+
+                {{/* The Emergency Kit as the artefact it is meant to become. */}}
+                <div class="panel panel-interactive p-6 scroll-reveal-child lg:col-span-2 flex flex-col">
+                    <h3 class="font-semibold mb-1.5">Your Emergency Kit</h3>
+                    <p class="text-sm text-muted-foreground leading-relaxed mb-6">Generated when you sign up: your email address and the twelve words, on a sheet laid out to be printed. Saving it is a required step in registration rather than a dismissible reminder, because it is the only way back into your vault.</p>
+                    <div class="mt-auto" aria-hidden="true">
+                        <div class="kit-sheet">
+                            <p class="text-[11px] font-bold tracking-tight">Vault3 Emergency Kit</p>
+                            <div class="kit-rule"></div>
+                            <p class="text-[10px] text-muted-foreground mb-1">email</p>
+                            <p class="font-mono text-[10px] mb-3">nora@fastmail.com</p>
+                            <p class="text-[10px] text-muted-foreground mb-1.5">Secret Phrase</p>
+                            <div class="grid grid-cols-3 gap-1.5">
+                                <span class="kit-blank"></span><span class="kit-blank"></span><span class="kit-blank"></span>
+                                <span class="kit-blank"></span><span class="kit-blank"></span><span class="kit-blank"></span>
+                                <span class="kit-blank"></span><span class="kit-blank"></span><span class="kit-blank"></span>
+                                <span class="kit-blank"></span><span class="kit-blank"></span><span class="kit-blank"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    {{/* ───────── Second thoughts ───────── */}}
+    <section class="px-6 py-12 sm:py-16 scroll-reveal">
+        <div class="max-w-5xl mx-auto">
+            <p class="eyebrow mb-4">Deleting</p>
+            <h2 class="text-3xl font-bold tracking-tight mb-8 sm:mb-12 max-w-xl">Deleting is reversible for thirty days</h2>
+
+            <div class="panel p-6 sm:p-8 scroll-reveal-child">
+                <div class="lg:flex lg:items-center lg:gap-10">
+                    <div class="lg:w-1/2">
+                        <h3 class="font-semibold mb-1.5">Thirty days in the Trash</h3>
+                        <p class="text-sm text-muted-foreground leading-relaxed">Delete an item and it stays in the Trash for thirty days, restorable in one click. If you want it gone sooner, delete it permanently and it is removed with no way back. You can empty the Trash yourself, or leave it to clear itself.</p>
+                    </div>
+                    <div class="fig mt-6 lg:mt-0 lg:flex-1" aria-hidden="true">
+                        <p class="fig-label mb-3">Old router login &middot; 11 days left</p>
+                        <div class="ticks">
+                            <span class="tick is-spent"></span><span class="tick is-spent"></span><span class="tick is-spent"></span>
+                            <span class="tick is-spent"></span><span class="tick is-spent"></span><span class="tick is-spent"></span>
+                            <span class="tick is-spent"></span><span class="tick is-spent"></span><span class="tick is-spent"></span>
+                            <span class="tick is-spent"></span><span class="tick is-spent"></span><span class="tick is-spent"></span>
+                            <span class="tick is-spent"></span><span class="tick is-spent"></span><span class="tick is-spent"></span>
+                            <span class="tick is-spent"></span><span class="tick is-spent"></span><span class="tick is-spent"></span>
+                            <span class="tick is-spent"></span><span class="tick"></span><span class="tick"></span>
+                            <span class="tick"></span><span class="tick"></span><span class="tick"></span>
+                            <span class="tick"></span><span class="tick"></span><span class="tick"></span>
+                            <span class="tick"></span><span class="tick"></span><span class="tick"></span>
+                        </div>
+                        <p class="fig-label mt-3">30 days &middot; restorable until the last one</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    {{/* ───────── What is not here ─────────
+         The absences are features on this product, and a features page
+         that lists only additions is telling half the story. */}}
+    <section class="px-6 py-12 sm:py-16 scroll-reveal">
+        <div class="max-w-5xl mx-auto">
+            <p class="eyebrow mb-4">What is not here</p>
+            <h2 class="text-3xl font-bold tracking-tight mb-8 sm:mb-12 max-w-xl">Deliberate omissions</h2>
+            <div class="grid sm:grid-cols-3 gap-5 sm:gap-6">
+                <div class="panel p-6 scroll-reveal-child">
+                    <p class="font-semibold mb-1.5">No trackers, no analytics</p>
+                    <p class="text-sm text-muted-foreground leading-relaxed">Nothing on this site tracks you, and no third-party script is loaded. One cookie exists, and its only job is to keep you signed in.</p>
+                </div>
+                <div class="panel p-6 scroll-reveal-child">
+                    <p class="font-semibold mb-1.5">Free while in beta</p>
+                    <p class="text-sm text-muted-foreground leading-relaxed">No card required, no trial countdown, and no feature reserved for a paid plan that does not exist yet.</p>
+                </div>
+                <div class="panel p-6 scroll-reveal-child">
+                    <p class="font-semibold mb-1.5">No account recovery</p>
+                    <p class="text-sm text-muted-foreground leading-relaxed">There is no reset link and no support route into your vault. This is the trade the design makes. <a href="/security" class="text-accent hover:text-accent-active">See why</a>.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    {{/* ───────── CTA ───────── */}}
+    <section class="px-6 pt-6 pb-16 sm:pt-8 sm:pb-20 scroll-reveal">
+        <div class="max-w-4xl mx-auto cta-slab px-5 py-14 sm:px-6 sm:py-16 text-center overflow-hidden">
+            <div class="glow-orb" style="--orb:var(--accent-2-glow);width:560px;height:340px;top:-150px;left:50%;transform:translateX(-50%)"></div>
+            <div class="relative">
+                <h2 class="text-3xl sm:text-4xl font-extrabold tracking-tighter mb-5">All of it, from the first minute.</h2>
+                <p class="text-muted-foreground mb-9 max-w-md mx-auto">Nothing above is behind an upgrade, a waiting list or a hidden setting. Sign up and it is all there.</p>
+                <a href="/join" class="btn btn-primary btn-lg">Create your vault</a>
+            </div>
+        </div>
+    </section>
+
+    {{template "siteFooter" .}}
+</div>
+{{end}}

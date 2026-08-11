@@ -1,0 +1,550 @@
+{{define "content"}}
+{{/* The whitepaper is /security's argument with the primitives named: the
+     key hierarchy, the envelope, the sharing construction, the post-quantum
+     reasoning and the threat model. /security stays short because this page
+     exists, and neither page repeats the other's sentences.
+
+     Every claim here must stay literally true of web/lib/crypto.ts,
+     internal/crypto and internal/models — read docs/security.md before
+     editing, and keep dateModified below in step with "Last updated". */}}
+{{/* Marked up as an expert-level TechArticle. /security carries the
+     beginner one; the two are siblings, and each names the other so an
+     answer engine quoting one can find the depth behind it. */}}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  "@id": "{{.CanonicalURL}}/#article",
+  "headline": "The Vault3 whitepaper",
+  "description": "{{.PageDescription}}",
+  "url": "{{.CanonicalURL}}",
+  "dateModified": "2026-08-11",
+  "inLanguage": "en-GB",
+  "isPartOf": { "@id": "{{.Site.URL}}/#website" },
+  "about": { "@id": "{{.Site.URL}}/#app" },
+  "publisher": { "@id": "{{.Site.URL}}/#organization" },
+  "proficiencyLevel": "Expert",
+  "dependencies": "No prior cryptography knowledge assumed; every term is defined in section 1.",
+  "isBasedOn": "{{.Site.URL}}/security"
+}
+</script>
+{{/* overflow-x:clip, not the overflow-x-hidden the other pages use: hidden
+     makes this element a scroll container, and a sticky descendant then
+     sticks to *it* rather than to the viewport — which is exactly how the
+     contents rail scrolled away with the document. clip trims the same
+     overhang without creating a scrollport, so the rail holds. */}}
+<div class="min-h-screen flex flex-col text-foreground" style="overflow-x:clip">
+    <div class="site-canvas" aria-hidden="true">
+        <div class="glow-orb glow-orb-a" style="--orb:var(--accent-glow);width:54vw;height:54vw;top:-24vw;right:-16vw"></div>
+        <div class="glow-orb glow-orb-b" style="--orb:var(--accent-2-glow);width:44vw;height:44vw;bottom:-22vw;left:-14vw"></div>
+    </div>
+
+    {{template "publicHeader" .}}
+
+    {{/* ───────── Hero ───────── */}}
+    <section class="relative px-6 pt-12 pb-10 sm:pt-16 sm:pb-14">
+        <div class="glow-orb" style="--orb:var(--accent-3-glow);width:440px;height:300px;top:-90px;left:50%;transform:translateX(-50%);opacity:0.6"></div>
+        <div class="relative max-w-5xl mx-auto">
+            <h1 class="text-4xl sm:text-5xl font-extrabold tracking-tighter leading-tight mb-6 max-w-2xl">
+                <span class="text-gradient">Whitepaper</span>
+            </h1>
+            <p class="text-lg text-muted-foreground leading-relaxed max-w-2xl mb-8">
+                Everything <a href="/security" class="text-accent hover:text-accent-active">the security page</a> claims, restated with the primitives named, the parameters printed and the limits stated. This is the complete construction, not a summary of it.
+            </p>
+            {{/* An at-a-glance spec rather than the badge row /security opens
+                 with: a reader who came for the parameters gets them in the
+                 first screen, and the two pages do not open the same way. */}}
+            <div class="panel p-6 sm:p-7 max-w-2xl">
+                <p class="fig-label mb-3">at a glance</p>
+                <p class="kv"><span>key derivation</span><span class="font-mono text-xs text-accent">PBKDF2-SHA-512 &times;1,000,000 &rarr; Argon2id 64 MiB</span></p>
+                <p class="kv"><span>second secret</span><span class="font-mono text-xs text-accent">12 words &middot; 132 bits &middot; HKDF-SHA-512</span></p>
+                <p class="kv"><span>vault encryption</span><span class="font-mono text-xs text-accent">AES-256-GCM &middot; one key per item</span></p>
+                <p class="kv"><span>asymmetric cryptography</span><span class="font-mono text-xs text-accent-2">none, anywhere</span></p>
+            </div>
+            <p class="mt-7 text-xs text-muted-foreground">Last updated: 11 August 2026 &middot; the implementation is open source at <a href="{{.Site.RepoURL}}" target="_blank" rel="noopener noreferrer" class="text-accent hover:text-accent-active">github</a></p>
+        </div>
+    </section>
+
+    <div class="px-6 pb-12 sm:pb-16">
+        <div class="max-w-5xl mx-auto lg:grid lg:gap-12" style="grid-template-columns:200px minmax(0,1fr)">
+            {{/* Contents. Sticky on wide screens only: on a phone it is a
+                 short list at the top of the document, which is the right
+                 shape there and costs no height worth reclaiming. */}}
+            <aside class="hidden lg:block">
+                <nav class="sticky top-24" aria-label="Contents" data-toc>
+                    <p class="field-label px-3 pb-2">Contents</p>
+                    <ul class="toc">
+                        <li><a href="#vocabulary"><span class="toc-num">01</span>Vocabulary</a></li>
+                        <li><a href="#derivation"><span class="toc-num">02</span>The key hierarchy</a></li>
+                        <li><a href="#storage"><span class="toc-num">03</span>What the server stores</a></li>
+                        <li><a href="#sharing"><span class="toc-num">04</span>Sharing</a></li>
+                        <li><a href="#post-quantum"><span class="toc-num">05</span>Post-quantum posture</a></li>
+                        <li><a href="#around"><span class="toc-num">06</span>Around the vault</a></li>
+                        <li><a href="#argon2"><span class="toc-num">07</span>The Argon2id module</a></li>
+                        <li><a href="#threat-model"><span class="toc-num">08</span>Threat model</a></li>
+                        <li><a href="#limits"><span class="toc-num">09</span>What this does not cover</a></li>
+                    </ul>
+                </nav>
+            </aside>
+
+            <article class="min-w-0 space-y-14 sm:space-y-20">
+
+                {{/* ───────── 01 Vocabulary ───────── */}}
+                <section id="vocabulary" class="scroll-reveal scroll-mt-24">
+                    <div class="flex items-center gap-4 mb-5">
+                        <div class="step-chip flex-shrink-0">01</div>
+                        <h2 class="text-2xl sm:text-3xl font-bold tracking-tight">Vocabulary</h2>
+                    </div>
+                    <p class="text-muted-foreground leading-relaxed mb-6 max-w-2xl">Every name this document uses, defined once. None of them are needed to use Vault3; they are defined here so that nothing below has to be taken on trust.</p>
+                    <dl class="gloss panel p-6 sm:p-8 scroll-reveal-child">
+                        <div class="gloss-row">
+                            <dt>zero-knowledge</dt>
+                            <dd>The server holds your data without ever holding the means to read it. This is a consequence of where the encryption happens, rather than a policy commitment.</dd>
+                        </div>
+                        <div class="gloss-row">
+                            <dt>ciphertext</dt>
+                            <dd>Your information after it has been encrypted: same size, no recoverable meaning without the key. It is the only version of your vault the server holds.</dd>
+                        </div>
+                        <div class="gloss-row">
+                            <dt>AES-256-GCM</dt>
+                            <dd>The cipher itself, and the standard choice for this job. The <span class="font-mono">GCM</span> part adds authentication: if a single byte of an encrypted item changed in the database, your browser would reject it rather than display altered data.</dd>
+                        </div>
+                        <div class="gloss-row">
+                            <dt>Argon2id &middot; 64 MiB</dt>
+                            <dd>A deliberate slowdown around your Master Password. Every guess has to fill 64 MiB of memory first: negligible once on your laptop, and the dominant cost for anyone attempting billions of guesses on rented hardware.</dd>
+                        </div>
+                        <div class="gloss-row">
+                            <dt>PBKDF2-SHA-512 &middot; 1,000,000</dt>
+                            <dd>The same idea in a second, older, standards-approved form, used as a backstop: a million rounds of arithmetic your password passes through before it becomes a key. With two independent slowdowns, neither has to be perfect.</dd>
+                        </div>
+                        <div class="gloss-row">
+                            <dt>HKDF-SHA-512</dt>
+                            <dd>How one secret becomes several separate keys. The results are siblings rather than copies: holding one reveals nothing about the others, and the derivation runs in one direction only.</dd>
+                        </div>
+                        <div class="gloss-row">
+                            <dt>master unlock key</dt>
+                            <dd>The single key your two secrets combine into, and the root of every other key. It exists only for the duration of the derivation and is never stored, sent or persisted, including in the browser.</dd>
+                        </div>
+                        <div class="gloss-row">
+                            <dt>post-quantum</dt>
+                            <dd>The kind of mathematics a future quantum computer is expected to break is not used here at all, so nothing stored today becomes readable when one arrives.</dd>
+                        </div>
+                    </dl>
+                </section>
+
+                {{/* ───────── 02 Key derivation ───────── */}}
+                <section id="derivation" class="scroll-reveal scroll-mt-24">
+                    <div class="flex items-center gap-4 mb-5">
+                        <div class="step-chip flex-shrink-0">02</div>
+                        <h2 class="text-2xl sm:text-3xl font-bold tracking-tight">The key hierarchy</h2>
+                    </div>
+                    <p class="text-muted-foreground leading-relaxed mb-8 max-w-2xl">Two secrets go in, one root key comes out, and every other key descends from it, all inside the browser before anything is sent. <a href="/security#derivation" class="text-accent hover:text-accent-active">The security page draws this in plain language</a>; here it is with every stage, width and cost named.</p>
+
+                    {{/* The same hierarchy /security draws as plain-language
+                         nodes, rendered as the tree it actually is. Two
+                         renderings of one structure rather than the same
+                         figure twice: the reader who wants the byte widths
+                         and the info strings is reading this one. */}}
+                    <div class="panel p-5 sm:p-8 scroll-reveal-child" style="overflow-x:auto">
+                        <p class="fig-label mb-4">the key hierarchy</p>
+                        <pre class="font-mono text-muted-foreground" style="font-size:11px;line-height:1.85;min-width:34rem"><span class="text-foreground">Master Password</span>  <span style="opacity:.5">(in your head)</span>          <span class="text-foreground">Secret Phrase</span>  <span style="opacity:.5">(12 words = 132 bits)</span>
+      │                                       │
+      │  <span class="text-accent">PBKDF2-HMAC-SHA-512 × 1,000,000</span>      │  <span class="text-accent">HKDF-SHA-512</span>
+      │  <span class="text-accent">Argon2id · 64 MiB · 4 passes · 4 lanes</span>│  salt = your email
+      ▼                                       ▼
+   passKey <span style="opacity:.6">(64 bytes)</span> ────── <span class="text-accent-3">XOR</span> ────── phraseKey <span style="opacity:.6">(64 bytes)</span>
+                        │
+                        ▼
+          <span class="text-foreground">master unlock key</span> <span style="opacity:.6">(64 bytes — never stored, never sent)</span>
+                        │
+        ┌───────────────┴───────────────┐
+        ▼                               ▼
+  <span class="text-accent-2">authentication key</span> <span style="opacity:.6">(64 B)</span>    <span class="text-accent">encryption key</span> <span style="opacity:.6">(32 B)</span>
+  sent · stored Argon2id-hashed   never leaves your device
+                                        │ unwraps
+                                        ▼
+                                  <span class="text-accent">vault key</span> <span style="opacity:.6">(32 B, one per vault)</span>
+                                        │ unwraps
+                                        ▼
+                                  <span class="text-accent">item key</span> <span style="opacity:.6">(32 B, one per item)</span>
+                                        │ seals · <span class="text-accent">AES-256-GCM</span>
+                                        ▼
+                                  overview blob + details blob</pre>
+                    </div>
+
+                    <div class="grid md:grid-cols-2 gap-5 mt-6">
+                        <div class="panel p-6 scroll-reveal-child">
+                            <h3 class="font-semibold mb-2">Why the two branches cannot help each other</h3>
+                            <p class="text-sm text-muted-foreground leading-relaxed">The authentication key and the encryption key are separate expansions of the same root, not two copies of it. Holding the key the server stores, or an entire database dump of them, yields nothing about the key that opens your vault. The derivation runs in one direction only.</p>
+                        </div>
+                        <div class="panel p-6 scroll-reveal-child">
+                            <h3 class="font-semibold mb-2">Why the phrase takes the fast path</h3>
+                            <p class="text-sm text-muted-foreground leading-relaxed">Your Master Password gets two expensive stages because it is short and guessable. The Secret Phrase is 132 bits of uniform randomness, so stretching it would add latency without adding security. Both halves meet at the XOR, and neither alone produces the unlock key.</p>
+                        </div>
+                        <div class="panel p-6 scroll-reveal-child">
+                            <h3 class="font-semibold mb-2">Why two slowdowns rather than one</h3>
+                            <p class="text-sm text-muted-foreground leading-relaxed">PBKDF2 is the approved floor and your browser implements it natively. Argon2id adds the memory-hardness PBKDF2 structurally cannot, which is what raises the cost of cracking a stolen database. Chaining one into the other cannot weaken either, and if the Argon2 stage were ever unavailable the password has still passed through a million rounds of an approved function.</p>
+                        </div>
+                        <div class="panel p-6 scroll-reveal-child">
+                            <h3 class="font-semibold mb-2">Why the costs can rise later</h3>
+                            <p class="text-sm text-muted-foreground leading-relaxed">Every cost in the tree is stored per account and handed to your browser before you sign in, so all of them can be raised for everyone without stranding existing accounts. An account adopts a new profile the next time its Master Password changes.</p>
+                        </div>
+                    </div>
+                </section>
+
+                {{/* ───────── 03 What the server stores ───────── */}}
+                <section id="storage" class="scroll-reveal scroll-mt-24">
+                    <div class="flex items-center gap-4 mb-5">
+                        <div class="step-chip flex-shrink-0">03</div>
+                        <h2 class="text-2xl sm:text-3xl font-bold tracking-tight">What the server stores</h2>
+                    </div>
+                    <p class="text-muted-foreground leading-relaxed mb-8 max-w-2xl">Every encrypted column in the database holds one envelope, and the envelope is the same four fields everywhere: the format version, the algorithm, the nonce that made this particular encryption unique, and the sealed bytes. The server validates the shape and the size. It cannot validate the contents, by design.</p>
+
+                    <div class="grid md:grid-cols-2 gap-5 scroll-reveal-child">
+                        <div class="panel p-6">
+                            <p class="fig-label mb-3">one envelope, as stored</p>
+                            <div class="fig fig-sealed">
+                                <p class="break-all">{"v":2,"alg":"A256GCM","n":"Vf7Kd3wZs2…","c":"hQ2nZpVt7aXeR4mKdJ0sLbYc9wUf…"}</p>
+                            </div>
+                            <p class="text-sm text-muted-foreground leading-relaxed mt-4"><code class="font-mono text-accent">A256GCM</code> is the only algorithm there is: with no key pair anywhere in the product, every wrap and every seal is symmetric. The version number exists so the format can evolve without ambiguity: a new value means a new format rather than a redefinition of this one.</p>
+                        </div>
+                        <div class="panel p-6">
+                            <p class="fig-label mb-3">what is inside an envelope, and what is not</p>
+                            <p class="kv"><span>item contents</span><span class="cipher-chip">sealed</span></p>
+                            <p class="kv"><span>item titles</span><span class="cipher-chip">sealed</span></p>
+                            <p class="kv"><span>vault names</span><span class="cipher-chip">sealed</span></p>
+                            <p class="kv"><span>your wrapped keys</span><span class="cipher-chip">sealed</span></p>
+                            <p class="kv"><span>email address</span><span class="text-xs text-muted-foreground">readable — it is how you sign in</span></p>
+                            <p class="kv"><span>item count, timestamps</span><span class="text-xs text-muted-foreground">readable — the rows have to exist</span></p>
+                            <p class="text-sm text-muted-foreground leading-relaxed mt-4">The readable columns are structural: a row has to exist to be fetched, and it has to carry a modification time for sync to work. That is the full extent of the metadata this design leaves in the clear.</p>
+                        </div>
+                    </div>
+                </section>
+
+                {{/* ───────── 04 Sharing ───────── */}}
+                <section id="sharing" class="scroll-reveal scroll-mt-24">
+                    <div class="flex items-center gap-4 mb-5">
+                        <div class="step-chip flex-shrink-0">04</div>
+                        <h2 class="text-2xl sm:text-3xl font-bold tracking-tight">Sharing</h2>
+                    </div>
+                    <p class="text-muted-foreground leading-relaxed mb-8 max-w-2xl">Sharing is where a zero-knowledge product usually compromises: to hand someone a key, most services have to hold it briefly. Vault3 does not, and both of its sharing flows use the same construction to avoid it.</p>
+
+                    <div class="panel p-6 sm:p-8 scroll-reveal-child mb-6">
+                        <h3 class="font-semibold mb-2">One random key, carried in the part of the link we never receive</h3>
+                        <p class="text-sm text-muted-foreground leading-relaxed mb-6 max-w-2xl">Your browser mints a fresh 32-byte key, uses it to seal the thing being shared, and puts it after the <code class="font-mono text-accent">#</code> in the link. Browsers do not transmit what follows a <code class="font-mono text-accent">#</code> — it is the one part of a URL that stays on the device. So we receive the token, which lets us find and expire the share, and never the key that opens it.</p>
+                        <div class="fig" aria-hidden="true">
+                            <p class="fig-label mb-3">the link you send</p>
+                            <p class="frag">
+                                <span class="frag-sent">https://vault3.com/share#</span><span class="frag-sent">7cMv2QdRb9…</span><span class="frag-kept">.kR4tW8zNvC2mJd6Fq1XpBh9YsE3w</span>
+                            </p>
+                            <div class="grid sm:grid-cols-2 gap-3 mt-4">
+                                <p class="fig-label">&larr; reaches us: an opaque token, stored only as a hash</p>
+                                <p class="fig-label" style="color:var(--accent)">the key &mdash; never sent, never logged, never ours</p>
+                            </div>
+                        </div>
+                        <p class="text-sm text-muted-foreground leading-relaxed mt-6 max-w-2xl">The recipient's browser reads that fragment once and strips it from the address bar immediately. A fragment left in a URL persists in browser history, and a synced browser profile uploads that history to its vendor and copies it to every other device signed into it.</p>
+                    </div>
+
+                    <div class="grid md:grid-cols-2 gap-5">
+                        <div class="panel p-6 scroll-reveal-child">
+                            <h3 class="font-semibold mb-2">Share links &mdash; one item, anyone</h3>
+                            <p class="text-sm text-muted-foreground leading-relaxed mb-4">What travels is that item's own key, and only that one. The vault key is never involved, so a shared password exposes exactly one item and tells the holder nothing about the rest.</p>
+                            <p class="kv"><span>lifetime</span><span class="font-mono text-xs text-accent">up to 30 days</span></p>
+                            <p class="kv"><span>revocable</span><span class="font-mono text-xs text-accent">immediately, at any time</span></p>
+                            <p class="kv"><span>opens</span><span class="font-mono text-xs text-accent">read-only, view-counted</span></p>
+                            <p class="kv"><span>trashed item</span><span class="font-mono text-xs text-accent-2">link dies with it</span></p>
+                        </div>
+                        <div class="panel p-6 scroll-reveal-child">
+                            <h3 class="font-semibold mb-2">Vault invites &mdash; a whole vault, one person</h3>
+                            <p class="text-sm text-muted-foreground leading-relaxed mb-4">Here it is the vault key that travels. The person accepting opens it with the fragment, re-seals it under their own encryption key, and from then on holds their own copy — so nothing stays wrapped under a link.</p>
+                            <p class="kv"><span>lifetime</span><span class="font-mono text-xs text-accent">7 days, single use</span></p>
+                            <p class="kv"><span>revocable</span><span class="font-mono text-xs text-accent">before and after accepting</span></p>
+                            <p class="kv"><span>access</span><span class="font-mono text-xs text-accent">view only, enforced server-side</span></p>
+                            <p class="kv"><span>changes</span><span class="font-mono text-xs text-accent-2">sync live to every member</span></p>
+                        </div>
+                    </div>
+
+                    <div class="panel p-6 sm:p-7 mt-6 scroll-reveal-child">
+                        <div class="flex flex-col sm:flex-row gap-5">
+                            <span class="icon-tile icon-tile-warm flex-shrink-0" aria-hidden="true">
+                                <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.2 1.8 17.5A2 2 0 0 0 3.5 20.5h17a2 2 0 0 0 1.7-3L13.7 3.2a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+                            </span>
+                            <div>
+                                <h3 class="font-semibold mb-2">What sharing genuinely costs</h3>
+                                <p class="text-sm text-muted-foreground leading-relaxed">The construction protects the share from the server, not from whoever you send it to: possession of the full URL is the authorisation, so the link is exactly as private as the channel it travels down. Two consequences follow. A share link exposes the item's live <code class="font-mono">details</code> blob, so if that item stores a one-time-code key the recipient gets <strong class="text-foreground">both factors</strong> for the account — the share dialog says so before you create one. And a vault holding both an account's password and its code key has collapsed two factors into one for its owner too.</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                {{/* ───────── 05 Post-quantum ───────── */}}
+                <section id="post-quantum" class="scroll-reveal scroll-mt-24">
+                    <div class="flex items-center gap-4 mb-5">
+                        <div class="step-chip flex-shrink-0">05</div>
+                        <h2 class="text-2xl sm:text-3xl font-bold tracking-tight">Post-quantum posture</h2>
+                    </div>
+                    <p class="text-muted-foreground leading-relaxed mb-8 max-w-2xl">A password manager has an unusual problem: anything copied out of it today can be kept for decades and opened once the tools catch up. The question is therefore not whether a quantum computer exists now, but whether anything stored here would fall to one later. Three reasons it would not:</p>
+
+                    <div class="grid sm:grid-cols-3 gap-5">
+                        <div class="panel p-6 scroll-reveal-child">
+                            <p class="font-semibold mb-1.5">Nothing to break in the first place</p>
+                            <p class="text-sm text-muted-foreground leading-relaxed">The quantum result that genuinely breaks encryption undoes one particular kind of maths — the kind behind RSA and elliptic curves, which is what protects most of the web today. Vault3 uses none of it, anywhere. Your account has no key pair, and nothing in our database was ever locked with one.</p>
+                        </div>
+                        <div class="panel p-6 scroll-reveal-child">
+                            <p class="font-semibold mb-1.5">Sized for the shortcut that does exist</p>
+                            <p class="text-sm text-muted-foreground leading-relaxed">Against everything else, a quantum computer roughly halves the strength of a key — so every key here is sized to give that half away and still be far out of reach: <code class="font-mono text-accent">AES-256</code> keeps 128 bits, <code class="font-mono text-accent">SHA-512</code> keeps 256, your Secret Phrase keeps 66. Each is at or above what NIST treats as the post-quantum minimum.</p>
+                        </div>
+                        <div class="panel p-6 scroll-reveal-child">
+                            <p class="font-semibold mb-1.5">Sharing adds no weak spot</p>
+                            <p class="text-sm text-muted-foreground leading-relaxed">The construction in section 4 keeps the key out of our hands entirely, and what we keep is a bundle only that key opens. So sharing adds nothing to the store that could be harvested now and opened later, which is where a service like this would otherwise acquire an expiry date.</p>
+                        </div>
+                    </div>
+
+                    <p class="text-sm text-muted-foreground leading-relaxed mt-8 max-w-2xl">This posture follows from how Vault3 is built rather than from a feature added on top. Nothing in it is due to be swapped out for a quantum-safe replacement later, so there is no future migration to get right.</p>
+                </section>
+
+                {{/* ───────── 06 Around the vault ───────── */}}
+                <section id="around" class="scroll-reveal scroll-mt-24">
+                    <div class="flex items-center gap-4 mb-5">
+                        <div class="step-chip flex-shrink-0">06</div>
+                        <h2 class="text-2xl sm:text-3xl font-bold tracking-tight">Around the vault</h2>
+                    </div>
+                    <p class="text-muted-foreground leading-relaxed mb-8 max-w-2xl">The key hierarchy above is what keeps your vault closed. What follows are the layers around it, and each figure quotes what that layer actually produces.</p>
+
+                    {{/* Six layers, six different pictures of the same discipline. */}}
+                    <div class="grid sm:grid-cols-2 lg:grid-cols-6 gap-5 sm:gap-6">
+                        {{/* What a session looks like to you, and to the database. */}}
+                        <div class="panel panel-interactive p-6 scroll-reveal-child lg:col-span-4 flex flex-col justify-center">
+                            <div class="lg:flex lg:items-center lg:gap-8">
+                                <div class="lg:w-[45%]">
+                                    <h3 class="font-semibold mb-1.5">Sessions</h3>
+                                    <p class="text-sm text-muted-foreground leading-relaxed">Signing in hands your browser one long random token, held in a cookie other sites and scripts cannot read. The server stores only a hash of it, so a stolen database yields no usable session. Every device is listed, any of them can be signed out, and changing your Master Password signs out all the others at once.</p>
+                                </div>
+                                <div class="fig mt-5 lg:mt-0 lg:flex-1" aria-hidden="true">
+                                    <p class="fig-label mb-2.5">what the table holds &middot; 512-bit tokens</p>
+                                    <div class="sess">
+                                        <div class="sess-head">
+                                            <span>MacBook Pro &middot; Chrome</span>
+                                            <span class="badge badge-success whitespace-nowrap">this device</span>
+                                        </div>
+                                        <p class="sess-hash">sha512 9f3a2c…c71e</p>
+                                    </div>
+                                    <div class="sess">
+                                        <div class="sess-head">
+                                            <span>iPad &middot; Safari</span>
+                                            <span class="badge badge-accent-2 whitespace-nowrap">active</span>
+                                        </div>
+                                        <p class="sess-hash">sha512 c02de9…7b45</p>
+                                    </div>
+                                    <div class="sess">
+                                        <div class="sess-head">
+                                            <span class="sess-gone">iPhone &middot; Safari</span>
+                                            <span class="badge badge-danger whitespace-nowrap">revoked</span>
+                                        </div>
+                                        <p class="sess-hash sess-gone">sha512 4b1708…08da</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {{/* The code you type, and the secret behind it sealed. */}}
+                        <div class="panel panel-interactive p-6 scroll-reveal-child lg:col-span-2 flex flex-col justify-center">
+                            <h3 class="font-semibold mb-1.5">Two-factor authentication</h3>
+                            <p class="text-sm text-muted-foreground leading-relaxed mb-5">You can add a code from an authenticator app at sign-in. The seed that produces those codes is encrypted in the database as well.</p>
+                            <div class="fig" aria-hidden="true">
+                                <p class="fig-label mb-1">your authenticator</p>
+                                <p class="text-lg font-mono tracking-widest text-accent mb-3">481 207</p>
+                                <p class="fig-label mb-1">the seed we keep</p>
+                                <p class="cipher-chip">A256GCM &middot; Yb7Kq2vR9m…</p>
+                            </div>
+                        </div>
+
+                        {{/* The handful of fields the server must read back — and
+                             what each one looks like in the table. */}}
+                        <div class="panel panel-interactive p-6 scroll-reveal-child lg:col-span-3 flex flex-col justify-center">
+                            <h3 class="font-semibold mb-1.5">Operational data is encrypted too</h3>
+                            <p class="text-sm text-muted-foreground leading-relaxed mb-5">A few things have to be readable by the service itself: your display name, the device and address a session came from, your alerts, the account history. These are encrypted with a separate key that the server holds, so data sitting outside your vault is also unreadable in the database. This is defence in depth for operational data. It is not part of the zero-knowledge property and should not be presented as such.</p>
+                            <div class="fig" aria-hidden="true">
+                                <p class="kv"><span>display name</span><span class="cipher-chip">Pq8vR2mL…</span></p>
+                                <p class="kv"><span>session IP</span><span class="cipher-chip">Zk3mT7dC…</span></p>
+                                <p class="kv"><span>device</span><span class="cipher-chip">Wc9aH4xN…</span></p>
+                                <p class="kv"><span>alert body</span><span class="cipher-chip">Rm2xL6gB…</span></p>
+                            </div>
+                        </div>
+
+                        {{/* The same events as your account's own history. */}}
+                        <div class="panel panel-interactive p-6 scroll-reveal-child lg:col-span-3 flex flex-col">
+                            <h3 class="font-semibold mb-1.5">Alerts that always arrive</h3>
+                            <p class="text-sm text-muted-foreground leading-relaxed">A new device signing in, the Master Password changing, two-factor going on or off: you are told as it happens. The emails can be turned off in Settings; the in-app alerts cannot, because silence is what an attacker using your account would want.</p>
+                            <div class="mt-auto pt-6">
+                                <ul class="trail" aria-hidden="true">
+                                    <li>New device signed in<span>Chrome on macOS &middot; just now</span></li>
+                                    <li>Master Password changed<span>every other device signed out &middot; 3d</span></li>
+                                    <li>Two-factor enabled<span>authenticator app &middot; 2w</span></li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        {{/* Idle time running out on the keys in this tab. */}}
+                        <div class="panel panel-interactive p-6 scroll-reveal-child lg:col-span-2 flex flex-col justify-center">
+                            <div class="flex justify-center mb-5" aria-hidden="true">
+                                <span class="dial" style="--sweep:74%">
+                                    <svg class="h-7 w-7 mark-pulse" viewBox="0 0 64 64"><rect width="64" height="64" rx="15" fill="currentColor" mask="url(#v3-cut)"/></svg>
+                                </span>
+                            </div>
+                            <h3 class="font-semibold mb-1.5">Auto-lock</h3>
+                            <p class="text-sm text-muted-foreground leading-relaxed">While your vault is open, its keys sit in that browser tab and nowhere else. They are erased on lock, on sign-out and after a period of inactivity. Locking is local, so it takes effect immediately and works with no connection.</p>
+                        </div>
+
+                        {{/* The headers this page was served with. */}}
+                        <div class="panel panel-interactive p-6 scroll-reveal-child lg:col-span-4 flex flex-col justify-center">
+                            <div class="lg:flex lg:items-center lg:gap-8">
+                                <div class="lg:w-[42%]">
+                                    <h3 class="font-semibold mb-1.5">The connection itself</h3>
+                                    <p class="text-sm text-muted-foreground leading-relaxed">Everything travels over TLS, and your browser is instructed to refuse anything less. The page may load code from this origin only: no content delivery network, no third-party script, and no permitted destination for an injected payload to send to. Repeated sign-in attempts are rate-limited, and the responses are uniform, including on whether an email address is registered.</p>
+                                </div>
+                                <div class="fig term mt-5 lg:mt-0 lg:flex-1" aria-hidden="true">
+                                    <p class="term-prompt mb-1.5">$ curl -sI https://vault3.com</p>
+                                    <p><span class="term-key">strict-transport-security:</span> <span class="term-val">max-age=63072000</span></p>
+                                    <p><span class="term-key">content-security-policy:</span> <span class="term-val">default-src 'self'</span></p>
+                                    <p><span class="term-key">x-frame-options:</span> <span class="term-val">DENY</span></p>
+                                    <p><span class="term-key">referrer-policy:</span> <span class="term-val">no-referrer</span></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                {{/* ───────── 07 The Argon2id module ───────── */}}
+                <section id="argon2" class="scroll-reveal scroll-mt-24">
+                    <div class="flex items-center gap-4 mb-5">
+                        <div class="step-chip flex-shrink-0">07</div>
+                        <h2 class="text-2xl sm:text-3xl font-bold tracking-tight">The Argon2id module</h2>
+                    </div>
+                    <p class="text-muted-foreground leading-relaxed mb-8 max-w-2xl">The memory-hard half of your key derivation is a WebAssembly module, because that work is what JavaScript handles worst: a pure-JavaScript version costs roughly ten times as much, and the only way to recover that would be to weaken the parameters on your device while an attacker's hardware pays nothing. It is compiled from Go, in this repository, wrapping the same library the server uses, so the browser and the server cannot disagree about your key.</p>
+
+                    <div class="grid sm:grid-cols-3 gap-5">
+                        <div class="panel p-6 scroll-reveal-child">
+                            <p class="font-semibold mb-1.5">Reproducible</p>
+                            <p class="text-sm text-muted-foreground leading-relaxed">The build pins the compiler version and strips every path and every trace of git state from the output, so the artifact is byte-identical on any machine. The digest can be regenerated independently rather than taken on faith.</p>
+                        </div>
+                        <div class="panel p-6 scroll-reveal-child">
+                            <p class="font-semibold mb-1.5">Pinned</p>
+                            <p class="text-sm text-muted-foreground leading-relaxed">The app carries a <code class="font-mono text-accent">SHA-512</code> of the module it expects. Your browser hashes what it actually received and refuses to run anything else. It fails closed rather than falling back to a weaker derivation, because a vault encrypted under a key its owner cannot reproduce is unrecoverable.</p>
+                        </div>
+                        <div class="panel p-6 scroll-reveal-child">
+                            <p class="font-semibold mb-1.5">Verified against known answers</p>
+                            <p class="text-sm text-muted-foreground leading-relaxed">A digest only proves the bytes are the intended bytes. A test suite runs the compiled module against vectors produced by Go's own Argon2, including one at the exact production settings, which rules out a module that loads cleanly and derives the wrong key.</p>
+                        </div>
+                    </div>
+
+                    <div class="panel p-6 sm:p-8 mt-6 scroll-reveal-child">
+                        <div class="lg:flex lg:items-start lg:gap-8">
+                            <div class="lg:w-1/2">
+                                <h3 class="font-semibold mb-2">Check it yourself</h3>
+                                <p class="text-sm text-muted-foreground leading-relaxed mb-4">Two commands in a clone of the repository: rebuild the module from source and compare, then run it against the reference vectors.</p>
+                                <p class="text-sm text-muted-foreground leading-relaxed">What the pin defends against is precise: <strong class="text-foreground">transport and storage, not the server itself</strong>. A poisoned cache, a corrupted download or a stale artifact from a bad deploy are all caught. A malicious server is not, because the same server ships the pin, which is why the build is reproducible from public source.</p>
+                            </div>
+                            <div class="fig term mt-5 lg:mt-0 lg:flex-1" aria-hidden="true">
+                                <p class="term-prompt mb-1.5">$ ./scripts/build-wasm.sh</p>
+                                <p><span class="term-val">rebuilds the module, prints its digest</span></p>
+                                <p class="term-prompt mt-3 mb-1.5">$ node scripts/verify-wasm.mjs</p>
+                                <p><span class="term-val">checks it against Go's own argon2</span></p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                {{/* ───────── 08 Threat model ───────── */}}
+                <section id="threat-model" class="scroll-reveal scroll-mt-24">
+                    <div class="flex items-center gap-4 mb-5">
+                        <div class="step-chip flex-shrink-0">08</div>
+                        <h2 class="text-2xl sm:text-3xl font-bold tracking-tight">Threat model</h2>
+                    </div>
+                    <p class="text-muted-foreground leading-relaxed mb-8 max-w-2xl">Who might come after your vault, and what each of them actually gets. The last two rows are the ones no password manager can dismiss, and they are printed here rather than omitted.</p>
+                    <div class="panel p-4 sm:p-7 scroll-reveal-child" style="overflow-x:auto">
+                        <table class="threat">
+                            <thead>
+                                <tr><th scope="col">Adversary</th><th scope="col">Outcome</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <th scope="row">Someone who steals the whole database</th>
+                                    <td>Sealed items, hashed authentication keys, hashed session tokens, encrypted operational fields. No vault contents, and no key that would open any.</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Someone with a quantum computer</th>
+                                    <td>Nothing to break with Shor's algorithm, because no asymmetric primitive exists here. Grover's leaves at least 128 bits everywhere. Ciphertext harvested today stays unreadable.</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">A court order, or us acting in bad faith</th>
+                                    <td>Ciphertext and account metadata can be handed over, because that is all there is, and it cannot be decrypted. Poisoned JavaScript could be served to a future visit: the residual risk every web app carries, and the reason the code is public and the wasm reproducible.</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Someone watching the network</th>
+                                    <td>TLS everywhere, HSTS, and cookies that never travel over plain HTTP in production. What crosses the wire is ciphertext and an authentication key that opens nothing.</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Someone holding your locked device</th>
+                                    <td>Needs your Master Password, and your Secret Phrase too unless this device was set to remember it. The keys are wiped from the tab on lock, on sign-out and after inactivity.</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Malware on your unlocked device</th>
+                                    <td>Out of scope. Software running as you, on your machine, while your vault is open can read what you have opened. No web vault survives that.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                {{/* ───────── 09 Limits ───────── */}}
+                <section id="limits" class="scroll-reveal scroll-mt-24">
+                    <div class="flex items-center gap-4 mb-5">
+                        <div class="step-chip flex-shrink-0">09</div>
+                        <h2 class="text-2xl sm:text-3xl font-bold tracking-tight">What this does not cover</h2>
+                    </div>
+                    <div class="grid md:grid-cols-2 gap-5">
+                        <div class="panel p-6 scroll-reveal-child">
+                            <h3 class="font-semibold mb-2">Unrecoverable is a property, not a policy</h3>
+                            <p class="text-sm text-muted-foreground leading-relaxed">There is no reset endpoint and there will not be one: a credential-replacing route reachable from an inbox is a standing takeover surface for a product whose claim is that holding the server buys nothing. Losing both secrets means the ciphertext stays closed to everyone. Deleting the account and starting again is the only path out, and it is authenticated by the key you already hold.</p>
+                        </div>
+                        <div class="panel p-6 scroll-reveal-child">
+                            <h3 class="font-semibold mb-2">The code arrives from us each visit</h3>
+                            <p class="text-sm text-muted-foreground leading-relaxed">This is a web application, so the JavaScript doing the encrypting is served by the same people who hold the ciphertext. The mitigations are real — a strict policy that allows code from nobody else, no third-party scripts at all, and public source — but a browser extension or desktop client with pinned code would be stronger, and that is on the roadmap rather than shipped.</p>
+                        </div>
+                        <div class="panel p-6 scroll-reveal-child">
+                            <h3 class="font-semibold mb-2">Unlocked keys live in the tab</h3>
+                            <p class="text-sm text-muted-foreground leading-relaxed">While a vault is open its keys sit in that tab's session storage, and a device set to remember its Secret Phrase keeps that in local storage too. Cross-site scripting is the residual risk this accepts, held down by a policy that admits code from no other origin and by having no third-party scripts at all. Anything already executing as you, in your browser, can use what you have unlocked, which is the boundary of every web vault, this one included.</p>
+                        </div>
+                        <div class="panel p-6 scroll-reveal-child">
+                            <h3 class="font-semibold mb-2">One place a quantum adversary still has purchase</h3>
+                            <p class="text-sm text-muted-foreground leading-relaxed">Not your vault, but the connection carrying it. A TLS session recorded today, whose key exchange was a classical one, could in principle be opened later. What that exposes is ciphertext and an authentication key, not vault contents, and we terminate TLS with a hybrid quantum-safe exchange where the infrastructure supports it.</p>
+                        </div>
+                    </div>
+                </section>
+
+                {{/* ───────── Report + CTA ───────── */}}
+                <section class="scroll-reveal">
+                    <div class="grid md:grid-cols-2 gap-5 sm:gap-6">
+                        <div class="panel p-7 sm:p-8 scroll-reveal-child">
+                            <h2 class="text-xl font-bold tracking-tight mb-2">Disagree with any of this?</h2>
+                            <p class="text-sm text-muted-foreground leading-relaxed mb-5">A design document is worth more when somebody has tried to break it. If a claim above does not hold, or the implementation has drifted from what it says, tell us.</p>
+                            <a href="mailto:{{.Site.ContactEmail}}" class="btn btn-secondary btn-sm font-mono">{{.Site.ContactEmail}}</a>
+                        </div>
+                        <div class="cta-slab p-7 sm:p-8 flex flex-col justify-center scroll-reveal-child">
+                            <div class="glow-orb" style="--orb:var(--accent-glow);width:420px;height:260px;top:-140px;left:50%;transform:translateX(-50%)"></div>
+                            <div class="relative">
+                                <h2 class="text-2xl font-extrabold tracking-tighter mb-2">Read it. Then check it.</h2>
+                                <p class="text-sm text-muted-foreground mb-6">The implementation is public, the wasm is reproducible, and the vault is free while we are in beta.</p>
+                                <a href="/join" class="btn btn-primary">Create your vault</a>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </article>
+        </div>
+    </div>
+
+    {{template "siteFooter" .}}
+</div>
+{{end}}

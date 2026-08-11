@@ -1,7 +1,12 @@
 // Brand motion primitives shared by the server-rendered public pages
-// (landing, security). Everything here is garnish: the markup reads
-// correctly with JS disabled, and every effect no-ops under
-// prefers-reduced-motion.
+// (landing, features, security, whitepaper). Everything here is garnish:
+// the markup reads correctly with JS disabled, and every effect no-ops
+// under prefers-reduced-motion.
+//
+// Shared does not mean uniform. scrambleInto is the landing and security
+// pages' move; a new public page should compose its own effect from these
+// parts rather than reaching for the finished one, the same way the tile
+// figures in styles.css are composed rather than reused.
 
 export const REDUCED_MOTION = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 

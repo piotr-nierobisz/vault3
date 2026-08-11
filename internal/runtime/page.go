@@ -72,6 +72,20 @@ func (r *Runtime) LandingPage(req *bungo.Request) (map[string]any, error) {
 	}), nil
 }
 
+// FeaturesPage is the full product surface: everything the vault does, in one
+// place. The landing page keeps a highlight grid and sends the reader here for
+// the rest, so neither has to carry the whole inventory.
+func (r *Runtime) FeaturesPage(req *bungo.Request) (map[string]any, error) {
+	return r.PageData(map[string]any{
+		"PageTitle":       "Features | Vault3",
+		"PageDescription": "Every feature of Vault3's zero-knowledge vault: logins, notes, cards and identities, multiple vaults, shared vaults, single-item share links, one-time codes, live sync, two-factor authentication and a 30-day trash — all encrypted on your device.",
+		"OGTitle":         "Features",
+		"OGDescription":   "Logins, notes, cards and identities. Multiple vaults, shared vaults and share links. Live sync and two-factor authentication — with every item encrypted before it leaves your device.",
+		"CanonicalURL":    config.SITE_URL + "/features",
+		"Viewer":          r.Viewer(req),
+	}), nil
+}
+
 func (r *Runtime) ContactPage(req *bungo.Request) (map[string]any, error) {
 	return r.PageData(map[string]any{
 		"PageTitle":       "Contact | Vault3",
@@ -85,7 +99,7 @@ func (r *Runtime) ContactPage(req *bungo.Request) (map[string]any, error) {
 
 func (r *Runtime) LoginPage(_ *bungo.Request) (map[string]any, error) {
 	return r.PageData(map[string]any{
-		"PageTitle":    "Unlock | Vault3",
+		"PageTitle":    "Login | Vault3",
 		"CanonicalURL": config.SITE_URL + "/login",
 		"NoIndex":      true,
 	}), nil
@@ -99,6 +113,16 @@ func (r *Runtime) LoginPage(_ *bungo.Request) (map[string]any, error) {
 
 // --- Legal and security docs ---
 
+// trustDocPaths holds the documents that sit at the top level rather than
+// under /legal. They share the legal template furniture — the sidebar, the
+// per-document description — but they are the product's own argument rather
+// than its contract, and their URLs say so. Anything absent takes the
+// /legal/<slug> path its slug implies.
+var trustDocPaths = map[string]string{
+	"security":   "/security",
+	"whitepaper": "/whitepaper",
+}
+
 // legalPageData assembles the shared payload for a document page. Like the
 // other public pages it carries the optional Viewer, for the header only —
 // these documents render the marketing surface for everyone.
@@ -109,8 +133,8 @@ func (r *Runtime) LoginPage(_ *bungo.Request) (map[string]any, error) {
 // which the card already shows as the site name.
 func (r *Runtime) legalPageData(req *bungo.Request, title, ogTitle, description, slug string) map[string]any {
 	canonicalPath := "/legal/" + slug
-	if slug == "security" {
-		canonicalPath = "/security"
+	if trustPath, ok := trustDocPaths[slug]; ok {
+		canonicalPath = trustPath
 	}
 	return r.PageData(map[string]any{
 		"PageTitle":       title,
@@ -147,13 +171,27 @@ func (r *Runtime) LegalCookiesPage(req *bungo.Request) (map[string]any, error) {
 		"cookies"), nil
 }
 
-// SecurityPage is the public security overview: how the encryption works,
-// what the server stores, and what that means in practice. It doubles as
-// marketing, so it lives at /security rather than under /legal.
+// SecurityPage is the public security overview: what the server holds, what
+// that makes impossible, and what it does not protect you from. It doubles as
+// marketing, so it lives at /security rather than under /legal, and it answers
+// the question a visitor arrives with. The reader who wants the construction
+// itself is sent to the whitepaper below.
 func (r *Runtime) SecurityPage(req *bungo.Request) (map[string]any, error) {
 	return r.legalPageData(req,
-		"Security — how Vault3 encrypts your vault | Vault3",
-		"How Vault3 protects you",
-		"How Vault3's zero-knowledge encryption works, in plain language: two secrets combined in your browser, 1,000,000 PBKDF2 rounds and Argon2id at 64 MiB behind your Master Password, AES-256-GCM on every item, and what a breach of our servers would actually yield.",
+		"Security | Vault3",
+		"Security",
+		"How Vault3's zero-knowledge encryption works, in plain language: your vault is locked on your device with keys we never receive, so a breach of our servers yields scrambled text — and there is no reset link, because there is nothing to reset.",
 		"security"), nil
+}
+
+// WhitepaperPage is the same argument for a reader who wants the primitives:
+// the key hierarchy, the envelope format, the sharing construction, the
+// post-quantum reasoning and the threat model. /security stays short because
+// this page exists; every claim on both must match docs/security.md.
+func (r *Runtime) WhitepaperPage(req *bungo.Request) (map[string]any, error) {
+	return r.legalPageData(req,
+		"Whitepaper | Vault3",
+		"Whitepaper",
+		"The complete Vault3 design: two-secret key derivation (PBKDF2-SHA512 at 1,000,000 rounds into Argon2id at 64 MiB, combined with a 132-bit Secret Phrase), the AES-256-GCM envelope, the link-fragment sharing construction, the post-quantum reasoning, and the threat model.",
+		"whitepaper"), nil
 }

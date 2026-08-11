@@ -100,15 +100,13 @@ export function GeneratorPanel({ onUse }: { onUse: (password: string) => void })
       </div>
       <p className="text-xs text-muted-foreground font-mono">~{bits} bits</p>
 
-      <div className="flex items-center gap-2 text-xs">
+      <div className="seg">
         {(["characters", "passphrase"] as const).map((mode) => (
           <button
             key={mode}
             type="button"
             onClick={() => setOptions((o) => ({ ...o, mode }))}
-            className={`px-2.5 py-1.5 rounded-md transition-colors ${
-              options.mode === mode ? "bg-accent-subtle text-accent font-semibold" : "text-muted-foreground hover:text-foreground"
-            }`}
+            className={`seg-item${options.mode === mode ? " is-on" : ""}`}
           >
             {mode === "characters" ? "Characters" : "Passphrase"}
           </button>

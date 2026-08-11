@@ -1,8 +1,8 @@
 # Vault3 Backend Guide
 
-Go server, database, sessions, email, jobs, and API conventions. Read this for work under `cmd/`, `internal/`, `scripts/sql/`, and anything that touches the database, sessions, Mailgun, notifications, the change signal, or background jobs.
+Go server, database, sessions, email, jobs and API conventions. Read this for work under `cmd/`, `internal/` and `scripts/sql/`.
 
-For agent routing, see [claude.md](../claude.md). For the cryptography — key hierarchy, envelope format, threat model — see [security.md](./security.md) (**required** before touching auth, keys, or blobs). For React views and `web/`, see [frontend.md](./frontend.md). For BunGo route registration and framework rules, see [bungo.md](./bungo.md).
+Read [security.md](./security.md) **first** before touching auth, keys or blobs. [bungo.md](./bungo.md) covers route registration and framework rules.
 
 ---
 
@@ -46,15 +46,7 @@ All application dependencies live in a single `Runtime` struct in `internal/runt
 - Do not add defensive nil checks for `*Runtime` in every function; assume it is valid after startup.
 - Page handlers, API handlers, and security-layer handlers that need app dependencies are methods on `*Runtime`.
 
-### BunGo handler shapes
-
-```go
-func (rt *Runtime) AppVaultPage(breq *bungo.Request) (map[string]any, error)
-
-func (rt *Runtime) CreateItemAPI(breq *bungo.Request) (bungo.APIResponse, error)
-
-func (rt *Runtime) RequireAuth(breq *bungo.Request) bool
-```
+Handler shapes, all taking `*bungo.Request`: page handlers return `(map[string]any, error)`, API handlers `(bungo.APIResponse, error)`, security layers a bare `bool`.
 
 ### The custom listener (cmd/vault3/main.go)
 
@@ -74,42 +66,22 @@ Routes are registered through five closures defined at the top of main.go, never
 | `viewerPage(...)` | `optional_auth` + `load_viewer` | public pages that adapt when signed in |
 | `anonPage(...)` | none | pre-sign-in pages and the share viewer |
 
-The point is the inversion: authentication is the default, and publishing something unauthenticated costs a visible word in the name. In a flat list of ~40 routes a missing `SecurityLayer:` field is invisible in review and silently ships an unauthenticated endpoint over the vault. It also makes the whole public surface auditable in one command:
+The inversion is the point: authentication is the default, and going public costs a visible word in the name. In a flat list of ~40 routes a missing `SecurityLayer:` field is invisible in review and silently ships an unauthenticated endpoint over the vault. It also keeps the public surface auditable by grepping `main.go` for the three public helper names.
 
-```sh
-grep -n 'openAPI\|viewerPage\|anonPage' cmd/vault3/main.go
-```
-
-Adding a route means picking a helper. If a new route needs a layer combination none of them covers, add a sixth named helper rather than reaching for a struct literal.
+If a route needs a layer combination none of the five covers, add a sixth named helper rather than a struct literal.
 
 ### Shared handler helpers
 
 - `rt.Viewer(req)` — the request's `*view.UserSummary` (nil if anonymous), built once by the `load_viewer` layer.
 - `CurrentUser(req)` / `CurrentSession(req)` — the hydrated `*models.UserFull` / `*models.Session` stashed by `require_auth`.
-- `optional_auth` — carried by **every** public page (landing, contact, security, the legal docs) so the marketing header can offer a signed-in visitor the way back into `/app`. Loads the session/user when a valid cookie is present but always passes; pair with `load_viewer`, and have the handler put `rt.Viewer(req)` in its map. Shares `resolveSession` with `require_auth` but does not touch last-seen. It adapts the header only — a public page never renders app chrome (see [frontend.md](./frontend.md)).
+- `optional_auth` — carried by **every** public page (landing, features, contact, security, whitepaper, the legal docs) so the marketing header can offer a signed-in visitor the way back into `/app`. Loads the session/user when a valid cookie is present but always passes; pair with `load_viewer`, and have the handler put `rt.Viewer(req)` in its map. Shares `resolveSession` with `require_auth` but does not touch last-seen. It adapts the header only — a public page never renders app chrome (see [frontend.md](./frontend.md)).
 - `apiError(status, message)` / `apiFieldError(status, message, field)` — the standard error responses; never inline `bungo.APIResponse` error literals.
 - `rt.audit(req, userID, action, entityType, entityID, detail)` — append to the security trail; log-and-continue by design.
-- `decodeBody[T](req)` — parse the request body or hand back a ready-to-return 400. Every API handler opens with it; none calls `json.Unmarshal(req.Body, …)` directly:
-
-  ```go
-  payload, deny := decodeBody[idPayload](req)
-  if deny != nil {
-      return *deny, nil
-  }
-  ```
-
-  `payload` is a `*T`, so pass it on as-is (`validateItemEnvelopes(payload)`), not `&payload`. Give the body a **named type** — anonymous structs cannot be a readable type argument — and reuse the shared single-field types (`idPayload`, `tokenPayload`, `emailPayload`, `codePayload`) rather than redeclaring them; the rest live next to the handler that owns them. Stating the malformed-body response once also means every endpoint refuses unparseable input identically, so probing one teaches nothing about another.
+- `decodeBody[T](req)` — parse the request body or hand back a ready-to-return 400. Every API handler opens with it and none calls `json.Unmarshal(req.Body, …)` directly. It returns `(payload, deny)`; return `*deny` when non-nil. `payload` is a `*T`, so pass it on as-is rather than taking its address. Give the body a **named type** and reuse the shared single-field ones (`idPayload`, `tokenPayload`, `emailPayload`, `codePayload`); the rest live next to the handler that owns them. One shared malformed-body response also means every endpoint refuses unparseable input identically, so probing one teaches nothing about another.
 
 ### Authorisation helpers (vault_view.go)
 
-**Every** vault or item handler authorises through one of these four, and none re-implements the check inline. They return the loaded rows or a ready-to-return denial:
-
-```go
-access, deny := r.requireVaultOwner(req, user.ID, vaultID, "Only the vault owner can rename it.")
-if deny != nil {
-    return *deny, nil
-}
-```
+**Every** vault or item handler authorises through one of these four, and none re-implements the check inline. Each returns `(rows, deny)` — the loaded rows, or a ready-to-return denial to hand back as `*deny` when non-nil. The `ownerOnly` argument is the 403 message a member sees.
 
 | Helper | Requires |
 |--------|----------|
@@ -118,9 +90,9 @@ if deny != nil {
 | `requireItemAccess(req, userID, itemID)` | any access to the item's vault |
 | `requireItemOwner(req, userID, itemID, ownerOnly)` | owner of the item's vault |
 
-Two properties are built in rather than left to each caller. "Does not exist" and "is not yours" collapse into the same 404, because a distinguishable response turns any id into an existence oracle. And the role requirement is **in the function name**: members hold read access to a shared vault, so the owner check is the only thing between a member and someone else's data — a handler that wants it has to say so, and one that omits it reads as `requireVaultAccess` in review rather than as a missing line.
+Two properties are built in rather than left to callers. "Does not exist" and "is not yours" collapse into one 404, because a distinguishable response turns any id into an existence oracle. And the role requirement is **in the function name**: since members hold read access to a shared vault, the owner check is the only thing between a member and someone else's data, so a handler that wants it must say so — and one that omits it reads as `requireVaultAccess` rather than as a missing line.
 
-The one legitimate exception is `RemoveVaultMemberAPI`, where a member may remove themselves: it takes `requireVaultAccess` and then branches on the target. It says so in a comment; any other manual role comparison in a handler is a bug.
+`RemoveVaultMemberAPI` is the one legitimate exception (a member may remove themselves): it takes `requireVaultAccess` and branches on the target, and says so in a comment. Any other manual role comparison in a handler is a bug.
 
 ---
 
@@ -179,49 +151,26 @@ MAILGUN_API_KEY_STRING= / MAILGUN_DOMAIN_STRING= / MAILGUN_FROM_EMAIL_STRING=   
 
 ### Package layout
 
-All SQL lives in `internal/database` as standalone functions (not methods on models):
-
-```go
-func SelectVaultItems(ctx context.Context, db DbTx, builder *sq.StatementBuilderType, vaultID string) ([]models.Item, error)
-```
+All SQL lives in `internal/database` as standalone functions, not methods on models. They take `(ctx, db DbTx, builder, …)` and return domain types from `internal/models`.
 
 Functions take `db database.DbTx` (satisfied by both `*sql.DB` and `*sql.Tx` — callers pass `rt.GetDb()`) plus `builder`, keeping the package free of the runtime import. Functions that read or write encrypted-at-rest columns additionally take `cipher *crypto.FieldCipher` and do the FieldCipher work internally, so handlers never touch ciphertext plumbing.
 
-**Writes whose `WHERE` is pure identity must go through `execExpectingRow`**, which returns `ErrNoRowsAffected` when nothing matched. The package's division of labour is that handlers authorise and these functions then mutate by id; without the check, a forgotten authorisation check produces a write that changes nothing and still returns 200 — indistinguishable from success at every layer above. The guard turns that class of mistake into a loud 500. It matters most on the credential path: a silent no-op there would report a changed Master Password while the old hash still stood.
+**Writes whose `WHERE` is pure identity must go through `execExpectingRow`**, which returns `ErrNoRowsAffected` when nothing matched. Handlers authorise and these functions mutate by id, so without the guard a forgotten authorisation check produces a write that changes nothing and still returns 200 — indistinguishable from success at every layer above. It matters most on the credential path, where a silent no-op would report a changed Master Password while the old hash still stood.
 
-Writes that legitimately affect zero rows must **not** use it — the revoke helpers (`IS NULL` guarded so a second revoke is a no-op), `DeleteOtherUserSessions` (matches nothing when the account has only the current session), the session delete/touch helpers, `MarkNotificationRead(All)`, and the scheduler's bulk purges. The full list, with reasons, is on `ErrNoRowsAffected` in `db.go`; adding the guard to one of those turns an ordinary outcome into a 500.
+Writes that legitimately affect zero rows must **not** use it: the revoke helpers (`IS NULL` guarded so a second revoke is a no-op), `DeleteOtherUserSessions`, the session delete/touch helpers, `MarkNotificationRead(All)` and the scheduler's bulk purges. The full list with reasons is on `ErrNoRowsAffected` in `db.go`; adding the guard to one of those turns an ordinary outcome into a 500.
 
 ### Connections and transactions
 
 Never query `rt.DB` directly in database code. Use `rt.GetDb()`.
 
-```go
-transactionErr := runtime.WithTransaction(rt, ctx, func(txRt *runtime.Runtime) error {
-    if insertErr := database.InsertItem(ctx, txRt.GetDb(), &txRt.Builder, item); insertErr != nil {
-        return insertErr
-    }
-    revision, bumpErr := runtime.SignalUserChanged(ctx, txRt, userID)
-    return bumpErr
-})
-```
-
+- `runtime.WithTransaction(rt, ctx, fn)` hands `fn` a transaction-scoped `*Runtime`; everything inside uses that one's `GetDb()` and `Builder`, and returning an error rolls back.
 - Use `WithTransaction` every time more than one table changes in sequence.
 - Do not pass `*sql.Tx` through signatures; do not set/clear `Runtime.TX` outside the helper.
 - Keep transactions short; no external APIs inside them.
 
 ### The change signal (cross-device sync)
 
-Every mutation follows one shape — mutate, bump the affected users' revisions **inside** the same transaction, then publish and audit **after** it commits. Handlers do not assemble that sequence by hand; they call one of the three commit helpers in `signal.go` and supply only the mutation:
-
-```go
-revisions, commitErr := r.commitVaultChange(req, user.ID, item.VaultID, "item_updated", "item", item.ID,
-    func(txRt *Runtime) error {
-        return database.UpdateItemBlobs(req.Context, txRt.GetDb(), &txRt.Builder, item.ID, overview, details)
-    })
-if commitErr != nil {
-    return bungo.APIResponse{}, commitErr
-}
-```
+Every mutation follows one shape — mutate, bump the affected users' revisions **inside** the same transaction, then publish and audit **after** it commits. Handlers do not assemble that sequence by hand; they call one of the three commit helpers in `signal.go`, passing the audit fields plus a `mutate` closure that receives a transaction-scoped `*Runtime`, and get back the new revisions.
 
 | Helper | Audience |
 |--------|----------|
@@ -229,11 +178,9 @@ if commitErr != nil {
 | `commitVaultChange(req, actorID, vaultID, action, entityType, entityID, mutate)` | everyone with access, resolved **after** the mutation so a member it adds is included |
 | `commitAudienceChange(req, actorID, audience, action, entityType, entityID, mutate)` | a list captured **before** the mutation, for changes that delete the access rows identifying it (vault delete, member removal) |
 
-The ordering is not stylistic. Bumping inside the transaction is what makes a rolled-back change unable to signal anyone; publishing only after commit is what stops a client being told to refetch data that was never written. Spelled out per call site those are two invariants a handler can get wrong silently, so the helpers own them and a handler cannot sequence them incorrectly. API responses return the acting user's own revision from the returned map.
+The ordering is not stylistic. Bumping inside the transaction is what makes a rolled-back change unable to signal anyone; publishing only after commit is what stops a client being told to refetch data that was never written. Both are invariants a handler could get wrong silently, so the helpers own them. API responses return the acting user's own revision from the returned map.
 
-Registration is the sole handler using a bare `WithTransaction`, because it creates the user and so has no prior revision to bump.
-
-Clients send a per-tab id in `X-Vault3-Client`; the event echoes it as `origin` so the originating tab skips its own refetch. `GET /api/v1/sync/revision` is the reconnect/poll fallback. The hub is in-process — if the web tier ever scales horizontally, put Postgres LISTEN/NOTIFY behind the same Publish/Subscribe surface.
+Registration is the sole handler using a bare `WithTransaction`: it creates the user, so there is no prior revision to bump.
 
 Clients send a per-tab id in `X-Vault3-Client`; the event echoes it as `origin` so the originating tab skips its own refetch. `GET /api/v1/sync/revision` is the reconnect/poll fallback. The hub is in-process — if the web tier ever scales horizontally, put Postgres LISTEN/NOTIFY behind the same Publish/Subscribe surface.
 
@@ -284,9 +231,9 @@ Key/value platform config lives in `vault3_platform_setting` (`internal/database
 
 ## Notifications
 
-All notifications run through one abstraction, `(*Runtime).Notify(ctx, event)` (`internal/runtime/notify.go`): handlers never decide who is told, over which channel, or against whose preferences. A handler builds a typed event (`Welcome`, `NewDeviceLogin`, `PasswordChanged`, `TwoFactorChanged`, `EmailVerification`, `AccountReset`) and calls `Notify` **after the triggering write commits**; the event expands into per-recipient planned notifications, and `Notify` consults `vault3_user.NotificationPrefs` per channel.
+All notifications run through `(*Runtime).Notify(ctx, event)` (`internal/runtime/notify.go`): handlers never decide who is told, over which channel, or against whose preferences. A handler builds a typed event (`Welcome`, `NewDeviceLogin`, `PasswordChanged`, `TwoFactorChanged`, `EmailVerification`, `AccountReset`) and calls `Notify` **after the triggering write commits**.
 
-Channel gate: **in-app is always allowed** (the bell cannot be disabled); email is gated by the master toggle plus the kind's category toggle (`securityAlerts`, `productUpdates`), except the always-sent kinds (`alwaysEmailKinds`: welcome, verification, reset, password-changed) which bypass preferences. Preferences decode through `models.NotificationPrefs`, the same shape the settings page writes. In-app rows are FieldCipher-encrypted at rest.
+Channel gate: **in-app is always allowed** (the bell cannot be disabled); email is gated by the master toggle plus the kind's category toggle (`securityAlerts`, `productUpdates`), except `alwaysEmailKinds` (welcome, verification, reset, password-changed) which bypass preferences. Preferences decode through `models.NotificationPrefs`, the shape the settings page writes. In-app rows are FieldCipher-encrypted at rest.
 
 ### Email delivery (Mailgun)
 
@@ -298,7 +245,7 @@ Channel gate: **in-app is always allowed** (the bell cannot be disabled); email 
 
 Housekeeping runs in a **separate process**: `cmd/scheduler`, a second entry point that reuses the web server's Runtime via `runtime.StartWorker()` — identical to `Start()` except it never runs the dev schema sync (the web process owns schema application). Deploy as its own container; `start.sh` wires `vault3-scheduler` locally.
 
-Job orchestration lives in `internal/jobs`: each job is a `func(ctx, rt) error` registered in `jobs.Run` with a name and interval; every job runs once on startup then on its interval, and drains on SIGINT/SIGTERM. **Jobs must be idempotent** — the WHERE clause is the claim. Current jobs: `purge_expired_sessions` (hourly), `purge_trashed_items` (daily, 30-day retention), `clear_expired_auth_tokens` (daily), `purge_lapsed_sharing` (daily; drops share links and invites a grace week after they expire, are revoked or are used). Job SQL lives in `internal/database/scheduler.go`. To add a job: query helper, job function, register in `jobs.Run`.
+Job orchestration lives in `internal/jobs`: each job is a `func(ctx, rt) error` registered in `jobs.Run` with a name and interval, runs once on startup then on its interval, and drains on SIGINT/SIGTERM. **Jobs must be idempotent** — the WHERE clause is the claim. Job SQL lives in `internal/database/scheduler.go`. To add one: query helper, job function, register in `jobs.Run`.
 
 ---
 

@@ -166,7 +166,8 @@
   background-image: var(--gradient-brand);
 }
 
-/* Numbered step tile inside a .panel — the digit sits in a gradient chip. */
+/* Numbered step tile inside a .panel — the digit sits in a gradient chip.
+   Used where a step number is a label: the whitepaper's section headers. */
 .step-chip {
   display: inline-flex;
   align-items: center;
@@ -179,6 +180,57 @@
   color: var(--accent-foreground);
   background-image: var(--gradient-brand);
   box-shadow: var(--shadow-accent);
+}
+
+/* The landing's three steps want more than a chip. Two copies of the same
+   digit: a tilted mark that straightens as the tile lifts, and an enormous
+   ghost of itself cropped by the panel's own edge. .panel clips its
+   contents, so the crop is free — the digit reads as too big for the tile
+   rather than as a badge sitting politely inside one. */
+.step-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.4rem;
+  height: 3.4rem;
+  border-radius: var(--radius-lg);
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 1.15rem;
+  color: var(--accent-foreground);
+  background-image: var(--gradient-brand);
+  box-shadow: var(--shadow-accent);
+  transform: rotate(-7deg);
+  transition: transform var(--duration-slow) var(--ease-spring);
+}
+.panel-interactive:hover .step-mark { transform: rotate(0deg) scale(1.05); }
+
+/* Negative z-index keeps it above the panel's background and behind the
+   copy; .panel isolates, so it cannot fall through to the page. */
+.step-ghost {
+  position: absolute;
+  z-index: -1;
+  top: -2.6rem;
+  right: -1.1rem;
+  font-family: var(--font-mono);
+  font-weight: 800;
+  font-size: 9rem;
+  line-height: 1;
+  letter-spacing: -0.07em;
+  color: transparent;
+  background-image: var(--gradient-brand);
+  -webkit-background-clip: text;
+  background-clip: text;
+  opacity: 0.1;
+  pointer-events: none;
+  user-select: none;
+  transition: opacity var(--duration-slow) var(--ease-out);
+}
+.panel-interactive:hover .step-ghost { opacity: 0.17; }
+
+@media (prefers-reduced-motion: reduce) {
+  .step-mark,
+  .panel-interactive:hover .step-mark { transition: none; }
 }
 
 /* Icon tile for feature cards: a soft accent well, not a bare glyph. */
@@ -832,6 +884,324 @@
   border-radius: var(--radius-full);
   background: var(--danger-subtle);
   color: var(--danger-fg);
+}
+
+/* ════════════════════════════════════════════════════════════════════ */
+/* Whitepaper                                                            */
+/*                                                                       */
+/* /security is the argument; /whitepaper is the construction. The page  */
+/* is long on purpose, so it reads as a document: a contents rail that   */
+/* says where you are, and tables rather than prose wherever the content */
+/* is really a list of parameters.                                       */
+/* ════════════════════════════════════════════════════════════════════ */
+
+/* Contents rail. Plain anchors, so it navigates with JavaScript off;
+   whitepaper.ts adds aria-current to the section being read, which is the
+   only thing the script contributes. */
+.toc { list-style: none; margin: 0; padding: 0; border-left: 1px solid var(--border); }
+.toc a {
+  display: block;
+  margin-left: -1px;
+  padding: 0.4rem 0 0.4rem 0.85rem;
+  border-left: 1px solid transparent;
+  font-size: var(--text-sm);
+  line-height: 1.35;
+  color: var(--muted-foreground);
+  text-decoration: none;
+  transition: color var(--duration-fast) var(--ease-out),
+              border-color var(--duration-fast) var(--ease-out);
+}
+.toc a:hover { color: var(--foreground); }
+.toc a[aria-current] {
+  color: var(--accent);
+  border-left-color: var(--accent);
+  font-weight: 600;
+}
+.toc-num {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  margin-right: 0.45rem;
+  opacity: 0.55;
+}
+
+/* A URL split at the hash: what the request carries, and what the browser
+   keeps to itself. The two halves are styled as opposites because that is
+   the whole point of the construction. */
+.frag {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 2;
+  word-break: break-all;
+}
+.frag-sent { color: var(--muted-foreground); }
+.frag-kept {
+  color: var(--accent);
+  background: var(--accent-subtle);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-sm);
+  padding: 0.1rem 0.3rem;
+}
+
+/* Threat model. A real table: the rows are genuinely a matrix of adversary
+   against outcome, and prose would only bury it. */
+.threat { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+.threat th,
+.threat td {
+  text-align: left;
+  vertical-align: top;
+  padding: 0.7rem 0.9rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.threat th {
+  font-weight: 600;
+  color: var(--foreground);
+  white-space: nowrap;
+}
+.threat thead th {
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted-foreground);
+  border-bottom-color: var(--border);
+}
+.threat td { color: var(--muted-foreground); line-height: var(--line-relaxed); }
+.threat tbody tr:last-child th,
+.threat tbody tr:last-child td { border-bottom: none; }
+
+/* Below sm the table stops being a table: each row becomes a small block
+   with its adversary as a heading, which beats two columns squeezed into a
+   phone or a horizontal scrollbar under the reader's thumb. */
+@media (max-width: 639px) {
+  .threat thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .threat tbody tr { display: block; border-bottom: 1px solid var(--border-subtle); padding: 0.5rem 0; }
+  .threat tbody tr:last-child { border-bottom: none; }
+  .threat th,
+  .threat td { display: block; border-bottom: none; padding: 0.2rem 0; white-space: normal; }
+}
+
+/* ════════════════════════════════════════════════════════════════════ */
+/* Features page                                                         */
+/*                                                                       */
+/* / and /security argue; this page inventories. It deliberately shares  */
+/* none of their figures: no seal bars, no phrase grid, no drifting      */
+/* ciphertext, no countdown dial. The devices below are its own, and     */
+/* each one shows the actual artefact the feature produces — the field   */
+/* rows of a card item, the stack of vaults, the row a share link adds.  */
+/* Same rule as everywhere else: decorative, aria-hidden, and the copy   */
+/* beside one carries the claim without it.                              */
+/* ════════════════════════════════════════════════════════════════════ */
+
+/* Hero capability cloud: the whole inventory as chips, a few of them lit
+   at any moment. --i staggers the glow so the light travels rather than
+   pulsing in unison, which would read as a loading state. */
+.cap-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  justify-content: center;
+}
+.cap-chip {
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border);
+  background-color: var(--card);
+  padding: 0.3rem 0.7rem;
+  font-size: 12px;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+  animation: cap-glow 9s var(--ease-in-out) infinite;
+  animation-delay: calc(var(--i, 0) * 0.42s);
+}
+@keyframes cap-glow {
+  0%, 88%, 100% { border-color: var(--border); color: var(--muted-foreground); background-color: var(--card); }
+  93% { border-color: var(--accent-border); color: var(--accent); background-color: var(--accent-subtle); }
+}
+
+/* Category specimen: one item's field rows, as the form actually lists
+   them. features.ts swaps the contents between categories; the tabs above
+   it are the shared .seg control from theme.css, so they match the
+   generator's mode pair rather than being a second look-alike. */
+.spec-field {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.6rem 0;
+  font-size: 13px;
+}
+.spec-field + .spec-field { border-top: 1px solid var(--border-subtle); }
+.spec-field > span:first-child { color: var(--muted-foreground); }
+.spec-field > span:last-child { font-family: var(--font-mono); color: var(--foreground); }
+.spec-field .is-secret { color: var(--accent); letter-spacing: 0.12em; }
+/* The swap is a fade rather than a slide: four categories cycling past
+   sideways would pull the eye away from the copy beside them. The floor is
+   the tallest category (four rows), so the card holds its height instead of
+   collapsing on the two-row note and shunting the page under the cursor. */
+.spec-body {
+  min-height: 10.5rem;
+  transition: opacity var(--duration-base) var(--ease-out);
+}
+.spec-body.is-swapping { opacity: 0; }
+
+/* Vault deck: separate vaults as stacked cards, the front one square on
+   and the ones behind it tilted back. The only place on the site that
+   uses depth, which is what makes "more than one vault" read instantly. */
+.deck { position: relative; height: 8.5rem; }
+.deck-card {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background-color: var(--card);
+  background-image: var(--surface-raised);
+  padding: 0.75rem 0.95rem;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 13px;
+  transition: transform var(--duration-slow) var(--ease-out);
+}
+/* Three layers, each set inline with --d (depth index): further back means
+   smaller, higher and dimmer. */
+.deck-card {
+  top: calc(var(--d) * 1.9rem);
+  transform: scale(calc(1 - (2 - var(--d)) * 0.05));
+  opacity: calc(0.55 + var(--d) * 0.225);
+  z-index: var(--d);
+}
+.panel-interactive:hover .deck-card { transform: scale(calc(1 - (2 - var(--d)) * 0.02)); }
+.deck-key {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: var(--radius-full);
+  flex: none;
+  background: var(--tint, var(--accent));
+}
+
+/* People with access to a shared vault: an initial, a name, and what they
+   are allowed to do. */
+.people { list-style: none; margin: 0; padding: 0; }
+.person {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0;
+  font-size: 13px;
+}
+.person + .person { border-top: 1px solid var(--border-subtle); }
+.person-face {
+  width: 1.65rem;
+  height: 1.65rem;
+  flex: none;
+  border-radius: var(--radius-full);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent-foreground);
+  background-image: var(--gradient-brand);
+}
+.person-role {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: var(--letter-wide);
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+/* A share link as the dialog lists it: what it is for, how long it has
+   left, how many times it has been opened. */
+.link-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.55rem 0;
+  font-size: 13px;
+}
+.link-row + .link-row { border-top: 1px solid var(--border-subtle); }
+.link-meta { margin-left: auto; font-family: var(--font-mono); font-size: 10px; color: var(--muted-foreground); white-space: nowrap; }
+.link-row.is-dead { color: var(--muted-foreground); }
+.link-row.is-dead .link-name { text-decoration: line-through; }
+
+/* Sync, shown as the thing that proves it: the same change, stamped at
+   the same second on two devices. The stamps flash together, because
+   simultaneity is the whole claim. */
+.echo { display: grid; gap: 0.5rem; }
+.echo-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background-color: var(--muted);
+  padding: 0.5rem 0.7rem;
+  font-size: 12px;
+}
+.echo-row time {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--accent-2);
+  animation: echo-flash 4.5s var(--ease-in-out) infinite;
+}
+@keyframes echo-flash {
+  0%, 82%, 100% { opacity: 0.55; }
+  88% { opacity: 1; }
+}
+
+/* Trash retention: thirty days as thirty marks, the spent ones faded. The
+   count is the point, so the figure is literally countable. */
+.ticks { display: flex; gap: 3px; align-items: flex-end; }
+.tick {
+  width: 4px;
+  height: 1.1rem;
+  border-radius: 1px;
+  background-color: var(--accent);
+  opacity: 0.85;
+}
+.tick.is-spent { background-color: var(--border-strong); opacity: 1; height: 0.7rem; }
+
+/* The quiet list: features that deserve naming but not a figure. Hairline
+   rules and a mono note, so a long tail of small things does not turn
+   into a wall of identical cards. */
+.spec-list { list-style: none; margin: 0; padding: 0; }
+.spec-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  padding: 0.75rem 0;
+}
+.spec-list li + li { border-top: 1px solid var(--border-subtle); }
+.spec-list strong { font-weight: 600; color: var(--foreground); flex: none; min-width: 10rem; }
+.spec-list span { color: var(--muted-foreground); font-size: var(--text-sm); line-height: var(--line-relaxed); }
+
+/* The Emergency Kit as the sheet of paper it is meant to become: sitting
+   slightly askew, because the instruction attached to it is "print this". */
+.kit-sheet {
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-strong);
+  background-color: var(--muted);
+  padding: 1rem 1.1rem;
+  transform: rotate(-1.4deg);
+  box-shadow: 0 10px 30px -18px rgba(0, 0, 0, 0.9);
+}
+.kit-sheet .kit-rule {
+  height: 1px;
+  background-image: var(--gradient-edge);
+  margin: 0.7rem 0;
+}
+.kit-blank {
+  height: 0.55rem;
+  border-radius: 2px;
+  background-color: var(--border);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cap-chip,
+  .echo-row time { animation: none; }
+  .kit-sheet { transform: none; }
 }
 
 /* Footer colophon: the credit line and the source link, sitting under the

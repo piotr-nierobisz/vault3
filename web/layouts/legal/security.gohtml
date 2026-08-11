@@ -3,7 +3,14 @@
      document — it gets the marketing surface (ambient canvas, panels, the
      key-derivation diagram) rather than the legal sidebar. Every claim
      here must stay literally true of web/lib/crypto.ts and the Go side;
-     see docs/security.md before editing the copy. */}}
+     see docs/security.md before editing the copy.
+
+     This page answers the question a visitor arrives with: what happens to
+     my data, and what does that stop. The construction behind the answer —
+     the vocabulary, the parameters, the envelope, the threat model — lives
+     at /whitepaper, and the two pages must never carry the same sentence.
+     If a section here starts growing a second paragraph of mechanism, that
+     paragraph belongs over there. */}}
 {{/* Marked up as a technical article: this is the page we most want search
      and answer engines to quote, and quoting it correctly requires them to
      know it is documentation rather than a landing page. Keep dateModified
@@ -13,15 +20,16 @@
   "@context": "https://schema.org",
   "@type": "TechArticle",
   "@id": "{{.CanonicalURL}}/#article",
-  "headline": "How Vault3 protects you",
+  "headline": "Security",
   "description": "{{.PageDescription}}",
   "url": "{{.CanonicalURL}}",
-  "dateModified": "2026-07-30",
+  "dateModified": "2026-08-11",
   "inLanguage": "en-GB",
   "isPartOf": { "@id": "{{.Site.URL}}/#website" },
   "about": { "@id": "{{.Site.URL}}/#app" },
   "publisher": { "@id": "{{.Site.URL}}/#organization" },
-  "proficiencyLevel": "Beginner"
+  "proficiencyLevel": "Beginner",
+  "citation": { "@id": "{{.Site.URL}}/whitepaper/#article" }
 }
 </script>
 <div class="min-h-screen flex flex-col text-foreground overflow-x-hidden">
@@ -36,79 +44,43 @@
     <section class="relative px-6 pt-12 pb-10 sm:pt-20 sm:pb-16">
         <div class="glow-orb" style="--orb:var(--accent-3-glow);width:460px;height:320px;top:-90px;left:50%;transform:translateX(-50%);opacity:0.7"></div>
         <div class="relative max-w-3xl mx-auto text-center">
-            <div class="badge badge-rim mb-7 animate-fade">
-                <span class="w-1.5 h-1.5 rounded-full bg-accent animate-glow"></span>
-                Security
-            </div>
+            {{/* The page is called what it is. The badge used to say
+                 "Security" above a headline that said the same thing in
+                 more words; the headline says it now, and the badge is
+                 gone rather than repeating it. */}}
             <h1 class="text-5xl font-extrabold tracking-tighter leading-tight mb-6">
-                How Vault3<br class="sm:hidden" />
-                <span class="text-gradient">protects you</span>
+                <span class="text-gradient">Security</span>
             </h1>
             <p class="text-lg text-muted-foreground leading-relaxed max-w-2xl mx-auto">
-                Everything in your vault is locked <strong class="text-foreground font-semibold">on your device</strong>, with a key built from two secrets only you have. So all our servers ever hold — and all anyone who breaks into them can take — is scrambled text.
+                Everything in your vault is encrypted <strong class="text-foreground font-semibold">on your device</strong>, with a key built from two secrets only you have. What the server stores is encrypted text, an email address and timestamps. Nothing that would open a vault is ever sent to it.
             </p>
             <div class="mt-9 flex flex-wrap items-center justify-center gap-2.5 font-mono text-[11px]">
                 <span class="badge badge-accent-2">AES-256-GCM</span>
                 <span class="badge badge-accent">Argon2id · 64 MiB</span>
                 <span class="badge badge-accent-2">PBKDF2-SHA512 · 1,000,000</span>
                 <span class="badge badge-accent">HKDF-SHA512</span>
-                <span class="badge badge-accent-2">Post-quantum</span>
             </div>
-            <p class="mt-7 text-xs text-muted-foreground">The whole design, in plain language. Last updated: 30 July 2026</p>
-        </div>
-    </section>
+            {{/* The badges are the page's only jargon, and they are skippable
+                 by design: the prose above and below never leans on them.
+                 Anyone who wants them translated is one link away rather
+                 than reading a glossary before the argument starts.
 
-    {{/* ───────── In plain words ─────────
-         The five badges above are the page's whole vocabulary, and a
-         visitor who does not read cryptography papers meets them here
-         first. Everything after this section is allowed to use them. */}}
-    <section class="px-6 py-10 sm:py-14 scroll-reveal">
-        <div class="max-w-3xl mx-auto">
-            <div class="max-w-xl mb-6 sm:mb-8">
-                <p class="eyebrow mb-4">In plain words</p>
-                <h2 class="text-3xl font-bold tracking-tight mb-4">The jargon, translated</h2>
-                <p class="text-muted-foreground leading-relaxed">You do not need any of these names to use Vault3. They are here because a security page that hides them is asking to be taken on trust.</p>
-            </div>
-            <dl class="gloss panel p-6 sm:p-8 scroll-reveal-child">
-                <div class="gloss-row">
-                    <dt>zero-knowledge</dt>
-                    <dd>We hold your data without ever holding the means to read it. Not a promise about our behaviour — a consequence of where the locking happens.</dd>
-                </div>
-                <div class="gloss-row">
-                    <dt>ciphertext</dt>
-                    <dd>Your information after it has been locked: same size, none of the meaning. It is the only version of your vault we have ever seen.</dd>
-                </div>
-                <div class="gloss-row">
-                    <dt>AES-256-GCM</dt>
-                    <dd>The lock itself, and the standard choice for exactly this job. The <span class="font-mono">GCM</span> part adds a tamper seal: if a single byte of a locked item changed in our database, your browser would refuse it rather than show you something altered.</dd>
-                </div>
-                <div class="gloss-row">
-                    <dt>Argon2id · 64 MiB</dt>
-                    <dd>A deliberate slowdown around your Master Password. Every single guess has to fill 64 MB of memory first — barely noticeable once on your laptop, ruinous for someone trying billions of guesses on rented hardware.</dd>
-                </div>
-                <div class="gloss-row">
-                    <dt>PBKDF2-SHA512 · 1,000,000</dt>
-                    <dd>The same idea done a second, older, approved way, as a backstop: a million rounds of arithmetic your password must pass through before it becomes a key. Two independent slowdowns means neither one has to be perfect.</dd>
-                </div>
-                <div class="gloss-row">
-                    <dt>HKDF-SHA512</dt>
-                    <dd>How one secret becomes several separate keys. The keys are siblings, not copies: having one tells you nothing about the others, and the relationship only runs one way.</dd>
-                </div>
-                <div class="gloss-row">
-                    <dt>post-quantum</dt>
-                    <dd>The kind of maths a future quantum computer is expected to break is not used here at all — so nothing we store today quietly becomes readable in twenty years.</dd>
-                </div>
-            </dl>
+                 "Post-quantum" is deliberately NOT a fifth badge here — it is
+                 a claim about the structure of the list, so it is stated as
+                 one. See the copy rules in docs/product.md. */}}
+            <p class="mt-5 text-sm text-muted-foreground max-w-xl mx-auto">
+                Every primitive above is symmetric or hash-based. There is no public-key cryptography anywhere in Vault3, so there is nothing here for a quantum computer to break and nothing due to be replaced later. Each name is defined in <a href="/whitepaper" class="text-accent hover:text-accent-active">the whitepaper</a>.
+            </p>
         </div>
     </section>
 
     {{/* ───────── Key derivation diagram ───────── */}}
-    <section class="px-6 py-12 sm:py-16 scroll-reveal">
+    <section id="derivation" class="px-6 py-12 sm:py-16 scroll-reveal scroll-mt-24">
         <div class="max-w-4xl mx-auto">
             <div class="max-w-xl mb-8 sm:mb-12">
                 <p class="eyebrow mb-4">Key derivation</p>
                 <h2 class="text-3xl font-bold tracking-tight mb-4">Two secrets, one key</h2>
-                <p class="text-muted-foreground leading-relaxed">Unlocking your vault takes two things. Your browser puts them together into a single unlock key, and builds every other key from that one — all of it before a single byte is sent anywhere.</p>
+                <p class="text-muted-foreground leading-relaxed">Unlocking your vault takes two things. Your browser combines them into a single unlock key and derives every other key from it, all before anything is sent.</p>
             </div>
 
             <div class="panel p-6 sm:p-10 scroll-reveal-child">
@@ -116,13 +88,13 @@
                 <div class="grid sm:grid-cols-2 gap-5">
                     <div class="flow-node">
                         <p class="font-semibold mb-1.5">Your Master Password</p>
-                        <p class="text-sm text-muted-foreground leading-relaxed mb-3">Chosen by you, kept in your head, never sent anywhere. Before it becomes part of a key it goes through two slowdowns, one after the other: a million rounds of standard arithmetic, then a stage that demands 64 MB of memory for every attempt. Together they turn mass guessing from cheap into unaffordable.</p>
+                        <p class="text-sm text-muted-foreground leading-relaxed mb-3">Chosen by you, kept in your head, and never sent anywhere. Before it becomes part of a key it passes through two deliberate slowdowns, one after the other: a long run of standard arithmetic, then a stage that has to fill a block of memory for every attempt. Together they make large-scale guessing prohibitively expensive.</p>
                         <span class="badge badge-accent font-mono text-[11px]">Argon2id · 64 MiB · 4 passes ← PBKDF2-SHA512 · 1,000,000 · per-account salt</span>
                     </div>
                     <div class="flow-node">
                         <p class="font-semibold mb-1.5">Your Secret Phrase</p>
-                        <p class="text-sm text-muted-foreground leading-relaxed mb-3">Twelve words your browser draws at random when you sign up, written into your Emergency Kit and never sent to us. No slowdown is needed here: with 132 bits of randomness there is nothing to guess at, and twelve words rather than nine keeps it beyond a quantum computer's reach as well.</p>
-                        <span class="badge badge-accent font-mono text-[11px]">HKDF-SHA512</span>
+                        <p class="text-sm text-muted-foreground leading-relaxed mb-3">Twelve words your browser picks at random when you sign up, written into your Emergency Kit and kept on your device. No slowdown is applied here: the phrase is already uniformly random and long enough that searching it is infeasible, with enough margin to stay that way against a quantum computer.</p>
+                        <span class="badge badge-accent font-mono text-[11px]">12 words · 132 bits · HKDF-SHA512</span>
                     </div>
                 </div>
 
@@ -132,7 +104,7 @@
                 {{/* ── combined into the master unlock key ── */}}
                 <div class="flow-node flow-node-accent text-center">
                     <p class="font-semibold text-lg mb-1.5">Master unlock key</p>
-                    <p class="text-sm text-muted-foreground leading-relaxed max-w-lg mx-auto">Neither secret is worth anything on its own. A stolen phrase without the password, or a guessed password without the phrase, opens nothing at all.</p>
+                    <p class="text-sm text-muted-foreground leading-relaxed max-w-lg mx-auto">Both secrets are required. A stolen phrase without the password, or a guessed password without the phrase, produces the wrong key.</p>
                 </div>
 
                 <div class="flow-link" aria-hidden="true"></div>
@@ -145,45 +117,17 @@
                             <svg class="h-4 w-4 text-accent-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h16"/><path d="m14 6 6 6-6 6"/></svg>
                             <p class="font-semibold">Authentication key</p>
                         </div>
-                        <p class="text-sm text-muted-foreground leading-relaxed">This one is sent to us, and its only job is to prove you are you. We store a scrambled fingerprint of it, never the key. And it cannot open your vault: it is a sibling of the encryption key, not a copy, so it carries none of it.</p>
+                        <p class="text-sm text-muted-foreground leading-relaxed">This one is sent to the server, and its only job is to prove your identity. The server stores a hash of it rather than the key itself. It is a sibling of the encryption key rather than a copy, so it cannot decrypt anything.</p>
                     </div>
                     <div class="flow-node flow-node-accent">
                         <div class="flex items-center gap-2 mb-1.5">
                             <svg class="h-4 w-4 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
                             <p class="font-semibold">Encryption key</p>
                         </div>
-                        <p class="text-sm text-muted-foreground leading-relaxed">This one never leaves your device. It opens your vault key, which opens a separate key for every single item, which is what finally unlocks that item's contents — each one sealed with <code class="font-mono text-accent">AES-256-GCM</code>.</p>
+                        <p class="text-sm text-muted-foreground leading-relaxed">This one never leaves your device. It unwraps your vault key, which unwraps a separate key for each item, which decrypts that item's contents. Every item is sealed with <code class="font-mono text-accent">AES-256-GCM</code>.</p>
                     </div>
                 </div>
             </div>
-        </div>
-    </section>
-
-    {{/* ───────── Post-quantum ───────── */}}
-    <section class="px-6 py-12 sm:py-16 scroll-reveal">
-        <div class="max-w-4xl mx-auto">
-            <div class="max-w-xl mb-8 sm:mb-12">
-                <p class="eyebrow mb-4">Post-quantum</p>
-                <h2 class="text-3xl font-bold tracking-tight mb-4">Nothing here for a quantum computer to break</h2>
-                <p class="text-muted-foreground leading-relaxed">A password manager has an unusual problem. Anything copied out of it today can be kept for decades and opened the moment the tools catch up. So the question is not whether a quantum computer exists now — it is whether anything we store would fall to one later. Three reasons ours would not:</p>
-            </div>
-
-            <div class="grid sm:grid-cols-3 gap-5">
-                <div class="panel p-6 scroll-reveal-child">
-                    <p class="font-semibold mb-1.5">Nothing to break in the first place</p>
-                    <p class="text-sm text-muted-foreground leading-relaxed">The quantum result that genuinely breaks encryption undoes one particular kind of maths — the kind behind RSA and elliptic curves, which is what protects most of the web today. Vault3 uses none of it, anywhere. Your account has no key pair, and nothing in our database was ever locked with one.</p>
-                </div>
-                <div class="panel p-6 scroll-reveal-child">
-                    <p class="font-semibold mb-1.5">Sized for the shortcut that does exist</p>
-                    <p class="text-sm text-muted-foreground leading-relaxed">Against everything else, a quantum computer roughly halves the strength of a key — so every key here is sized to give that half away and still be far out of reach: <code class="font-mono text-accent">AES-256</code> keeps 128 bits, <code class="font-mono text-accent">SHA-512</code> keeps 256, your Secret Phrase keeps 66. Each is at or above what NIST treats as the post-quantum minimum.</p>
-                </div>
-                <div class="panel p-6 scroll-reveal-child">
-                    <p class="font-semibold mb-1.5">Sharing adds no weak spot</p>
-                    <p class="text-sm text-muted-foreground leading-relaxed">When you share an item, the key travels inside the part of the link your browser never sends to us, and what we keep is a bundle only that key opens. So sharing leaves nothing extra behind to be harvested now and opened later — which is exactly where a service like this usually picks up an expiry date.</p>
-                </div>
-            </div>
-
-            <p class="text-sm text-muted-foreground leading-relaxed mt-8 max-w-2xl">The honest summary: this is a result of how Vault3 is built, not a feature we added. Nothing in it is due to be swapped out for something quantum-safe later — so there is no future upgrade you would have to trust us to get right.</p>
         </div>
     </section>
 
@@ -191,9 +135,9 @@
     <section class="px-6 py-12 sm:py-16 scroll-reveal">
         <div class="max-w-4xl mx-auto">
             <div class="max-w-xl mb-8 sm:mb-12">
-                <p class="eyebrow mb-4">What we store</p>
-                <h2 class="text-3xl font-bold tracking-tight mb-4">What the server actually sees</h2>
-                <p class="text-muted-foreground leading-relaxed">Everything we keep arrives already locked: an item's contents, its name, the names of your vaults, even your account's own keys. Here is one item as it looks to you, and as it looks to us.</p>
+                <p class="eyebrow mb-4">Storage</p>
+                <h2 class="text-3xl font-bold tracking-tight mb-4">What the server stores</h2>
+                <p class="text-muted-foreground leading-relaxed">Your item contents, item titles, vault names and wrapped keys all arrive already encrypted. Here is one item as it looks on your device, and as it is stored.</p>
             </div>
 
             <div class="grid md:grid-cols-2 gap-5 scroll-reveal-child">
@@ -210,7 +154,7 @@
                 </div>
                 <div class="panel p-6" data-security-cipher>
                     <div class="flex items-center justify-between mb-4">
-                        <p class="text-sm font-semibold">In our database</p>
+                        <p class="text-sm font-semibold">In the database</p>
                         <span class="badge badge-accent font-mono text-[11px]">sealed</span>
                     </div>
                     <div class="compare-pane compare-pane-sealed">
@@ -222,7 +166,7 @@
             </div>
 
             <p class="text-muted-foreground leading-relaxed mt-8 max-w-2xl scroll-reveal-child">
-                A copy of our whole database shows someone how many items you keep and when you last changed them. Never what a single one of them is.
+                A copy of the whole database shows how many items you keep, when they last changed, and your email address. It does not show what any of them contain.
             </p>
         </div>
     </section>
@@ -240,11 +184,11 @@
             <div class="grid md:grid-cols-3 gap-5 sm:gap-6">
                 <div class="panel panel-interactive p-6 sm:p-7 scroll-reveal-child flex flex-col">
                     <h3 class="font-semibold leading-snug mb-3">We cannot read your vault</h3>
-                    <p class="text-sm text-muted-foreground leading-relaxed">Not to help you, not to help ourselves, not because somebody insists. This is the whole of what anyone here can open.</p>
+                    <p class="text-sm text-muted-foreground leading-relaxed">There is no internal tool, support path or administrative override that decrypts a vault. The envelope below is the whole of what anyone here can open.</p>
                     <div class="mt-auto pt-6">
                         <div class="fig fig-sealed" aria-hidden="true">
-                            <p class="fig-label mb-2">the row support would open</p>
-                            <p class="break-all">{"v":1,"alg":"A256GCM","n":"Vf7Kd3wZs2…","c":"hQ2nZpVt7aXeR4mKdJ0sLbYc9wUf…"}</p>
+                            <p class="fig-label mb-2">what a support request would show</p>
+                            <p class="break-all">{"v":2,"alg":"A256GCM","n":"Vf7Kd3wZs2…","c":"hQ2nZpVt7aXeR4mKdJ0sLbYc9wUf…"}</p>
                         </div>
                     </div>
                 </div>
@@ -255,20 +199,20 @@
                             <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></svg>
                             Email me a reset link
                         </span>
-                        <p class="fig-label mt-2.5">no such button, by construction</p>
+                        <p class="fig-label mt-2.5">this button does not exist</p>
                     </div>
-                    <p class="text-sm text-muted-foreground leading-relaxed">There is no reset email and no recovery route behind the scenes — not even one that would wipe your vault so you could start again. We hold locked text and nothing else, so we could not let you back in if we wanted to. Your Emergency Kit is the way back, which is why we make you save it before you begin.</p>
+                    <p class="text-sm text-muted-foreground leading-relaxed">There is no reset email and no internal recovery route, including one that would wipe the vault so you could start over. The server holds encrypted text and a hash of your authentication key, and neither can be turned back into a working key. Your Emergency Kit is the way back in, which is why saving it is a required step at sign-up.</p>
                 </div>
                 <div class="panel panel-interactive p-6 sm:p-7 scroll-reveal-child">
                     <h3 class="font-semibold leading-snug mb-4">A breach of our servers cannot expose your secrets</h3>
                     <ul class="loot mb-4" aria-hidden="true">
                         <li>
                             <svg class="h-3.5 w-3.5 text-accent-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                            locked items
+                            encrypted items
                         </li>
                         <li>
                             <svg class="h-3.5 w-3.5 text-accent-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                            one-way fingerprints
+                            one-way hashes
                         </li>
                         <li>
                             <svg class="h-3.5 w-3.5 text-accent-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
@@ -281,124 +225,40 @@
                             one readable secret
                         </li>
                     </ul>
-                    <p class="text-sm text-muted-foreground leading-relaxed">Whoever gets in leaves with locked items, one-way fingerprints and encrypted account fields. There is no file of readable secrets to find, because one was never written.</p>
+                    <p class="text-sm text-muted-foreground leading-relaxed">An attacker who gets in leaves with encrypted items, one-way hashes and encrypted account fields. No readable copy of a secret is written anywhere, so there is none to find.</p>
                 </div>
             </div>
         </div>
     </section>
 
-    {{/* ───────── Defence in depth ───────── */}}
+    {{/* ───────── Sharing ─────────
+         The obvious objection to everything above: if we cannot read any of
+         it, how can anyone else? This section answers only that — the
+         security property. What you can actually share and for how long is
+         /features's subject, and the construction is section 4 of the
+         whitepaper. Keep all three apart. */}}
     <section class="px-6 py-12 sm:py-16 scroll-reveal">
-        <div class="max-w-5xl mx-auto">
+        <div class="max-w-4xl mx-auto">
             <div class="max-w-xl mb-8 sm:mb-12">
-                <p class="eyebrow mb-4">Beyond the vault</p>
-                <h2 class="text-3xl font-bold tracking-tight">Locks around the lock</h2>
+                <p class="eyebrow mb-4">Sharing</p>
+                <h2 class="text-3xl font-bold tracking-tight mb-4">Sharing without handing over the key</h2>
+                <p class="text-muted-foreground leading-relaxed">Vault3 can pass something to another person without ever holding what opens it. The key travels in the part of a link that browsers keep on the device and never transmit, so what reaches the server is an encrypted bundle and an opaque token.</p>
             </div>
-            {{/* Six layers, six different pictures of the same discipline.
-                 Each figure quotes what the layer actually produces — a
-                 session row, a stored field, the response headers — and is
-                 decorative: the copy states the claim by itself. */}}
-            <div class="grid sm:grid-cols-2 lg:grid-cols-6 gap-5 sm:gap-6">
-                {{/* What a session looks like to you, and to the database. */}}
-                <div class="panel panel-interactive p-6 scroll-reveal-child lg:col-span-4 flex flex-col justify-center">
-                    <div class="lg:flex lg:items-center lg:gap-8">
-                        <div class="lg:w-[45%]">
-                            <h3 class="font-semibold mb-1.5">Sessions</h3>
-                            <p class="text-sm text-muted-foreground leading-relaxed">Signing in hands your browser one long random token, held in a cookie other websites and scripts cannot touch. We keep only a fingerprint of it, never the token — so a stolen database gives nobody a way in. Every device is listed for you, any of them can be signed out, and changing your Master Password signs out all the others at once.</p>
-                        </div>
-                        <div class="fig mt-5 lg:mt-0 lg:flex-1" aria-hidden="true">
-                            <p class="fig-label mb-2.5">what the table holds · 512-bit tokens</p>
-                            <div class="sess">
-                                <div class="sess-head">
-                                    <span>MacBook Pro · Chrome</span>
-                                    <span class="badge badge-success whitespace-nowrap">this device</span>
-                                </div>
-                                <p class="sess-hash">sha512 9f3a2c…c71e</p>
-                            </div>
-                            <div class="sess">
-                                <div class="sess-head">
-                                    <span>iPad · Safari</span>
-                                    <span class="badge badge-accent-2 whitespace-nowrap">active</span>
-                                </div>
-                                <p class="sess-hash">sha512 c02de9…7b45</p>
-                            </div>
-                            <div class="sess">
-                                <div class="sess-head">
-                                    <span class="sess-gone">iPhone · Safari</span>
-                                    <span class="badge badge-danger whitespace-nowrap">revoked</span>
-                                </div>
-                                <p class="sess-hash sess-gone">sha512 4b1708…08da</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
 
-                {{/* The code you type, and the secret behind it sealed. */}}
-                <div class="panel panel-interactive p-6 scroll-reveal-child lg:col-span-2 flex flex-col justify-center">
-                    <h3 class="font-semibold mb-1.5">Two-factor authentication</h3>
-                    <p class="text-sm text-muted-foreground leading-relaxed mb-5">You can add a code from an authenticator app at sign-in. The seed that produces those codes is encrypted in our database too, so it is not sitting there waiting to be copied.</p>
-                    <div class="fig" aria-hidden="true">
-                        <p class="fig-label mb-1">your authenticator</p>
-                        <p class="text-lg font-mono tracking-widest text-accent mb-3">481 207</p>
-                        <p class="fig-label mb-1">the seed we keep</p>
-                        <p class="cipher-chip">A256GCM · Yb7Kq2vR9m…</p>
-                    </div>
+            <div class="grid md:grid-cols-2 gap-5 sm:gap-6">
+                <div class="panel p-6 sm:p-7 scroll-reveal-child">
+                    <h3 class="font-semibold mb-2">What reaches the server</h3>
+                    <p class="text-sm text-muted-foreground leading-relaxed">An opaque token, stored only as a hash. That is enough to expire a share or revoke one on request, and not enough to decrypt anything.</p>
                 </div>
-
-                {{/* The handful of fields the server must read back — and
-                     what each one looks like in the table. */}}
-                <div class="panel panel-interactive p-6 scroll-reveal-child lg:col-span-3 flex flex-col justify-center">
-                    <h3 class="font-semibold mb-1.5">Even the everyday details are locked</h3>
-                    <p class="text-sm text-muted-foreground leading-relaxed mb-5">A few things have to be readable by the service itself: your display name, which device and address a session came from, your alerts, the account history. Those are encrypted as well, with a separate key the server holds — so the data that sits outside your vault is unreadable in the database too.</p>
-                    <div class="fig" aria-hidden="true">
-                        <p class="kv"><span>display name</span><span class="cipher-chip">Pq8vR2mL…</span></p>
-                        <p class="kv"><span>session IP</span><span class="cipher-chip">Zk3mT7dC…</span></p>
-                        <p class="kv"><span>device</span><span class="cipher-chip">Wc9aH4xN…</span></p>
-                        <p class="kv"><span>alert body</span><span class="cipher-chip">Rm2xL6gB…</span></p>
-                    </div>
-                </div>
-
-                {{/* The same events as your account's own history. */}}
-                <div class="panel panel-interactive p-6 scroll-reveal-child lg:col-span-3 flex flex-col">
-                    <h3 class="font-semibold mb-1.5">Alerts that always arrive</h3>
-                    <p class="text-sm text-muted-foreground leading-relaxed">A new device signing in, the Master Password changing, two-factor going on or off — you are told the moment it happens. You can quieten the emails in Settings, but the in-app alerts cannot be switched off: silence is exactly what somebody using your account would want.</p>
-                    <div class="mt-auto pt-6">
-                        <ul class="trail" aria-hidden="true">
-                            <li>New device signed in<span>Chrome on macOS · just now</span></li>
-                            <li>Master Password changed<span>every other device signed out · 3d</span></li>
-                            <li>Two-factor enabled<span>authenticator app · 2w</span></li>
-                        </ul>
-                    </div>
-                </div>
-
-                {{/* Idle time running out on the keys in this tab. */}}
-                <div class="panel panel-interactive p-6 scroll-reveal-child lg:col-span-2 flex flex-col justify-center">
-                    <div class="flex justify-center mb-5" aria-hidden="true">
-                        <span class="dial" style="--sweep:74%">
-                            <svg class="h-7 w-7 mark-pulse" viewBox="0 0 64 64"><rect width="64" height="64" rx="15" fill="currentColor" mask="url(#v3-cut)"/></svg>
-                        </span>
-                    </div>
-                    <h3 class="font-semibold mb-1.5">Auto-lock</h3>
-                    <p class="text-sm text-muted-foreground leading-relaxed">While your vault is open, its keys sit in that browser tab and nowhere else. They are erased when you lock, when you sign out, and after a spell of inactivity — and because locking is local, it happens instantly, even with no connection at all.</p>
-                </div>
-
-                {{/* The headers this page was served with. */}}
-                <div class="panel panel-interactive p-6 scroll-reveal-child lg:col-span-4 flex flex-col justify-center">
-                    <div class="lg:flex lg:items-center lg:gap-8">
-                        <div class="lg:w-[42%]">
-                            <h3 class="font-semibold mb-1.5">The connection itself</h3>
-                            <p class="text-sm text-muted-foreground leading-relaxed">Everything travels encrypted, and your browser is told to refuse anything less. The page is only allowed to load code from us, never from anyone else. Repeated sign-in attempts are slowed down, and the answers give away nothing — not even whether an email address is registered here.</p>
-                        </div>
-                        <div class="fig term mt-5 lg:mt-0 lg:flex-1" aria-hidden="true">
-                            <p class="term-prompt mb-1.5">$ curl -sI https://vault3.com</p>
-                            <p><span class="term-key">strict-transport-security:</span> <span class="term-val">max-age=63072000</span></p>
-                            <p><span class="term-key">content-security-policy:</span> <span class="term-val">default-src 'self'</span></p>
-                            <p><span class="term-key">x-frame-options:</span> <span class="term-val">DENY</span></p>
-                            <p><span class="term-key">referrer-policy:</span> <span class="term-val">no-referrer</span></p>
-                        </div>
-                    </div>
+                <div class="panel p-6 sm:p-7 scroll-reveal-child">
+                    <h3 class="font-semibold mb-2">What never does</h3>
+                    <p class="text-sm text-muted-foreground leading-relaxed">The key. Your browser generates it, seals the share with it and writes it into the link. The recipient's browser strips it from the address bar as soon as it has been read, so it does not persist in their history.</p>
                 </div>
             </div>
+
+            <p class="text-muted-foreground leading-relaxed mt-8 max-w-2xl scroll-reveal-child">
+                Anyone holding a complete link can read what it opens. That is what sharing means, and cryptography does not change it. The narrower claim is the one being made here: <strong class="text-foreground">the server is not among them</strong>.
+            </p>
         </div>
     </section>
 
@@ -412,7 +272,26 @@
                 </span>
                 <div>
                     <h2 class="text-2xl font-bold tracking-tight mb-3">Honest limits</h2>
-                    <p class="text-muted-foreground leading-relaxed">All of this protects you from us, and from anyone who attacks us. What it cannot do is protect a device that is already in someone else's hands: software running on your computer can read whatever you have unlocked there, and no amount of encryption changes that. So keep your devices updated, keep your Emergency Kit on paper rather than on the machine, and use a Master Password you use nowhere else.</p>
+                    <p class="text-muted-foreground leading-relaxed">All of this protects your vault from the server and from anyone who attacks it. It does not protect a device that is already compromised: software running on your computer can read whatever you have unlocked there, and encryption does not change that. So keep your devices updated, keep your Emergency Kit on paper rather than on the machine, and use a Master Password you use nowhere else.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    {{/* ───────── The design in full ─────────
+         The handover to the whitepaper. One band rather than a card in the
+         CTA row, because it is a destination rather than an afterthought —
+         everything this page left out is behind it. */}}
+    <section class="px-6 pb-12 sm:pb-16 scroll-reveal">
+        <div class="max-w-5xl mx-auto panel p-7 sm:p-9 scroll-reveal-child">
+            <div class="md:flex md:items-center md:justify-between md:gap-10">
+                <div class="max-w-xl">
+                    <p class="eyebrow mb-4">Go deeper</p>
+                    <h2 class="text-2xl font-bold tracking-tight mb-3">The design, in full</h2>
+                    <p class="text-muted-foreground leading-relaxed">Every parameter, the exact key hierarchy, how sharing is built, why a quantum computer finds nothing here to break, how to rebuild the cryptography module yourself and check it byte for byte, and the threat model including the parts that cannot be defended.</p>
+                </div>
+                <div class="mt-6 md:mt-0 flex-shrink-0">
+                    <a href="/whitepaper" class="btn btn-secondary">Read the whitepaper &rarr;</a>
                 </div>
             </div>
         </div>
@@ -423,7 +302,7 @@
         <div class="max-w-5xl mx-auto grid md:grid-cols-2 gap-5 sm:gap-6">
             <div class="panel p-7 sm:p-9 scroll-reveal-child">
                 <h2 class="text-xl font-bold tracking-tight mb-2">Found something?</h2>
-                <p class="text-sm text-muted-foreground leading-relaxed mb-5">Security reports come straight to the people who build Vault3. No form, no triage queue — we read them first and reply quickly.</p>
+                <p class="text-sm text-muted-foreground leading-relaxed mb-5">Security reports go straight to the people who build Vault3. There is no form and no triage queue; we read them ourselves and reply quickly.</p>
                 <a href="mailto:{{.Site.ContactEmail}}" class="btn btn-secondary btn-sm font-mono">{{.Site.ContactEmail}}</a>
             </div>
             <div class="cta-slab p-7 sm:p-9 flex flex-col justify-center scroll-reveal-child">

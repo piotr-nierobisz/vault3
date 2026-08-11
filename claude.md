@@ -6,94 +6,64 @@ Vault3 is a zero-knowledge password manager at vault3.com. Everything a user sto
 
 ## Where to read next
 
-This file is for **routing**, not content. Open the specialised doc that matches the task; add a second doc only when the work crosses layers.
+This file is for **routing**, not content. Open the doc that matches the task; add a second only when the work crosses layers. Each doc is also where you *write* a change to its own remit, in the same task that makes it.
 
-| You are working on… | Read |
-|---------------------|------|
-| Product behaviour, copy rules, what's in/out of scope, roadmap runway | [docs/product.md](docs/product.md) |
-| The cryptography: key hierarchy, envelopes, auth flow, threat model, what must never change | [docs/security.md](docs/security.md) |
-| Go, `internal/*`, SQL, migrations, sessions, Mailgun, jobs, config, the change signal | [docs/backend.md](docs/backend.md) |
+| Topic | Doc |
+|---|---|
+| Product behaviour, copy rules, scope, roadmap runway | [docs/product.md](docs/product.md) |
+| Key hierarchy, envelopes, auth flow, threat model, what must never change | [docs/security.md](docs/security.md) |
+| Go, `internal/*`, SQL, migrations, sessions, Mailgun, jobs, config | [docs/backend.md](docs/backend.md) |
 | `web/` views, layouts, React, client crypto, keystore, styling tokens | [docs/frontend.md](docs/frontend.md) |
 | BunGo routes, engines, security layers, `_bungoRender`, API path rules | [docs/bungo.md](docs/bungo.md) |
+| Routing table, repo map, programming philosophy | this file |
 
-**Typical combinations**
-
-- Anything touching keys, blobs, or auth: [security.md](docs/security.md) first, always — then the layer doc.
-- New authenticated page: [bungo.md](docs/bungo.md) + [frontend.md](docs/frontend.md) + [backend.md](docs/backend.md).
-- API-only change: [backend.md](docs/backend.md); [bungo.md](docs/bungo.md) if routes change.
-- Styling or component only: [frontend.md](docs/frontend.md).
-- Schema or query change: [backend.md](docs/backend.md) unless the UI must change too.
+Anything touching keys, blobs or auth reads [security.md](docs/security.md) **first**, and treats the change as a breaking-migration question before an implementation one.
 
 ---
 
-## Repository map (high level)
+## Repository map
 
 ```text
-cmd/vault3/           Web server entry (custom listener: BunGo handler + middleware + /events SSE)
-cmd/scheduler/        Background job scheduler entry (housekeeping container; see backend.md)
+cmd/vault3/           Web server entry (BunGo handler + middleware + /events SSE)
+cmd/scheduler/        Background job scheduler entry (see backend.md)
 internal/             Go domain: runtime, config, crypto, database, models, view, jobs
-internal/wasm/argon2/ Argon2id KDF kernel, compiled to WebAssembly for the browser (security.md)
+internal/wasm/argon2/ Argon2id KDF kernel, compiled to WebAssembly (security.md)
 web/                  BunGo frontend: layouts, views, components, lib (client crypto!), static
 scripts/sql/          Numbered schema scripts (see backend.md)
-scripts/              build-wasm.sh (reproducible wasm build), verify-wasm.mjs (known-answer check)
+scripts/              build-wasm.sh (reproducible build), verify-wasm.mjs (known-answer check)
 docs/                 product.md, security.md, backend.md, frontend.md, bungo.md
 ```
 
-Stack in one line: **Go + BunGo + PostgreSQL + custom session auth + client-side WebCrypto and an Argon2id wasm module (the vault) + Mailgun (email, keys empty in dev)**. React/Tailwind ship inside BunGo with no npm toolchain. No other third parties — by design.
+Stack: **Go + BunGo + PostgreSQL + custom session auth + client-side WebCrypto and an Argon2id wasm module + Mailgun (email, keys empty in dev)**. React/Tailwind ship inside BunGo with no npm toolchain. No other third parties, by design.
 
-Every primitive in the product is symmetric or hash-based; there is deliberately **no asymmetric cryptography anywhere**, which is what makes it post-quantum without a migration path to maintain. Adding some is a security-model decision, not an implementation choice — read [docs/security.md](docs/security.md) first.
+Every primitive is symmetric or hash-based; there is deliberately **no asymmetric cryptography anywhere**, which is what makes it post-quantum with no migration path to maintain. Adding some is a security-model decision — read [docs/security.md](docs/security.md) first.
 
 ---
 
 ## Running locally
 
-`./start.sh` is the supported way to run the app: it brings up Docker containers for Postgres, the `bungo dev` server, and the background job scheduler (`cmd/scheduler`, detached; `VAULT3_RUN_SCHEDULER=0` to skip), reading ports and credentials from `.env`. `./stop.sh` tears the dev stack down (`--wipe` to drop the data volume).
+`./start.sh` brings up Docker containers for Postgres, the `bungo dev` server, and the job scheduler (`VAULT3_RUN_SCHEDULER=0` to skip), reading ports and credentials from `.env`. `./stop.sh` tears it down (`--wipe` drops the data volume).
 
-The committed wasm artifact means no extra build step: run `./scripts/build-wasm.sh` only when `internal/wasm/argon2/main.go` or the pinned Go version changes, and commit its output together with the regenerated `web/lib/argon2-manifest.ts`.
+It refuses to boot unless every `REQUIRED_ENV_VARS` entry (parsed live from `internal/config/constants.go`) is present. The Mailgun keys are deliberately **not** required: email degrades to a logged skip while they are empty.
 
-**Secrets preflight:** start.sh refuses to boot unless every `REQUIRED_ENV_VARS` entry (parsed live from `internal/config/constants.go`, so the check never drifts) is present in `.env` or the environment. The Mailgun keys are deliberately **not** required: email degrades to a logged skip while they are empty, and the `email_sending_enabled` platform setting (seeded off) keeps dev quiet regardless.
+The repo is bind-mounted and watched, so every save hot-rebuilds and reloads (Go, React, templates, CSS). To verify a change: curl `http://localhost:$PORT_INT` (default 3403) and read `.vault3.log` (gitignored, truncated per restart).
 
-Because the repo is bind-mounted and `bungo` watches it, every save hot-rebuilds and reloads (Go, React, templates, CSS), and the dev server tees all logs to `.vault3.log` (gitignored, truncated on each restart). To verify a change, curl the app (`http://localhost:$PORT_INT`, default 3403) and read `.vault3.log`.
+Run `./scripts/build-wasm.sh` only when `internal/wasm/argon2/main.go` or the pinned Go version changes; commit its output with the regenerated `web/lib/argon2-manifest.ts`.
 
 ---
 
 ## Programming philosophy
 
-### 1. Think before coding
-
-State assumptions. Ask when uncertain. Present tradeoffs. Prefer simpler approaches. Push back when warranted. Name what is unclear instead of guessing.
-
-### 2. Simplicity first
-
-Minimum code for the request. No speculative features, abstractions, or configurability. No handling impossible edge cases. If 200 lines could be 50, simplify.
-
-### 3. Surgical changes
-
-Touch only what the task requires. Match existing style. Remove dead imports from your own edits. Mention unrelated dead code; do not delete it unless asked.
-
-### 4. Goal-driven execution
-
-Define success criteria. For multi-step work: change → verify. Examples: validation + tests; bug → reproduce then fix; refactor → tests before and after.
-
-### 5. Priority order
-
-1. Correctness — and in this codebase, **cryptographic correctness outranks everything**: a change that weakens the zero-knowledge property is wrong no matter what it fixes
-2. Security and privacy
-3. Simplicity
-4. Performance
-5. Readability
+1. **Think before coding.** State assumptions. Ask when uncertain. Present tradeoffs. Push back when warranted. Name what is unclear instead of guessing.
+2. **Simplicity first.** Minimum code for the request. No speculative features, abstractions or configurability. If 200 lines could be 50, simplify.
+3. **Surgical changes.** Touch only what the task requires. Match existing style. Remove dead imports from your own edits; mention unrelated dead code rather than deleting it.
+4. **Goal-driven execution.** Define success criteria, then change → verify. Bug → reproduce, then fix.
+5. **Priority order.** Correctness first — and here, **cryptographic correctness outranks everything**: a change that weakens the zero-knowledge property is wrong no matter what it fixes. Then security and privacy, simplicity, performance, readability.
 
 ---
 
 ## Maintaining these docs
 
-These docs capture **durable conventions**, not a log of what was built. Update one only when a convention changes — a pattern, interface, layout rule, operational constraint, or architectural decision that future work should follow. A task that simply ships a feature fitting the existing conventions needs **no doc change**. Never add per-handler, per-file, or per-feature inventories: they go stale fast and the code is the source of truth for what currently exists.
+These docs capture **durable conventions**, not a log of what was built. Update one only when a convention changes — a pattern, interface, layout rule, operational constraint or architectural decision that future work should follow. A task that ships a feature fitting the existing conventions needs **no doc change**.
 
-When a convention does change, update the doc whose remit it falls under, in the same task:
-
-- Product behaviour, copy rules, scope → [docs/product.md](docs/product.md)
-- Key hierarchy, envelope format, auth flow, threat model → [docs/security.md](docs/security.md) (and treat any change here as a breaking migration question first)
-- Backend/schema/domains → [docs/backend.md](docs/backend.md)
-- `web/` or client patterns → [docs/frontend.md](docs/frontend.md)
-- BunGo usage → [docs/bungo.md](docs/bungo.md)
-- Routing table, repo map, or programming philosophy → this file
+Never add per-handler, per-file or per-feature inventories: they go stale fast, and the code is the source of truth for what currently exists.
