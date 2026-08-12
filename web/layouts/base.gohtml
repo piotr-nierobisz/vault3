@@ -194,76 +194,149 @@
 <header class="sticky top-0 z-30 w-full bg-background/70" style="backdrop-filter:blur(14px) saturate(1.4)">
     <div class="max-w-5xl mx-auto flex items-center justify-between px-6 py-4">
         <a href="/" class="hover:opacity-80 transition-opacity">{{template "wordmark" .}}</a>
-        {{/* Three destinations is the most this row takes before it starts
+        {{/* Two clusters, not one run of five items. Every gap in this row
+             used to be the same 20px, which measures even and reads uneven:
+             bare text links carry no visual mass of their own, so at the
+             same distance as two filled pills they clump into a crowd
+             pushed up against the buttons. The destinations get the air
+             (they are only glyphs), the buttons sit close (their padding is
+             already the space), and the two groups part by more than
+             either's internal gap.
+
+             Three destinations is the most this row takes before it starts
              fighting the CTA pair, so Contact — the one also sitting in the
-             footer and the menu below — waits for md. */}}
-        <nav class="flex items-center gap-2 sm:gap-5">
-            <a href="/features" class="hidden sm:block text-sm text-muted-foreground hover:text-foreground transition-colors">Features</a>
-            <a href="/security" class="hidden sm:block text-sm text-muted-foreground hover:text-foreground transition-colors">Security</a>
-            <a href="/contact" class="hidden md:block text-sm text-muted-foreground hover:text-foreground transition-colors">Contact</a>
+             footer and the drawer below — waits for md. */}}
+        <nav class="flex items-center gap-4 sm:gap-7">
             {{/* Navigation says what the destination is, not what it does for
                  you: Security, not "How Vault3 protects you"; Login, not
                  "Unlock". The product's own verbs still belong inside the
                  app and in body copy — a nav label is a signpost. */}}
-            {{if .Viewer}}
-            <a href="/app" class="btn btn-primary btn-sm">Your vault</a>
-            {{else}}
-            {{/* Both are real .btn variants. Login used to be hand-rolled
-                 Tailwind — its own border, padding, radius and font-size —
-                 which is precisely the drift the "size is a class, never a
-                 utility" rule exists to stop: it kept its square corners
-                 when buttons became pills. */}}
-            <a href="/login" class="hidden sm:inline-flex btn btn-sm btn-secondary">Login</a>
-            <a href="/join" class="btn btn-primary btn-sm">Register</a>
-            {{end}}
-            {{/* Below sm there is no room for the nav beside the CTA, so it
-                 collapses in here rather than disappearing — Security is the
-                 page the whole product argument rests on. Between sm and md
-                 only Contact is hidden, and the footer carries it. */}}
-            <div class="relative sm:hidden" data-site-menu>
-                <button type="button" data-site-menu-trigger aria-label="Menu" aria-haspopup="menu" aria-expanded="false"
-                        class="btn-icon p-2 -mr-2">
+            <div class="hidden sm:flex items-center gap-6">
+                <a href="/features" class="text-sm text-muted-foreground hover:text-foreground transition-colors">Features</a>
+                <a href="/security" class="text-sm text-muted-foreground hover:text-foreground transition-colors">Security</a>
+                <a href="/contact" class="hidden md:block text-sm text-muted-foreground hover:text-foreground transition-colors">Contact</a>
+            </div>
+            <div class="flex items-center gap-2.5">
+                {{if .Viewer}}
+                <a href="/app" class="btn btn-primary btn-sm">Your vault</a>
+                {{else}}
+                {{/* Both are real .btn variants. Login used to be hand-rolled
+                     Tailwind — its own border, padding, radius and font-size —
+                     which is precisely the drift the "size is a class, never a
+                     utility" rule exists to stop: it kept its square corners
+                     when buttons became pills. */}}
+                <a href="/login" class="hidden sm:inline-flex btn btn-sm btn-secondary">Login</a>
+                <a href="/join" class="btn btn-primary btn-sm">Register</a>
+                {{end}}
+                {{/* Below sm there is no room for the nav beside the CTA, so it
+                     collapses into the drawer rather than disappearing —
+                     Security is the page the whole product argument rests on.
+                     Between sm and md only Contact is hidden, and the footer
+                     carries it.
+
+                     The negative margin pulls the glyph's ink out to the
+                     container's edge, so it lines up with the wordmark
+                     opposite rather than sitting a padding's width inside it. */}}
+                <button type="button" data-site-menu-trigger aria-label="Menu" aria-haspopup="dialog" aria-expanded="false"
+                        aria-controls="site-drawer" class="btn-icon p-2 -mr-2 sm:hidden">
                     <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/></svg>
                 </button>
-                <div role="menu" aria-label="Site" data-site-menu-panel
-                     class="hidden animate-pop absolute right-0 top-full mt-2 w-52 rounded-xl border border-border bg-popover shadow-lg py-1 z-50">
-                    <a role="menuitem" href="/features" class="block px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors">Features</a>
-                    <a role="menuitem" href="/security" class="block px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors">Security</a>
-                    <a role="menuitem" href="/contact" class="block px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors">Contact</a>
-                    {{if not .Viewer}}
-                    <div class="border-t border-border my-1"></div>
-                    <a role="menuitem" href="/login" class="block px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors">Login</a>
-                    {{end}}
-                </div>
             </div>
         </nav>
     </div>
     <div class="rule-gradient"></div>
 </header>
+{{/* The drawer itself sits outside the header: the header is a sticky,
+     stacked element, and a fixed panel inside one is trapped under
+     everything the page stacks above it. Closed is the default state and
+     costs no JavaScript — with scripting off there is no trigger to open
+     it, and the footer carries every link it holds. */}}
+<div class="nav-drawer-root sm:hidden" data-site-drawer>
+    <div class="nav-drawer-scrim scrim"></div>
+    <div id="site-drawer" class="nav-drawer" role="dialog" aria-modal="true" aria-label="Site menu" data-site-drawer-panel>
+        {{/* The close button lands where the trigger was, so the glyph
+             reads as having turned into its own dismissal. */}}
+        <div class="nav-drawer-head">
+            <button type="button" data-site-drawer-close aria-label="Close menu" class="btn-icon p-2 -mr-1">
+                <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+            </button>
+        </div>
+        <nav class="nav-drawer-nav" aria-label="Site">
+            <a href="/features" class="nav-drawer-item">Features</a>
+            <a href="/security" class="nav-drawer-item">Security</a>
+            <a href="/contact" class="nav-drawer-item">Contact</a>
+            {{if not .Viewer}}
+            <span class="nav-drawer-rule" aria-hidden="true"></span>
+            <a href="/login" class="nav-drawer-item">Login</a>
+            {{end}}
+        </nav>
+    </div>
+</div>
 <script>
 (function () {
-  // Mobile nav disclosure: same behaviour as the app's account menu —
-  // click toggles, outside click and Escape close.
-  var wrapper = document.querySelector('[data-site-menu]');
-  if (!wrapper) return;
-  var trigger = wrapper.querySelector('[data-site-menu-trigger]');
-  var panel = wrapper.querySelector('[data-site-menu-panel]');
-  if (!trigger || !panel) return;
+  // Mobile navigation drawer. A modal panel rather than a disclosure, so
+  // it owns focus while it is open: focus moves in, Tab cycles inside it,
+  // Escape and the scrim close it, and focus returns to the trigger.
+  var trigger = document.querySelector('[data-site-menu-trigger]');
+  var root = document.querySelector('[data-site-drawer]');
+  if (!trigger || !root) return;
+  var panel = root.querySelector('[data-site-drawer-panel]');
+  if (!panel) return;
+  var wide = window.matchMedia('(min-width: 640px)');
+  var isOpen = false;
+
+  function stops() {
+    return Array.prototype.slice.call(panel.querySelectorAll('a[href], button:not([disabled])'));
+  }
 
   function setOpen(open) {
+    isOpen = open;
     trigger.setAttribute('aria-expanded', String(open));
-    panel.classList.toggle('hidden', !open);
+    root.classList.toggle('is-open', open);
+    // The page behind must not scroll under the drawer: on a phone that
+    // reads as the drawer itself sliding away. The lock is a class rather
+    // than an inline overflow, so the stylesheet can scope it to the
+    // widths this drawer exists at — a page that reaches sm with the
+    // class still on it is scrollable again on its own, without waiting
+    // for a resize handler to run.
+    //
+    // Measured before the class goes on, while the scrollbar is still
+    // there: where it takes real width, its gutter is held open, or
+    // locking the scroll shunts the whole page sideways under the scrim.
+    var gutter = window.innerWidth - document.documentElement.clientWidth;
+    document.body.style.setProperty('--nav-gutter', (gutter > 0 ? gutter : 0) + 'px');
+    document.body.classList.toggle('nav-locked', open);
+    if (open) {
+      var first = stops()[0];
+      if (first) first.focus();
+    } else if (panel.contains(document.activeElement)) {
+      // Only when the focus is still inside what we just closed —
+      // otherwise a click on a link would yank it back on the way out.
+      trigger.focus();
+    }
   }
-  trigger.addEventListener('click', function (e) {
-    e.stopPropagation();
-    setOpen(trigger.getAttribute('aria-expanded') !== 'true');
+
+  trigger.addEventListener('click', function () { setOpen(!isOpen); });
+  root.addEventListener('click', function (e) {
+    if (!panel.contains(e.target)) setOpen(false);
   });
-  document.addEventListener('click', function (e) {
-    if (!wrapper.contains(e.target)) setOpen(false);
-  });
+  panel.querySelector('[data-site-drawer-close]').addEventListener('click', function () { setOpen(false); });
+
   document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape') setOpen(false);
+    if (!isOpen) return;
+    if (e.key === 'Escape') { setOpen(false); return; }
+    if (e.key !== 'Tab') return;
+    var items = stops();
+    if (!items.length) return;
+    var first = items[0];
+    var last = items[items.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   });
+
+  // Rotating a phone into a tablet width hides the trigger; a drawer left
+  // open behind that would be a panel with no way back out.
+  wide.addEventListener('change', function () { if (wide.matches && isOpen) setOpen(false); });
 })();
 </script>
 {{end}}
@@ -315,10 +388,12 @@
         <div class="rule-gradient mt-8 sm:mt-10 opacity-70"></div>
         <div class="pt-6 sm:pt-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-muted-foreground">
             <p>&copy; {{.Year}} {{.Site.Name}}. All rights reserved.</p>
-            <p class="font-mono text-xs">
-                <span class="text-accent-3">zero knowledge</span> ·
-                <span class="text-accent">AES-256-GCM</span> ·
-                <span class="text-accent-2">end-to-end</span>
+            {{/* Each term holds together: the line is allowed to wrap on a
+                 phone, but never through the middle of "end-to-end". */}}
+            <p class="font-mono text-xs text-center">
+                <span class="text-accent-3 whitespace-nowrap">zero knowledge</span> ·
+                <span class="text-accent whitespace-nowrap">AES-256-GCM</span> ·
+                <span class="text-accent-2 whitespace-nowrap">end-to-end</span>
             </p>
         </div>
     </div>

@@ -29,7 +29,7 @@ import (
 //     deliberately absent from REQUIRED_ENV_VARS so a dev stack boots with
 //     the keys blank; fill them in once the vault3.com domain is verified.
 
-const mailgunAPIBase = "https://api.mailgun.net/v3"
+const mailgunAPIBase = "https://api.eu.mailgun.net/v3"
 
 var mailgunHTTPClient = &http.Client{Timeout: 15 * time.Second}
 

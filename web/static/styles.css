@@ -334,6 +334,32 @@
 }
 
 /* ════════════════════════════════════════════════════════════════════ */
+/* Page headers (/features, /security)                                   */
+/*                                                                       */
+/* The landing opens on an argument and the whitepaper on a document;    */
+/* these two open on a single word, so the word has to do the work. It   */
+/* gets display type that scales with the viewport rather than a fixed   */
+/* Tailwind step — which is also why the size lives here and not in a    */
+/* utility class at the call site: Tailwind loads after this sheet and   */
+/* a `text-5xl` beside it would silently win.                            */
+/*                                                                       */
+/* Only the type is shared. What sits around the title is per page and   */
+/* lives with that page's own parts below — /features boards its         */
+/* inventory, /security stamps a seal — because two index pages that     */
+/* opened the same way would read as one page twice.                     */
+/* ════════════════════════════════════════════════════════════════════ */
+
+.hero-title {
+  font-size: clamp(2.9rem, 13vw, 5.25rem);
+  font-weight: 800;
+  /* Not tighter: the gradient is clipped to the glyphs and painted over
+     the element's own box, so a line box shorter than the font's
+     ascender-to-descender leaves the tail of a 'y' unpainted. */
+  line-height: 1.1;
+  letter-spacing: var(--letter-tighter);
+}
+
+/* ════════════════════════════════════════════════════════════════════ */
 /* Tile figures (landing + security)                                     */
 /*                                                                       */
 /* The feature grids on / and /security do not repeat one icon-and-text  */
@@ -805,6 +831,66 @@
 /* Security page                                                         */
 /* ════════════════════════════════════════════════════════════════════ */
 
+/* The header's seal: the wordmark's own glyph struck into a lit disc,
+   inside a ring that turns once every half-minute. The page's subject is
+   the thing that closes, so it opens on the closure rather than on a
+   glyph borrowed from a lock icon set. Decorative — the title says
+   "Security" without it. */
+.seal-mark {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 4.5rem;
+  height: 4.5rem;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--accent-border);
+  background: var(--accent-subtle);
+}
+.seal-mark::before {
+  content: "";
+  position: absolute;
+  inset: -0.6rem;
+  border-radius: var(--radius-full);
+  border: 1px dashed var(--accent-2-border);
+  animation: seal-turn 32s linear infinite;
+}
+@keyframes seal-turn {
+  to { transform: rotate(360deg); }
+}
+
+/* The title's own light. A text-shadow would fall behind glyphs whose
+   fill is transparent; a drop-shadow filter reads the painted gradient
+   and casts that instead. */
+.title-glow { filter: drop-shadow(0 8px 30px var(--accent-glow)); }
+
+/* The four primitives as one instrument panel rather than four chips
+   adrift: the eye takes the whole cryptography in a single pass, and on
+   a phone the strip wraps inside its own edge instead of ragging out
+   across the page. */
+.crypto-rail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem 0.6rem;
+  /* Hugs its four chips rather than stretching to the column: a strip
+     with a hand's width of empty space at each end reads as an empty
+     bar. On a phone it still fills the width, because there it is full. */
+  width: fit-content;
+  max-width: 100%;
+  margin-inline: auto;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background-color: var(--card);
+  background-image: var(--surface-raised);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .seal-mark::before { animation: none; }
+}
+
 /* Key-derivation diagram. The connectors are drawn with borders so the
    whole figure is plain HTML — no SVG to keep in sync with the layout. */
 /* Nodes sit inside a .panel, so they take the page background rather than
@@ -991,9 +1077,32 @@
 /* beside one carries the claim without it.                              */
 /* ════════════════════════════════════════════════════════════════════ */
 
+/* The title takes the same light the chips below it do: the gradient is
+   twice the width of the glyphs and slides across them. Slow enough to
+   be noticed rather than watched. */
+.title-sheen {
+  background-size: 220% 100%;
+  animation: title-sheen 11s var(--ease-in-out) infinite;
+}
+@keyframes title-sheen {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
 /* Hero capability cloud: the whole inventory as chips, a few of them lit
    at any moment. --i staggers the glow so the light travels rather than
-   pulsing in unison, which would read as a loading state. */
+   pulsing in unison, which would read as a loading state.
+
+   The board is the edge the light crosses. Loose on the page the chips
+   read as a tag cloud someone forgot to lay out; inside a frame the same
+   twenty read as the contents of the page, which is what they are. */
+.cap-board {
+  padding: 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background-color: var(--card);
+  background-image: var(--surface-raised);
+}
 .cap-cloud {
   display: flex;
   flex-wrap: wrap;
@@ -1121,9 +1230,17 @@
   font-size: 13px;
 }
 .link-row + .link-row { border-top: 1px solid var(--border-subtle); }
+.link-name { white-space: nowrap; }
 .link-meta { margin-left: auto; font-family: var(--font-mono); font-size: 10px; color: var(--muted-foreground); white-space: nowrap; }
 .link-row.is-dead { color: var(--muted-foreground); }
 .link-row.is-dead .link-name { text-decoration: line-through; }
+/* On a phone the two halves stop fitting on one line, and squeezing them
+   breaks the date across two. The lifetime drops under the link it
+   belongs to instead, indented past the glyph so the pairing survives. */
+@media (max-width: 479px) {
+  .link-row { flex-wrap: wrap; }
+  .link-meta { margin-left: 0; width: 100%; padding-left: 1.65rem; }
+}
 
 /* Sync, shown as the thing that proves it: the same change, stamped at
    the same second on two devices. The stamps flash together, because
@@ -1165,17 +1282,27 @@
 
 /* The quiet list: features that deserve naming but not a figure. Hairline
    rules and a mono note, so a long tail of small things does not turn
-   into a wall of identical cards. */
+   into a wall of identical cards.
+
+   Term over definition until the tile is genuinely wide. The two-column
+   form needs a 10rem label column, and this list sits in a tile that is
+   half-width from sm to lg — at that size the sentence beside the label
+   was wrapping one word per line, and a label longer than the column
+   pushed its sentence out past the tile's edge. So the columns wait for
+   lg, which is where the tile spans four of six. */
 .spec-list { list-style: none; margin: 0; padding: 0; }
-.spec-list li {
-  display: flex;
-  align-items: baseline;
-  gap: 1rem;
-  padding: 0.75rem 0;
-}
+.spec-list li { padding: 0.75rem 0; }
 .spec-list li + li { border-top: 1px solid var(--border-subtle); }
-.spec-list strong { font-weight: 600; color: var(--foreground); flex: none; min-width: 10rem; }
+.spec-list strong { display: block; font-weight: 600; color: var(--foreground); margin-bottom: 0.2rem; }
 .spec-list span { color: var(--muted-foreground); font-size: var(--text-sm); line-height: var(--line-relaxed); }
+@media (min-width: 1024px) {
+  .spec-list li {
+    display: flex;
+    align-items: baseline;
+    gap: 1rem;
+  }
+  .spec-list strong { display: inline; margin-bottom: 0; flex: none; min-width: 10rem; }
+}
 
 /* The Emergency Kit as the sheet of paper it is meant to become: sitting
    slightly askew, because the instruction attached to it is "print this". */
@@ -1200,8 +1327,111 @@
 
 @media (prefers-reduced-motion: reduce) {
   .cap-chip,
+  .title-sheen,
   .echo-row time { animation: none; }
   .kit-sheet { transform: none; }
+}
+
+/* ════════════════════════════════════════════════════════════════════ */
+/* Site chrome — the mobile navigation drawer                            */
+/*                                                                       */
+/* Below sm the public header's destinations collapse into a panel that  */
+/* slides in from the right over a scrim. Closed is the default and      */
+/* needs no script: the root is `visibility: hidden`, which also keeps   */
+/* the links out of the accessibility tree, and the whole thing is       */
+/* display:none from sm up so it can never appear beside the nav row it  */
+/* stands in for.                                                        */
+/*                                                                       */
+/* Everything animates from a class on the root rather than from         */
+/* display, because a panel toggled by `display` cannot slide.           */
+/* ════════════════════════════════════════════════════════════════════ */
+
+.nav-drawer-root {
+  position: fixed;
+  inset: 0;
+  /* Above the sticky header (30) and the cookie notice (55): while this
+     is open it is the only thing on the page. */
+  z-index: 60;
+  visibility: hidden;
+}
+.nav-drawer-root.is-open { visibility: visible; }
+
+/* The scroll lock, scoped to the widths the drawer exists at. Held in CSS
+   rather than as an inline `overflow: hidden` so it cannot outlive the
+   drawer: a phone rotated into a tablet width hides the panel, and this
+   releases the page in the same breath rather than leaving it frozen
+   behind something no longer on screen. */
+@media (max-width: 639px) {
+  body.nav-locked {
+    overflow: hidden;
+    padding-right: var(--nav-gutter, 0px);
+  }
+}
+
+/* Takes its blur and tint from the shared .scrim — a drawer and a dialog
+   seal the page by the same amount or the two read as different depths. */
+.nav-drawer-scrim {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity var(--duration-slow) var(--ease-out);
+}
+.nav-drawer-root.is-open .nav-drawer-scrim { opacity: 1; }
+
+.nav-drawer {
+  position: absolute;
+  inset: 0 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  width: min(19rem, 82vw);
+  /* Never the full width: the strip of scrim left showing is what says
+     the page is still there behind it. */
+  padding: calc(0.85rem + env(safe-area-inset-top)) 0.85rem calc(0.85rem + env(safe-area-inset-bottom));
+  border-left: 1px solid var(--border);
+  background-color: var(--popover);
+  background-image: var(--surface-raised);
+  box-shadow: var(--shadow-xl);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  transform: translateX(100%);
+  transition: transform var(--duration-slow) var(--ease-out);
+}
+.nav-drawer-root.is-open .nav-drawer { transform: translateX(0); }
+
+/* The close button alone, sitting where the trigger it replaced was. */
+.nav-drawer-head {
+  display: flex;
+  justify-content: flex-end;
+  padding-bottom: 0.6rem;
+  margin-bottom: 0.35rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.nav-drawer-nav { display: flex; flex-direction: column; }
+
+/* Rows, not pills: these are navigation rather than controls, the same
+   call the legal sidebar and the vault switcher make. */
+.nav-drawer-item {
+  display: flex;
+  align-items: center;
+  padding: 0.8rem 0.75rem;
+  border-radius: var(--radius-md);
+  font-size: var(--text-base);
+  font-weight: 500;
+  color: var(--foreground);
+  text-decoration: none;
+  transition: background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+.nav-drawer-item:hover { background-color: var(--muted); }
+.nav-drawer-item:active { color: var(--accent); }
+.nav-drawer-rule {
+  height: 1px;
+  margin: 0.45rem 0.75rem;
+  /* --border rather than --border-subtle: on the popover surface the
+     subtle one is invisible, and this rule is the only thing separating
+     the destinations from the way in. */
+  background-color: var(--border);
 }
 
 /* Footer colophon: the credit line and the source link, sitting under the

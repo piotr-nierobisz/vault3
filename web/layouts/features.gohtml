@@ -52,42 +52,49 @@
 
     {{/* ───────── Hero ─────────
          The inventory itself, as the opening image: every capability on the
-         page as a chip, with the light travelling across them. It previews
-         the page rather than illustrating one claim from it. */}}
-    <section class="relative px-6 pt-12 pb-10 sm:pt-20 sm:pb-14">
+         page as a chip on one board, with the light travelling across them
+         and across the title above. It previews the page rather than
+         illustrating one claim from it.
+
+         The board sits after the buttons rather than before them: it is
+         twenty chips tall on a phone, and a decorative preview must never
+         push the page's own call to action off the first screen. */}}
+    <section class="relative px-6 pt-14 pb-10 sm:pt-20 sm:pb-14">
         <div class="glow-orb" style="--orb:var(--accent-glow);width:520px;height:340px;top:-110px;left:50%;transform:translateX(-50%);opacity:0.65"></div>
         <div class="relative max-w-3xl mx-auto text-center">
-            <h1 class="text-5xl font-extrabold tracking-tighter leading-tight mb-6">
-                <span class="text-gradient">Features</span>
+            <h1 class="hero-title mb-6">
+                <span class="text-gradient title-sheen">Features</span>
             </h1>
             <p class="text-lg text-muted-foreground leading-relaxed max-w-xl mx-auto mb-9">
                 A password manager that does the everyday things well, and encrypts everything on your device before it is sent. Here is the whole of it, feature by feature.
             </p>
-            <div class="cap-cloud mb-9" aria-hidden="true">
-                <span class="cap-chip" style="--i:0">logins</span>
-                <span class="cap-chip" style="--i:1">secure notes</span>
-                <span class="cap-chip" style="--i:2">payment cards</span>
-                <span class="cap-chip" style="--i:3">identities</span>
-                <span class="cap-chip" style="--i:4">password generator</span>
-                <span class="cap-chip" style="--i:5">passphrases</span>
-                <span class="cap-chip" style="--i:6">one-time codes</span>
-                <span class="cap-chip" style="--i:7">search</span>
-                <span class="cap-chip" style="--i:8">favourites</span>
-                <span class="cap-chip" style="--i:9">multiple vaults</span>
-                <span class="cap-chip" style="--i:10">shared vaults</span>
-                <span class="cap-chip" style="--i:11">share links</span>
-                <span class="cap-chip" style="--i:12">live sync</span>
-                <span class="cap-chip" style="--i:13">two-factor</span>
-                <span class="cap-chip" style="--i:14">device list</span>
-                <span class="cap-chip" style="--i:15">auto-lock</span>
-                <span class="cap-chip" style="--i:16">alerts</span>
-                <span class="cap-chip" style="--i:17">30-day trash</span>
-                <span class="cap-chip" style="--i:18">Emergency Kit</span>
-                <span class="cap-chip" style="--i:19">no trackers</span>
-            </div>
-            <div class="flex flex-wrap items-center justify-center gap-4">
+            <div class="flex flex-wrap items-center justify-center gap-4 mb-10 sm:mb-12">
                 <a href="/join" class="btn btn-primary btn-lg">Create your vault</a>
                 <a href="/security" class="btn btn-ghost btn-lg">How it is protected &rarr;</a>
+            </div>
+            <div class="cap-board" aria-hidden="true">
+                <div class="cap-cloud">
+                    <span class="cap-chip" style="--i:0">logins</span>
+                    <span class="cap-chip" style="--i:1">secure notes</span>
+                    <span class="cap-chip" style="--i:2">payment cards</span>
+                    <span class="cap-chip" style="--i:3">identities</span>
+                    <span class="cap-chip" style="--i:4">password generator</span>
+                    <span class="cap-chip" style="--i:5">passphrases</span>
+                    <span class="cap-chip" style="--i:6">one-time codes</span>
+                    <span class="cap-chip" style="--i:7">search</span>
+                    <span class="cap-chip" style="--i:8">favourites</span>
+                    <span class="cap-chip" style="--i:9">multiple vaults</span>
+                    <span class="cap-chip" style="--i:10">shared vaults</span>
+                    <span class="cap-chip" style="--i:11">share links</span>
+                    <span class="cap-chip" style="--i:12">live sync</span>
+                    <span class="cap-chip" style="--i:13">two-factor</span>
+                    <span class="cap-chip" style="--i:14">device list</span>
+                    <span class="cap-chip" style="--i:15">auto-lock</span>
+                    <span class="cap-chip" style="--i:16">alerts</span>
+                    <span class="cap-chip" style="--i:17">30-day trash</span>
+                    <span class="cap-chip" style="--i:18">Emergency Kit</span>
+                    <span class="cap-chip" style="--i:19">no trackers</span>
+                </div>
             </div>
         </div>
     </section>

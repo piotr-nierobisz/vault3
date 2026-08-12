@@ -41,20 +41,33 @@
     {{template "publicHeader" .}}
 
     {{/* ───────── Hero ───────── */}}
-    <section class="relative px-6 pt-12 pb-10 sm:pt-20 sm:pb-16">
+    <section class="relative px-6 pt-14 pb-10 sm:pt-20 sm:pb-16">
         <div class="glow-orb" style="--orb:var(--accent-3-glow);width:460px;height:320px;top:-90px;left:50%;transform:translateX(-50%);opacity:0.7"></div>
         <div class="relative max-w-3xl mx-auto text-center">
+            {{/* The seal: the mark struck into a lit disc, inside a ring
+                 that turns. Brand furniture rather than an argument — the
+                 figures further down carry the claims, and this one is
+                 aria-hidden because the headline under it already says
+                 what the page is. */}}
+            <span class="seal-mark animate-glow mb-8" aria-hidden="true">
+                <svg class="h-8 w-8" viewBox="0 0 64 64" focusable="false">
+                    <rect width="64" height="64" rx="15" fill="url(#v3-edge)" mask="url(#v3-cut)"/>
+                </svg>
+            </span>
             {{/* The page is called what it is. The badge used to say
                  "Security" above a headline that said the same thing in
                  more words; the headline says it now, and the badge is
                  gone rather than repeating it. */}}
-            <h1 class="text-5xl font-extrabold tracking-tighter leading-tight mb-6">
-                <span class="text-gradient">Security</span>
+            <h1 class="hero-title mb-6">
+                <span class="text-gradient title-glow">Security</span>
             </h1>
             <p class="text-lg text-muted-foreground leading-relaxed max-w-2xl mx-auto">
                 Everything in your vault is encrypted <strong class="text-foreground font-semibold">on your device</strong>, with a key built from two secrets only you have. What the server stores is encrypted text, an email address and timestamps. Nothing that would open a vault is ever sent to it.
             </p>
-            <div class="mt-9 flex flex-wrap items-center justify-center gap-2.5 font-mono text-[11px]">
+            {{/* One strip rather than four loose chips: the whole
+                 cryptography reads in a single pass, and on a phone it
+                 wraps inside its own edge instead of ragging out. */}}
+            <div class="crypto-rail mt-9 font-mono text-[11px]">
                 <span class="badge badge-accent-2">AES-256-GCM</span>
                 <span class="badge badge-accent">Argon2id · 64 MiB</span>
                 <span class="badge badge-accent-2">PBKDF2-SHA512 · 1,000,000</span>

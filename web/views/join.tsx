@@ -21,17 +21,24 @@ import type { JoinPageData, JoinStep, RegisterResponse } from "../types/join";
 // Everything cryptographic happens on-device; the server receives the
 // finished ciphertext bundle.
 
+// The three steps, with the label kept on one line: below sm the row has
+// no room to spare, and a wrapped "Secret Phrase" makes the rail taller
+// than the panel it introduces. The label drops a size instead.
 function stepBadge(active: boolean, done: boolean, n: number, label: string) {
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-1.5 sm:gap-2">
       <span
-        className={`w-6 h-6 rounded-full inline-flex items-center justify-center text-xs font-bold transition-colors ${
+        className={`w-6 h-6 flex-shrink-0 rounded-full inline-flex items-center justify-center text-xs font-bold transition-colors ${
           done ? "bg-accent text-accent-foreground" : active ? "bg-accent-subtle text-accent" : "bg-muted text-muted-foreground"
         }`}
       >
         {done ? <CheckIcon className="h-3.5 w-3.5" /> : n}
       </span>
-      <span className={`text-sm ${active || done ? "text-foreground font-medium" : "text-muted-foreground"}`}>{label}</span>
+      <span
+        className={`text-xs sm:text-sm whitespace-nowrap ${active || done ? "text-foreground font-medium" : "text-muted-foreground"}`}
+      >
+        {label}
+      </span>
     </div>
   );
 }
@@ -117,7 +124,7 @@ function JoinWizard() {
 
   return (
     <div className="animate-unseal">
-      <div className="flex items-center gap-6 mb-8">
+      <div className="flex items-center gap-2 sm:gap-6 mb-8">
         {stepBadge(step === "account", step !== "account", 1, "Account")}
         <span className="h-px flex-1 bg-border" />
         {stepBadge(step === "phrase", step === "sealing" || step === "done", 2, "Secret Phrase")}
