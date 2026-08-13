@@ -38,11 +38,12 @@ Explanatory prose on the public pages is the exception and uses **encrypt / decr
 - Live cross-device sync is expected behaviour, not a nice-to-have: a change on one device reaches every other signed-in client within a second.
 - In-app security alerts **cannot** be switched off; only their emails can.
 - Four public pages (`/`, `/features`, `/security`, `/whitepaper`) plus contact and the legal docs. Their divided remit is in the copy rules below.
+- **The admin console is an operator's tool, not a super-user's.** It reports what the server can count and changes account state and platform gates; it can never show what is in a vault, and a feature request that would need it to is a request to break the product. `/features` and `/security` describe the product a user buys, so neither mentions it.
 
 ## What v1 deliberately does not do
 
 - No editable roles beyond owner/viewer: shared-vault members are read-only; there is no "editor" role yet.
-- No payments/subscriptions, no admin console (the `vault3_admin` table and `/app/v3-mgmt` path constant are reserved).
+- No payments or subscriptions.
 - No browser extension or desktop clients yet.
 - No third-party integrations beyond Mailgun for email. No analytics, no trackers — this is a product feature and marketing copy relies on it.
 
@@ -87,7 +88,6 @@ Explanatory prose on the public pages is the exception and uses **encrypt / decr
 - **Editor role for shared vaults** — extension point is the access row's role column plus the server-side write gate. `WrapAlgo` is `'muk'` only; server-mediated (email-addressed) invites would need a post-quantum KEM decided up front ([security.md](./security.md)).
 - **Browser extension / desktop clients** — same APIs, same envelopes; the JSON API is already the full product surface.
 - **Subscriptions** — individual billing, no organisations; keep the user hub free of plan data until then.
-4. **Admin console** — gate on `vault3_admin`, mount under `config.AdminConsolePath`.
 
 ## Maintenance
 

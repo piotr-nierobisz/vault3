@@ -722,11 +722,29 @@ input[data-secret] {
 .scroll-reveal.is-visible .scroll-reveal-child:nth-child(4) { transition-delay: 270ms; }
 
 /* Unseal — the vault's unlock: blur and dimness resolving into focus. */
+/* The three entrance animations below fill `backwards`, never `both`, and
+   that one word is load-bearing.
+
+   A transform or filter of anything other than `none` makes an element the
+   containing block for its `position: fixed` descendants. `both` keeps the
+   final keyframe applied for the life of the element, and a filled end
+   state resolves to matrix(1,0,0,1,0,0) / blur(0px) rather than to the
+   keyword `none` — so an entrance on a page wrapper permanently re-anchors
+   every modal inside it to that wrapper's box. That is exactly how the new
+   item dialog came to be centred on the content column instead of the
+   viewport. Writing `transform: none` into the 100% keyframe does not fix
+   it, because the filled value is still the interpolated matrix.
+
+   `backwards` fills only before the animation starts, which is what the
+   staggered variants actually need (a list item must not flash in before
+   its delay). Once it finishes the effect is dropped and the element
+   returns to its own style, transform-free. Nothing about the motion
+   changes; these all end on their natural state. */
 @keyframes unseal {
   0% { opacity: 0; filter: blur(9px); transform: scale(0.985); }
-  100% { opacity: 1; filter: blur(0); transform: scale(1); }
+  100% { opacity: 1; filter: none; transform: none; }
 }
-.animate-unseal { animation: unseal var(--duration-slower) var(--ease-out) both; }
+.animate-unseal { animation: unseal var(--duration-slower) var(--ease-out) backwards; }
 
 /* Seal — the reverse, used when locking. */
 @keyframes sealaway {
@@ -750,16 +768,16 @@ input[data-secret] {
 /* Rise — list items entering (staggered via inline animation-delay). */
 @keyframes rise {
   0% { opacity: 0; transform: translateY(10px); }
-  100% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 1; transform: none; }
 }
-.animate-rise { animation: rise var(--duration-slow) var(--ease-out) both; }
+.animate-rise { animation: rise var(--duration-slow) var(--ease-out) backwards; }
 
 /* Pop — dialogs and popovers springing open. */
 @keyframes pop {
   0% { opacity: 0; transform: scale(0.96) translateY(6px); }
-  100% { opacity: 1; transform: scale(1) translateY(0); }
+  100% { opacity: 1; transform: none; }
 }
-.animate-pop { animation: pop var(--duration-base) var(--ease-spring) both; }
+.animate-pop { animation: pop var(--duration-base) var(--ease-spring) backwards; }
 
 /* Shake — a wrong password/code answer. */
 @keyframes headshake {

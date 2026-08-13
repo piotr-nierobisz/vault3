@@ -38,9 +38,13 @@ type Runtime struct {
 }
 
 // Start bootstraps the runtime for the web process: it owns the dev schema
-// sync so the database is migrated before the server accepts traffic.
+// sync so the database is migrated before the server accepts traffic, and it
+// applies the optional admin bootstrap afterwards (the grant needs the schema
+// in place, and only the process serving the console has any use for it).
 func Start() *Runtime {
-	return start(true)
+	rt := start(true)
+	rt.bootstrapAdmin(context.Background())
+	return rt
 }
 
 // StartWorker bootstraps the runtime for a background worker (the job

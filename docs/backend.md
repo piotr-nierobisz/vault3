@@ -56,24 +56,27 @@ Rate limiting is **not** in the app. Per-IP throttling of the auth endpoints bel
 
 #### Route registration is secure by default
 
-Routes are registered through five closures defined at the top of main.go, never by writing a `bungo.ApiRoute`/`PageRoute` literal inline:
+Routes are registered through seven closures defined at the top of main.go, never by writing a `bungo.ApiRoute`/`PageRoute` literal inline:
 
 | Helper | Layers | Use for |
 |--------|--------|---------|
 | `api(method, path, handler)` | `require_auth` + `load_viewer` | every authenticated endpoint |
 | `page(path, template, view, handler)` | `require_auth` + `load_viewer` | every authenticated page |
+| `adminAPI(method, path, handler)` | + `require_admin` | the management console's endpoints |
+| `adminPage(...)` | + `require_admin` | the management console page |
 | `openAPI(method, path, handler)` | none | the deliberately public API surface |
 | `viewerPage(...)` | `optional_auth` + `load_viewer` | public pages that adapt when signed in |
 | `anonPage(...)` | none | pre-sign-in pages and the share viewer |
 
-The inversion is the point: authentication is the default, and going public costs a visible word in the name. In a flat list of ~40 routes a missing `SecurityLayer:` field is invisible in review and silently ships an unauthenticated endpoint over the vault. It also keeps the public surface auditable by grepping `main.go` for the three public helper names.
+The inversion is the point: authentication is the default, and going public costs a visible word in the name. In a flat list of ~50 routes a missing `SecurityLayer:` field is invisible in review and silently ships an unauthenticated endpoint over the vault. It also keeps the public surface auditable by grepping `main.go` for the three public helper names — and the privileged surface auditable by grepping for the two admin ones.
 
-If a route needs a layer combination none of the five covers, add a sixth named helper rather than a struct literal.
+If a route needs a layer combination none of these covers, add another named helper rather than a struct literal.
 
 ### Shared handler helpers
 
 - `rt.Viewer(req)` — the request's `*view.UserSummary` (nil if anonymous), built once by the `load_viewer` layer.
 - `CurrentUser(req)` / `CurrentSession(req)` — the hydrated `*models.UserFull` / `*models.Session` stashed by `require_auth`.
+- `require_admin` — the console gate. Reads the `vault3_admin` spoke `require_auth` already loaded, so it costs no query and cannot disagree with `view.UserSummary.IsAdmin`; chain it **after** `require_auth`. A signed-in non-admin gets 401 like everyone else, which is also the right answer: the status code should not confirm that the console exists.
 - `optional_auth` — carried by **every** public page (landing, features, contact, security, whitepaper, the legal docs) so the marketing header can offer a signed-in visitor the way back into `/app`. Loads the session/user when a valid cookie is present but always passes; pair with `load_viewer`, and have the handler put `rt.Viewer(req)` in its map. Shares `resolveSession` with `require_auth` but does not touch last-seen. It adapts the header only — a public page never renders app chrome (see [frontend.md](./frontend.md)).
 - `apiError(status, message)` / `apiFieldError(status, message, field)` — the standard error responses; never inline `bungo.APIResponse` error literals.
 - `rt.audit(req, userID, action, entityType, entityID, detail)` — append to the security trail; log-and-continue by design.
@@ -136,9 +139,10 @@ POSTGRES_DSN_STRING=postgres://...
 SERVER_ENCRYPTION_KEY_STRING=<base64 32 bytes>
 SUPPORT_EMAIL_STRING=hello@vault3.com
 MAILGUN_API_KEY_STRING= / MAILGUN_DOMAIN_STRING= / MAILGUN_FROM_EMAIL_STRING=   # optional; see Email
+ADMIN_BOOTSTRAP_EMAIL_STRING=                                                   # optional; see The admin console
 ```
 
-`PRODUCTION_BOOL` affects cookie Secure, HSTS, log format, and whether `SyncDatabaseSchema` runs. Secrets are read with `MustString` and listed in `REQUIRED_ENV_VARS` — the **one deliberate exception** is the Mailgun trio, which is optional (`LookupString`) so a dev stack boots with the keys blank.
+`PRODUCTION_BOOL` affects cookie Secure, HSTS, log format, and whether `SyncDatabaseSchema` runs. Secrets are read with `MustString` and listed in `REQUIRED_ENV_VARS`, with **two deliberate exceptions** read through `LookupString`: the Mailgun trio, so a dev stack boots with the keys blank, and `ADMIN_BOOTSTRAP_EMAIL_STRING`, which a stack needs exactly once.
 
 ---
 
@@ -220,12 +224,27 @@ The full model is in [security.md](./security.md). Backend-relevant rules:
 | CSRF | Cross-origin state-changing requests rejected in middleware via `Sec-Fetch-Site`/`Origin`, behind the cookie's `SameSite=Lax` |
 | Throttling | Not in the app — the production reverse proxy owns per-IP limits |
 | Role strings | `models.RoleOwner` / `RoleMember` / `VaultKind*` / `WrapAlgoMUK`, never bare literals |
+| Platform admin | A `vault3_admin` row, checked by `require_admin`. Grants operator powers over accounts and platform gates — never over vault contents, which no key on the server can open |
 | Asymmetric crypto | **None, deliberately.** Adding any is a security-model change, not an implementation detail — see [security.md](./security.md) |
 | Audit | Security events and item lifecycle (ids only) via `rt.audit`; encrypted at rest |
 
 ### Platform settings
 
-Key/value platform config lives in `vault3_platform_setting` (`internal/database/platform_setting.go`), read through dedicated `(*Runtime)` accessors that **fail safe**: `PublicRegistrationEnabled` and `EmailSendingEnabled` default false, `EmailVerificationRequired` defaults false (the one gate where safe means not locking users out). Seeded by `scripts/sql/005.sql`. Never read or write the table ad hoc; the future admin console is the only intended writer.
+Key/value platform config lives in `vault3_platform_setting` (`internal/database/platform_setting.go`), read through dedicated `(*Runtime)` accessors that **fail safe**: `PublicRegistrationEnabled` and `EmailSendingEnabled` default false, `EmailVerificationRequired` defaults false (the one gate where safe means not locking users out). Seeded by `scripts/sql/005.sql`.
+
+Never read or write the table ad hoc. The accessors are the only readers, and the **admin console is the only writer** — through an allowlist (`adminSettingKinds`) rather than an open key/value form, because every reader fails safe on a missing row, so a mistyped key reads as "off" rather than as an error anyone would notice.
+
+### The admin console
+
+The management console (`config.AdminConsolePath`, handlers in `internal/runtime/admin_view.go`, queries in `internal/database/admin.go`) is gated on a `vault3_admin` row and nothing else. Three rules hold across it and are the reason it is safe to have at all:
+
+- **An admin is an operator, not a super-user over vaults.** No endpoint there reads an item, a wrapped key or an envelope, and none usefully could — the server holds no key. What the console exposes is exactly what the server itself can know: row counts, account state, the audit trail, the contact inbox.
+- **Admin mutations run through the ordinary commit pipeline** via `commitAudienceChange` with the admin as *actor* and the target as *audience*, so the trail attributes the action to whoever took it while the target's own devices still refresh. Account deletion is the exception, for the same reason self-service deletion is: there is no surviving row to bump.
+- **The console cannot lock itself out.** An admin may not suspend, delete or de-admin themselves, and `CountAdmins` refuses the revocation of the last grant.
+
+Every listing is paged at `config.AdminPageSize`; there is no unpaged variant to reach for.
+
+**Bootstrap.** `vault3_admin` ships empty, so `Start()` (web process only) applies the optional `ADMIN_BOOTSTRAP_EMAIL_STRING`: it grants the role to that already-registered account, idempotently, and warns if no such account exists. Without it a fresh deployment has no way into the console short of SQL against production, and revoking the last grant would be irreversible. Unset is the steady state.
 
 ---
 

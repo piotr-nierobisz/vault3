@@ -61,6 +61,24 @@ func (r *Runtime) OptionalAuth(req *bungo.Request) bool {
 	return true
 }
 
+// RequireAdmin is the security-layer handler gating the management console.
+// It reads the vault3_admin spoke that require_auth already loaded, so it
+// costs no query and cannot disagree with view.UserSummary.IsAdmin.
+//
+// Chain it AFTER require_auth: on its own it would reject every request,
+// because an anonymous one has no user to check. Like every BunGo layer it
+// can only answer bool, so a signed-in non-admin gets 401 rather than 403 —
+// which is the better answer here anyway. The console's existence is not
+// something a curious account should be able to confirm by the status code
+// it gets back.
+func (r *Runtime) RequireAdmin(req *bungo.Request) bool {
+	user := CurrentUser(req)
+	if user == nil || user.Admin == nil {
+		return false
+	}
+	return true
+}
+
 // resolveSession validates the request's session cookie and loads the active
 // user behind it, returning nil, nil when there is no cookie, the session or
 // user cannot be found, or the account is inactive/archived. It performs no

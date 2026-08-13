@@ -32,8 +32,12 @@ func (r *Runtime) PageData(overrides ...map[string]any) map[string]any {
 	}
 
 	data := map[string]any{
-		"Site":            site,
-		"Year":            time.Now().Year(),
+		"Site": site,
+		"Year": time.Now().Year(),
+		// AdminPath is here rather than typed into the header template: the
+		// console's path is a constant, and a second copy of it in markup is
+		// how a link outlives a move.
+		"AdminPath":       config.AdminConsolePath,
 		"PageTitle":       config.SITE_NAME,
 		"PageDescription": config.SITE_DESCRIPTION,
 		"CanonicalURL":    config.SITE_URL,

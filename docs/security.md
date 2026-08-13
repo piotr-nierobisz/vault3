@@ -130,6 +130,22 @@ The account secret is operational data: the server *must* read it to check a log
 
 Two consequences the product states rather than hides: a vault holding both an account's password and its seed collapses two factors into one, and a share link exposes the live `details` blob and therefore the seed. The item form and the share dialog both say so.
 
+## What a platform admin is (and is not)
+
+A `vault3_admin` row grants the management console (`config.AdminConsolePath`, behind `require_admin`). It is an **operator** role, and the boundary is worth stating precisely because "admin" carries the wrong expectation from every other product:
+
+| An admin can | An admin cannot |
+|---|---|
+| Count rows: accounts, vaults, items, sessions, live share links | Read an item, a title, a wrapped key or any envelope |
+| Flip the platform gates (registration, email sending, verification) | Sign in as a user, or derive, reset or replace anyone's credentials |
+| Suspend, reactivate, sign out or erase an account | Recover a vault — erasure destroys ciphertext nobody holds a key to |
+| Mark an address verified, resend a verification link | Weaken a KDF profile or a stored cost parameter |
+| Read the audit trail and the contact inbox | Learn anything about vault contents from any of the above |
+
+The right-hand column is not a matter of permissions to be granted later. It is the invariant at the top of this document restated for the one role that would otherwise be assumed to escape it: **an admin holds the server, and holding the server buys nothing.** Full database theft and a malicious operator are the same adversary in the threat model below, and the console gives that adversary no capability the row in that table does not already grant.
+
+Two consequences follow, and both are implemented rather than merely intended. Every admin action is attributed in the audit trail with the *admin* as actor. And an admin cannot suspend, delete or de-admin themselves, nor revoke the last remaining grant — not as a safety rail for the operator, but because a console nobody can reach can no longer be audited or corrected.
+
 ## Server-side encryption at rest (`internal/crypto.FieldCipher`)
 
 The few operational fields the server must read back are AES-256-GCM encrypted under `SERVER_ENCRYPTION_KEY_STRING` (stored form `v1:base64url(nonce||ct)`): display names, session IP/UA, TOTP secrets, notification title/body, audit detail. `FieldCipher.Blind` (keyed HMAC-SHA-512) provides deterministic equality for the one query that needs it (new-device IP matching) without readable storage. This layer is defence in depth for *operational* data — it is unrelated to vault data and must never be presented as the zero-knowledge story.
@@ -169,6 +185,7 @@ Derivation runs in a **Web Worker, one per derivation**: the main thread stays r
 | Full database theft | Ciphertext, Argon2id(authKey), token hashes, FieldCipher blobs. No vault content. |
 | Adversary with a quantum computer | Nothing to break with Shor (no asymmetric primitives exist); Grover leaves ≥128 bits everywhere. Ciphertext harvested today stays unreadable. |
 | Malicious/compelled server operator | Can serve poisoned JS (the web-app residual risk, mitigated by CSP and future extension/desktop clients with pinned code); cannot decrypt stored data. |
+| Platform admin (console) | Can suspend and erase accounts, flip platform gates, and read metadata and the audit trail — all of it attributed. Sees exactly what the row above sees of any vault: ciphertext. |
 | Network attacker | TLS + HSTS; cookies never over plain HTTP in production. |
 | Stolen device, vault locked | Needs Master Password (and phrase, if not remembered on device). |
 | Compromised endpoint while unlocked | Out of scope — no web vault survives malware on the user's machine. Said honestly on /security. |

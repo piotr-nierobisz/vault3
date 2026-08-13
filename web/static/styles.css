@@ -1459,7 +1459,7 @@
 /* Item rows get a staggered rise on first paint; vault.tsx sets
    --stagger-i per row. */
 .item-row-enter {
-  animation: rise var(--duration-slow) var(--ease-out) both;
+  animation: rise var(--duration-slow) var(--ease-out) backwards;
   animation-delay: calc(var(--stagger-i, 0) * 28ms);
 }
 

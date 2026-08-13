@@ -115,6 +115,31 @@ const (
 	EmailVerificationRequiredSettingKey = "email_verification_required"
 )
 
+// Admin console ----------------------------------------------------------
+//
+// The management console lives behind the require_admin security layer,
+// which is satisfied by a vault3_admin row and nothing else. The path is
+// deliberately not /app/admin: obscurity is not the gate, but keeping the
+// console off the one path every scanner wordlist tries costs nothing.
+const (
+	// AdminConsolePath is the single console page. Everything it does runs
+	// through /api/v1/admin/* endpoints behind the same layer.
+	AdminConsolePath = "/app/v3-mgmt"
+	// AdminPageSize bounds every listing the console pages through (users,
+	// audit trail, contact inbox), so no query can be asked for the whole
+	// table.
+	AdminPageSize = 25
+	// MaxSuspensionReasonChars caps the note an operator leaves on a
+	// suspended account. It is stored in the clear and shown back in the
+	// console, not to the user.
+	MaxSuspensionReasonChars = 200
+	// AdminBootstrapEmailEnv names the optional environment variable that
+	// grants the first admin. It is read once at web-process startup and is
+	// deliberately absent from REQUIRED_ENV_VARS: an empty value is the
+	// normal state, and the grant it performs is idempotent.
+	AdminBootstrapEmailEnv = "ADMIN_BOOTSTRAP_EMAIL_STRING"
+)
+
 // Item limits ------------------------------------------------------------
 //
 // Item blobs arrive as ciphertext envelopes the server cannot inspect, so
@@ -209,15 +234,21 @@ const SQLScriptsDir = "scripts/sql"
 
 // LATEST_SQL_SCRIPT_VERSION is the highest script number to run in development (inclusive).
 // Bump when adding scripts/sql/00N.sql; runtime replays 1..N on each dev startup.
-const LATEST_SQL_SCRIPT_VERSION = 8
+const LATEST_SQL_SCRIPT_VERSION = 9
 
 // REQUIRED_ENV_VARS fail fast at startup if missing or empty.
 //
-// The Mailgun group (MAILGUN_API_KEY_STRING, MAILGUN_DOMAIN_STRING,
-// MAILGUN_FROM_EMAIL_STRING) is deliberately NOT required: the delivery layer
-// degrades to a logged skip while the keys are empty, and the
-// email_sending_enabled platform setting keeps dev quiet regardless. Add them
-// here once the production Mailgun domain is verified.
+// Two groups are deliberately NOT required, and both must stay that way:
+//
+//   - The Mailgun trio (MAILGUN_API_KEY_STRING, MAILGUN_DOMAIN_STRING,
+//     MAILGUN_FROM_EMAIL_STRING): the delivery layer degrades to a logged skip
+//     while the keys are empty, and the email_sending_enabled platform setting
+//     keeps dev quiet regardless. Add them here once the production Mailgun
+//     domain is verified.
+//   - AdminBootstrapEmailEnv: unset is the steady state. It exists to grant
+//     the first admin on a fresh deployment (and to break back in if the last
+//     grant is ever removed), so requiring it would make every stack carry a
+//     value it needs exactly once.
 var REQUIRED_ENV_VARS = []string{
 	"PRODUCTION_BOOL",
 	"PORT_INT",

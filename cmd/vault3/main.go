@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"vault3/internal/config"
 	"vault3/internal/runtime"
 
 	bungo "github.com/piotr-nierobisz/BunGo"
@@ -40,6 +41,13 @@ func main() {
 		Handler: rt.OptionalAuth,
 	})
 
+	// require_admin gates the management console on a vault3_admin row. It
+	// reads the spoke require_auth already loaded, so it must come after it.
+	srv.Security(bungo.SecurityLayer{
+		Name:    "require_admin",
+		Handler: rt.RequireAdmin,
+	})
+
 	srv.SetDefaultLayout("base.gohtml")
 
 	authLayers := []string{"require_auth", "load_viewer"}
@@ -47,6 +55,8 @@ func main() {
 	// signed-in visitor is offered the way back into /app instead of a
 	// sign-up pair.
 	viewerLayers := []string{"optional_auth", "load_viewer"}
+	// adminLayers is authLayers plus the platform-admin check.
+	adminLayers := []string{"require_auth", "load_viewer", "require_admin"}
 
 	// --- Route registration ---
 	//
@@ -94,6 +104,21 @@ func main() {
 		srv.Page(bungo.PageRoute{
 			Path: path, Template: template, View: view,
 			Handler: handler,
+		})
+	}
+	// adminAPI / adminPage: the management console. A sixth and seventh named
+	// helper rather than a layer list at the call site, for the same reason as
+	// the five above — the requirement is a word in the name.
+	adminAPI := func(method, path string, handler func(*bungo.Request) (bungo.APIResponse, error)) {
+		srv.Api(bungo.ApiRoute{
+			Path: path, Version: "v1", Method: method,
+			SecurityLayer: adminLayers, Handler: handler,
+		})
+	}
+	adminPage := func(path, template, view string, handler func(*bungo.Request) (map[string]any, error)) {
+		srv.Page(bungo.PageRoute{
+			Path: path, Template: template, View: view,
+			SecurityLayer: adminLayers, Handler: handler,
 		})
 	}
 
@@ -200,6 +225,30 @@ func main() {
 	api("GET", "/notifications", rt.NotificationsAPI)
 	api("POST", "/notifications/read", rt.MarkNotificationReadAPI)
 	api("POST", "/notifications/read-all", rt.MarkAllNotificationsReadAPI)
+
+	// --- Management console ---
+	//
+	// One page behind require_admin, at a path product.md reserved. Nothing
+	// here can read a vault: the endpoints count rows, flip platform gates and
+	// change account state, which is the whole of what the server itself can
+	// do. See internal/runtime/admin_view.go.
+
+	adminPage(config.AdminConsolePath, "app/admin.gohtml", "admin.tsx", rt.AdminConsolePage)
+
+	adminAPI("GET", "/admin/overview", rt.AdminOverviewAPI)
+	adminAPI("POST", "/admin/settings", rt.AdminUpdateSettingAPI)
+
+	adminAPI("GET", "/admin/users", rt.AdminUsersAPI)
+	adminAPI("POST", "/admin/users/suspend", rt.AdminSuspendUserAPI)
+	adminAPI("POST", "/admin/users/sessions/revoke", rt.AdminRevokeSessionsAPI)
+	adminAPI("POST", "/admin/users/verify-email", rt.AdminVerifyEmailAPI)
+	adminAPI("POST", "/admin/users/resend-verification", rt.AdminResendVerificationAPI)
+	adminAPI("POST", "/admin/users/admin", rt.AdminGrantAPI)
+	adminAPI("POST", "/admin/users/delete", rt.AdminDeleteUserAPI)
+
+	adminAPI("GET", "/admin/audit", rt.AdminAuditAPI)
+	adminAPI("GET", "/admin/inquiries", rt.AdminInquiriesAPI)
+	adminAPI("POST", "/admin/inquiries/handled", rt.AdminInquiryHandledAPI)
 
 	// --- Trust and legal docs ---
 	// Part of the public surface, so they carry the viewer layers too: the

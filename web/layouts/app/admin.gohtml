@@ -1,0 +1,13 @@
+{{define "content"}}
+{{/* Management console: platform gates, accounts, security trail, contact
+     inbox. Rendered by admin.tsx into #admin-root. Wider than settings
+     because its content is tabular. */}}
+<div class="min-h-screen flex flex-col overflow-x-hidden">
+    <div class="site-canvas site-canvas-app" aria-hidden="true">
+        <div class="glow-orb glow-orb-a" style="--orb:var(--accent-glow);width:46vw;height:34vw;top:-18vw;right:-10vw;opacity:0.45"></div>
+        <div class="glow-orb glow-orb-b" style="--orb:var(--accent-3-glow);width:36vw;height:28vw;bottom:-14vw;left:-10vw;opacity:0.35"></div>
+    </div>
+    {{template "appHeader" .}}
+    <div class="flex-1 max-w-6xl mx-auto w-full px-4 sm:px-6 py-10" id="admin-root"></div>
+</div>
+{{end}}
