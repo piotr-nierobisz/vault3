@@ -15,7 +15,6 @@ import (
 	"vault3/internal/models"
 	"vault3/internal/view"
 
-	"github.com/google/uuid"
 	bungo "github.com/piotr-nierobisz/BunGo"
 	"github.com/pquerna/otp/totp"
 	"go.uber.org/zap"
@@ -353,14 +352,9 @@ func (r *Runtime) createSession(req *bungo.Request, userID string) (*models.Sess
 	if tokenErr != nil {
 		return nil, bungo.Cookie{}, fmt.Errorf("generate session token: %w", tokenErr)
 	}
-	sessionID, idErr := uuid.NewV7()
-	if idErr != nil {
-		return nil, bungo.Cookie{}, fmt.Errorf("generate session id: %w", idErr)
-	}
-
 	expires := time.Now().Add(config.SessionTTL)
 	session := &models.Session{
-		ID:        sessionID.String(),
+		ID:        newUUID(),
 		TokenHash: tokenHash,
 		UserID:    userID,
 		IPAddress: ClientIP(req),

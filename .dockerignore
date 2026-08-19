@@ -1,0 +1,7 @@
+.git
+.idea
+.claude
+.env
+.vault3.log
+bin/
+docs/

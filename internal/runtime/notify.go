@@ -9,7 +9,6 @@ import (
 	"vault3/internal/database"
 	"vault3/internal/models"
 
-	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
@@ -105,12 +104,8 @@ func (r *Runtime) Notify(ctx context.Context, event NotificationEvent) error {
 func (r *Runtime) dispatch(ctx context.Context, channel NotificationChannel, p *plannedNotification, recipient *notificationRecipient) error {
 	switch channel {
 	case ChannelInApp:
-		id, idErr := uuid.NewV7()
-		if idErr != nil {
-			return fmt.Errorf("generate notification id: %w", idErr)
-		}
 		return database.InsertNotification(ctx, r.GetDb(), &r.Builder, r.Cipher, &models.Notification{
-			ID:       id.String(),
+			ID:       newUUID(),
 			UserID:   p.UserID,
 			Kind:     p.Kind,
 			Title:    p.Title,

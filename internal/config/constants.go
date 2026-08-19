@@ -124,33 +124,38 @@ const (
 // it in cmd/vault3/main.go.
 //
 // This is the one third party the browser talks to, and it is confined to the
-// two pages that need it: the CSP allowance naming TurnstileOrigin is served
-// on LoginPath and JoinPath only (internal/runtime/middleware.go), so /app —
-// where a vault is actually open — still admits code from this origin alone.
+// two pages that need it: the CSP allowance naming integrations.TurnstileOrigin
+// is served on LoginPath and JoinPath only (internal/runtime/middleware.go),
+// so /app — where a vault is actually open — still admits code from this
+// origin alone.
+//
+// What Cloudflare owns — the siteverify endpoint, the widget origin, the
+// published test key pair — lives in internal/integrations/turnstile.go with
+// the client that speaks to it. What this deployment owns stays here: the
+// names of the environment variables holding our key pair, and the wording a
+// refused challenge shows.
 const (
 	// The per-deployment key pair, read only in production
-	// (turnstileKeys in internal/runtime/turnstile.go).
+	// (newIntegrations in internal/runtime/runtime.go).
 	TurnstileSiteKeyEnv   = "TURNSTILE_SITE_KEY_STRING"
 	TurnstileSecretKeyEnv = "TURNSTILE_SECRET_KEY_STRING"
-
-	// Cloudflare's published always-pass test pair, used everywhere else. Dev
-	// therefore runs the real widget, the real token round-trip and the real
-	// siteverify call — the whole path, minus the production secret sitting on
-	// a laptop. The counterparts, if you need to watch a refusal:
-	// 2x00000000000000000000AB always blocks, 3x00000000000000000000FF forces
-	// an interactive challenge.
-	TurnstileTestSiteKey   = "1x00000000000000000000AA"
-	TurnstileTestSecretKey = "1x0000000000000000000000000000000AA"
-
-	// TurnstileOrigin is the host the widget's script and iframe come from —
-	// named once because the CSP directive and the script URL must agree.
-	TurnstileOrigin    = "https://challenges.cloudflare.com"
-	TurnstileVerifyURL = TurnstileOrigin + "/turnstile/v0/siteverify"
 
 	// TurnstileFailedError is what a rejected challenge says. It names the
 	// check rather than the caller: a real person whose token lapsed while
 	// the form sat open sees this too, and the fix for both is the same.
 	TurnstileFailedError = "That human check didn't pass. Please try again."
+)
+
+// Email delivery (Mailgun) -----------------------------------------------
+//
+// The names of the credential trio, read by newIntegrations in
+// internal/runtime/runtime.go. All three are deliberately absent from
+// REQUIRED_ENV_VARS — see the note there — so an empty value is an ordinary
+// state the delivery layer degrades through, not a startup failure.
+const (
+	MailgunAPIKeyEnv    = "MAILGUN_API_KEY_STRING"
+	MailgunDomainEnv    = "MAILGUN_DOMAIN_STRING"
+	MailgunFromEmailEnv = "MAILGUN_FROM_EMAIL_STRING"
 )
 
 // Platform settings (vault3_platform_setting keys) -----------------------

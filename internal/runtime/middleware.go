@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"vault3/internal/config"
+	"vault3/internal/integrations"
 
 	bungo "github.com/piotr-nierobisz/BunGo"
 )
@@ -188,8 +189,8 @@ func contentSecurityPolicy(turnstile bool) string {
 	scriptSrc := "'self' 'unsafe-inline' 'wasm-unsafe-eval'"
 	frameSrc := "'self'"
 	if turnstile {
-		scriptSrc += " " + config.TurnstileOrigin
-		frameSrc += " " + config.TurnstileOrigin
+		scriptSrc += " " + integrations.TurnstileOrigin
+		frameSrc += " " + integrations.TurnstileOrigin
 	}
 	return "default-src 'self'; script-src " + scriptSrc + "; " +
 		"worker-src 'self'; " +

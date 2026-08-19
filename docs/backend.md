@@ -156,6 +156,16 @@ ADMIN_BOOTSTRAP_EMAIL_STRING=                                                   
 
 ---
 
+## Production image
+
+`Dockerfile` builds both entry points into one image and `VAULT3_PROCESS` picks which runs (`web`, the default, or `scheduler`), so a platform that cannot override a start command still deploys both processes from the same build.
+
+The web binary is built with `bungo build`, never `go build`: that is what embeds `web/layouts`, `web/views` and `web/static` (the Argon2 wasm included) into the binary, so the runtime stage ships no `web/` directory. Keep the pinned CLI version in the Dockerfile equal to the BunGo version in `go.mod`.
+
+Two things the image cannot do for itself. Production skips `SyncDatabaseSchema`, so `scripts/sql` is applied by hand once per deploy that adds a script — the scripts and a `psql` client are in the image for exactly that. And every value in `REQUIRED_ENV_VARS` comes from the host platform: a typed variable that is *set but empty* panics at startup, so an unused one (the Mailgun trio) must be left unset rather than blank.
+
+---
+
 ## Database
 
 ### Engine and queries

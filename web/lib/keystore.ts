@@ -88,10 +88,6 @@ export function lock(): void {
   sessionStorage.removeItem(ACTIVITY_KEY);
 }
 
-export function isUnlocked(): boolean {
-  return loadKeys() !== null;
-}
-
 // ── Auto-lock ───────────────────────────────────────────────────────────────
 
 export function autoLockMinutes(): number {

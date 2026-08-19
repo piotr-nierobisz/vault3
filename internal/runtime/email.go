@@ -3,35 +3,33 @@ package runtime
 import (
 	"context"
 	"fmt"
-	"net/http"
-	"net/url"
-	"strings"
-	"time"
 
 	"vault3/internal/config"
+	"vault3/internal/integrations"
 
 	"go.uber.org/zap"
 )
 
-// Email delivery via the Mailgun messages API. Every outbound email names a
-// template by its short name (e.g. "NEW_DEVICE_LOGIN"), resolved to a
-// subject + HTML body in email_templates.go and rendered server-side —
-// Mailgun only transports. frontendUrl, supportEmail, firstName and email
-// are injected into every render, with caller-supplied keys winning.
+// Email delivery. Every outbound email names a template by its short name
+// (e.g. "NEW_DEVICE_LOGIN"), resolved to a subject + HTML body in
+// email_templates.go and rendered server-side — Mailgun only transports, and
+// the client that talks to it lives in internal/integrations/mailgun.go.
+// frontendUrl, supportEmail, firstName and email are injected into every
+// render, with caller-supplied keys winning.
 //
 // Two gates sit in front of every send:
 //   - the email_sending_enabled platform setting (admin-controlled): off
 //     replaces the send with an info log naming template, trigger and
 //     recipient, so local dev sees exactly what would have gone out;
-//   - the Mailgun credentials themselves (MAILGUN_API_KEY_STRING,
-//     MAILGUN_DOMAIN_STRING, MAILGUN_FROM_EMAIL_STRING), which are OPTIONAL
-//     config: while any is empty the send degrades to a warn log. They are
-//     deliberately absent from REQUIRED_ENV_VARS so a dev stack boots with
-//     the keys blank; fill them in once the vault3.com domain is verified.
-
-const mailgunAPIBase = "https://api.eu.mailgun.net/v3"
-
-var mailgunHTTPClient = &http.Client{Timeout: 15 * time.Second}
+//   - the Mailgun credentials themselves (see config.MailgunAPIKeyEnv and
+//     friends), which are OPTIONAL config: while any is empty the send
+//     degrades to a warn log. They are deliberately absent from
+//     REQUIRED_ENV_VARS so a dev stack boots with the keys blank; fill them
+//     in once the vault3.com domain is verified.
+//
+// Both gates are policy, which is why they are here and not in the client:
+// integrations/ knows how to send an email, not whether this deployment
+// should.
 
 // SendTemplateEmail sends one templated email. template is the short
 // template name; trigger is the notification kind (or other cause) recorded
@@ -52,10 +50,7 @@ func (r *Runtime) SendTemplateEmail(ctx context.Context, toEmail, toName, templa
 		return nil
 	}
 
-	apiKey, hasKey := r.Config.LookupString("MAILGUN_API_KEY_STRING")
-	domain, hasDomain := r.Config.LookupString("MAILGUN_DOMAIN_STRING")
-	fromEmail, hasFrom := r.Config.LookupString("MAILGUN_FROM_EMAIL_STRING")
-	if !hasKey || !hasDomain || !hasFrom {
+	if !r.Integrations.Mailgun.Configured() {
 		r.Log.Warn("mailgun not configured; skipping email",
 			zap.String("template", template),
 			zap.String("trigger", trigger),
@@ -84,27 +79,13 @@ func (r *Runtime) SendTemplateEmail(ctx context.Context, toEmail, toName, templa
 		return nil
 	}
 
-	form := url.Values{}
-	form.Set("from", fmt.Sprintf("%s <%s>", config.SITE_NAME, fromEmail))
-	form.Set("to", strings.TrimSpace(toName+" <"+toEmail+">"))
-	form.Set("subject", subject)
-	form.Set("html", htmlBody)
-
-	endpoint := fmt.Sprintf("%s/%s/messages", mailgunAPIBase, domain)
-	httpReq, reqErr := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(form.Encode()))
-	if reqErr != nil {
-		return fmt.Errorf("send email %s: build request: %w", template, reqErr)
-	}
-	httpReq.SetBasicAuth("api", apiKey)
-	httpReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-	resp, doErr := mailgunHTTPClient.Do(httpReq)
-	if doErr != nil {
-		return fmt.Errorf("send email %s: %w", template, doErr)
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode >= 300 {
-		return fmt.Errorf("send email %s: Mailgun responded %d", template, resp.StatusCode)
+	if sendErr := r.Integrations.Mailgun.Send(ctx, integrations.Email{
+		ToEmail: toEmail,
+		ToName:  toName,
+		Subject: subject,
+		HTML:    htmlBody,
+	}); sendErr != nil {
+		return fmt.Errorf("send email %s: %w", template, sendErr)
 	}
 
 	r.Log.Info("email sent",

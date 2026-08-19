@@ -1,10 +1,10 @@
 package runtime
 
 import (
-	"fmt"
 	"strings"
 
 	"vault3/internal/config"
+	"vault3/internal/database"
 	"vault3/internal/models"
 
 	bungo "github.com/piotr-nierobisz/BunGo"
@@ -45,40 +45,8 @@ func (r *Runtime) ContactSubmitAPI(req *bungo.Request) (bungo.APIResponse, error
 		UserAgent: req.Headers["User-Agent"],
 	}
 
-	ipEnc, ipErr := r.Cipher.EncryptString(inquiry.IPAddress)
-	if ipErr != nil {
-		return bungo.APIResponse{}, fmt.Errorf("encrypt contact ip: %w", ipErr)
-	}
-	uaEnc, uaErr := r.Cipher.EncryptString(inquiry.UserAgent)
-	if uaErr != nil {
-		return bungo.APIResponse{}, fmt.Errorf("encrypt contact user agent: %w", uaErr)
-	}
-
-	query, args, buildErr := r.Builder.
-		Insert(`"vault3_contact_inquiry"`).
-		Columns(
-			`"Vault3ContactInquiryID"`,
-			`"Vault3ContactInquiryName"`,
-			`"Vault3ContactInquiryEmail"`,
-			`"Vault3ContactInquiryMessage"`,
-			`"Vault3ContactInquiryIpAddressEnc"`,
-			`"Vault3ContactInquiryUserAgentEnc"`,
-		).
-		Values(
-			inquiry.ID,
-			inquiry.Name,
-			inquiry.Email,
-			inquiry.Message,
-			nullIfEmpty(ipEnc),
-			nullIfEmpty(uaEnc),
-		).
-		ToSql()
-	if buildErr != nil {
-		return bungo.APIResponse{}, fmt.Errorf("build insert contact inquiry: %w", buildErr)
-	}
-
-	if _, execErr := r.GetDb().ExecContext(req.Context, query, args...); execErr != nil {
-		r.Log.Error("contact inquiry insert failed", zap.Error(execErr))
+	if insertErr := database.InsertContactInquiry(req.Context, r.GetDb(), &r.Builder, r.Cipher, inquiry); insertErr != nil {
+		r.Log.Error("contact inquiry insert failed", zap.Error(insertErr))
 		return apiError(500, "We couldn't save your message. Please try again shortly."), nil
 	}
 
@@ -87,11 +55,4 @@ func (r *Runtime) ContactSubmitAPI(req *bungo.Request) (bungo.APIResponse, error
 		StatusCode: 200,
 		Body:       map[string]string{"message": "Thanks — we'll get back to you soon."},
 	}, nil
-}
-
-func nullIfEmpty(s string) any {
-	if s == "" {
-		return nil
-	}
-	return s
 }

@@ -148,13 +148,6 @@ export const LockIcon = ({ className }: IconProps) => (
   </Icon>
 );
 
-export const UnlockIcon = ({ className }: IconProps) => (
-  <Icon className={className}>
-    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-    <path d="M7 11V7a5 5 0 0 1 9.9-1" />
-  </Icon>
-);
-
 export const RefreshIcon = ({ className }: IconProps) => (
   <Icon className={className}>
     <path d="M21.5 2v6h-6" />
@@ -230,19 +223,6 @@ export const LinkIcon = ({ className }: IconProps) => (
   <Icon className={className}>
     <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
     <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-  </Icon>
-);
-
-export const PencilIcon = ({ className }: IconProps) => (
-  <Icon className={className}>
-    <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-    <path d="M15 5l4 4" />
-  </Icon>
-);
-
-export const ChevronDownIcon = ({ className }: IconProps) => (
-  <Icon className={className}>
-    <path d="M6 9l6 6 6-6" />
   </Icon>
 );
 

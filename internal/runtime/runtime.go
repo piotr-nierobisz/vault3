@@ -8,9 +8,11 @@ import (
 	"vault3/internal/config"
 	"vault3/internal/crypto"
 	"vault3/internal/database"
+	"vault3/internal/integrations"
 	"vault3/internal/view"
 
 	"github.com/Masterminds/squirrel"
+	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 	bungo "github.com/piotr-nierobisz/BunGo"
 	"go.uber.org/zap"
@@ -32,6 +34,11 @@ type Runtime struct {
 	// shape data for templates. Populated once at startup; restart to pick
 	// up reference edits.
 	Lookups *view.Lookups
+	// Integrations holds every third-party client (internal/integrations).
+	// Credentials are read once, here, so no handler reaches for r.Config to
+	// talk to a vendor — and the field is the complete list of who this
+	// deployment calls out to.
+	Integrations *integrations.Clients
 	// Signals is the WebSocket hub behind the change-signal route: mutations
 	// publish the user's new revision and every other connected client is
 	// told to refresh. Owned by BunGo and handed over by main.go when it
@@ -97,14 +104,55 @@ func start(syncSchema bool) *Runtime {
 
 	logger.Info("runtime initialized", zap.Bool("production", production))
 	return &Runtime{
-		Log:     logger,
-		DB:      db,
-		Builder: builder,
-		Config:  cfg,
-		TX:      nil,
-		Cipher:  cipher,
-		Lookups: lookups,
+		Log:          logger,
+		DB:           db,
+		Builder:      builder,
+		Config:       cfg,
+		TX:           nil,
+		Cipher:       cipher,
+		Lookups:      lookups,
+		Integrations: newIntegrations(cfg),
 	}
+}
+
+// newIntegrations resolves every third-party credential from config and hands
+// the values to internal/integrations. It is the one place env keys and
+// vendors meet: integrations/ imports neither config nor runtime, the same
+// way database/ imports neither, so the wiring has to be stated somewhere and
+// this is the somewhere.
+//
+// The Mailgun trio is read with LookupString because it is deliberately
+// optional — the client reports itself unconfigured and email degrades to a
+// logged skip (see SendTemplateEmail). Turnstile takes Cloudflare's published
+// test pair outside production, so dev runs the real widget and the real
+// siteverify round-trip without holding the deployment secret.
+func newIntegrations(cfg *config.Config) *integrations.Clients {
+	siteKey, secretKey := integrations.TurnstileTestSiteKey, integrations.TurnstileTestSecretKey
+	if cfg.MustBool("PRODUCTION_BOOL") {
+		siteKey = cfg.MustString(config.TurnstileSiteKeyEnv)
+		secretKey = cfg.MustString(config.TurnstileSecretKeyEnv)
+	}
+
+	apiKey, _ := cfg.LookupString(config.MailgunAPIKeyEnv)
+	domain, _ := cfg.LookupString(config.MailgunDomainEnv)
+	fromEmail, _ := cfg.LookupString(config.MailgunFromEmailEnv)
+
+	return integrations.New(integrations.Config{
+		MailgunAPIKey:      apiKey,
+		MailgunDomain:      domain,
+		MailgunFromEmail:   fromEmail,
+		MailgunFromName:    config.SITE_NAME,
+		TurnstileSiteKey:   siteKey,
+		TurnstileSecretKey: secretKey,
+	})
+}
+
+// newUUID returns a fresh UUIDv7 string. Generation panics only if the OS
+// entropy source is broken, which no request in a password manager should
+// limp past: a dead RNG must stop the process, not quietly skip the row it
+// was minting an id for.
+func newUUID() string {
+	return uuid.Must(uuid.NewV7()).String()
 }
 
 func (r *Runtime) Stop() {

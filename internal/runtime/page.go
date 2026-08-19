@@ -122,12 +122,11 @@ func (r *Runtime) NotFoundPage(req *bungo.Request) (map[string]any, error) {
 // rendered with — so it travels in the page payload like any other view
 // setting. The secret half never leaves the server (turnstile.go).
 func (r *Runtime) LoginPage(_ *bungo.Request) (map[string]any, error) {
-	siteKey, _ := r.turnstileKeys()
 	return r.PageData(map[string]any{
 		"PageTitle":        "Login | Vault3",
 		"CanonicalURL":     config.SITE_URL + config.LoginPath,
 		"NoIndex":          true,
-		"TurnstileSiteKey": siteKey,
+		"TurnstileSiteKey": r.Integrations.Turnstile.SiteKey(),
 	}), nil
 }
 

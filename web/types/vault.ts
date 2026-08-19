@@ -62,13 +62,6 @@ export type ItemsResponse = {
   revision: number;
 };
 
-// A vault with its client-side decrypted name (opened from encName with the
-// vault key; "Sealed vault" when the key is unavailable).
-export type NamedVault = {
-  dto: KeysetVaultDto;
-  name: string;
-};
-
 export type VaultsResponse = {
   vaults: KeysetVaultDto[];
   revision: number;

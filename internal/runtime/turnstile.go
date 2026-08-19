@@ -2,11 +2,7 @@ package runtime
 
 import (
 	"context"
-	"encoding/json"
-	"net/http"
-	"net/url"
 	"strings"
-	"time"
 
 	"vault3/internal/config"
 
@@ -28,20 +24,10 @@ import (
 // only that a browser and (probably) a person were involved. Every credential
 // check downstream is unchanged, and the generic login error still says the
 // same thing to everyone.
-
-var turnstileHTTPClient = &http.Client{Timeout: 10 * time.Second}
-
-// turnstileKeys returns the site key the widget is rendered with and the
-// secret key siteverify is called with. Production uses the deployment's own
-// pair; everywhere else gets Cloudflare's always-pass test pair, so dev runs
-// the same widget and the same round-trip without holding the real secret.
-// Same shape as sessionCookieName() in auth.go, for the same reason.
-func (r *Runtime) turnstileKeys() (siteKey string, secretKey string) {
-	if r.Config.MustBool("PRODUCTION_BOOL") {
-		return r.Config.MustString(config.TurnstileSiteKeyEnv), r.Config.MustString(config.TurnstileSecretKeyEnv)
-	}
-	return config.TurnstileTestSiteKey, config.TurnstileTestSecretKey
-}
+//
+// The round-trip itself lives in internal/integrations/turnstile.go, which
+// holds the key pair and the endpoint. What stays here is the policy: which
+// requests are challenged, what a refusal says, and what an outage means.
 
 // turnstileTokenPayload is the one field every challenged request adds. It is
 // decoded on its own so the layer never has to know the shape of the body it
@@ -70,7 +56,7 @@ func (r *Runtime) RequireHuman(req *bungo.Request) (bool, *bungo.APIResponse) {
 	return true, nil
 }
 
-// verifyTurnstile redeems one token with Cloudflare's siteverify endpoint.
+// verifyTurnstile redeems one token and decides what the answer means.
 // Tokens are single-use and lapse after five minutes, so every attempt needs
 // its own; the client mints a fresh one whenever a submission is refused.
 //
@@ -81,43 +67,17 @@ func (r *Runtime) RequireHuman(req *bungo.Request) (bool, *bungo.APIResponse) {
 // not data lost. It is also the loud failure of the two, which is what a
 // disabled security control should be.
 //
-// remoteip is deliberately not sent. It is optional, Cloudflare validates it
-// against the address the challenge was solved from, and the one thing worse
-// than a missing signal here is a proxy chain that reports a different address
-// than the browser used and locks every legitimate user out of sign-in.
+// The Verify call returns an error rather than folding an outage into a
+// false, so that trade is made here, in the open, instead of inside a vendor
+// client.
 func (r *Runtime) verifyTurnstile(ctx context.Context, token string) bool {
 	if token == "" {
 		return false
 	}
-	_, secretKey := r.turnstileKeys()
 
-	form := url.Values{}
-	form.Set("secret", secretKey)
-	form.Set("response", token)
-
-	httpReq, reqErr := http.NewRequestWithContext(ctx, http.MethodPost, config.TurnstileVerifyURL, strings.NewReader(form.Encode()))
-	if reqErr != nil {
-		r.Log.Error("turnstile: build siteverify request", zap.Error(reqErr))
-		return false
-	}
-	httpReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-	resp, doErr := turnstileHTTPClient.Do(httpReq)
-	if doErr != nil {
-		r.Log.Error("turnstile: siteverify unreachable; refusing the request", zap.Error(doErr))
-		return false
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	var verdict struct {
-		Success    bool     `json:"success"`
-		ErrorCodes []string `json:"error-codes"`
-	}
-	if decodeErr := json.NewDecoder(resp.Body).Decode(&verdict); decodeErr != nil {
-		r.Log.Error("turnstile: malformed siteverify response",
-			zap.Int("status", resp.StatusCode),
-			zap.Error(decodeErr),
-		)
+	verdict, verifyErr := r.Integrations.Turnstile.Verify(ctx, token)
+	if verifyErr != nil {
+		r.Log.Error("turnstile: verification failed; refusing the request", zap.Error(verifyErr))
 		return false
 	}
 	if !verdict.Success {

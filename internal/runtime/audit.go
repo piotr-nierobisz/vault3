@@ -4,7 +4,6 @@ import (
 	"vault3/internal/database"
 	"vault3/internal/models"
 
-	"github.com/google/uuid"
 	bungo "github.com/piotr-nierobisz/BunGo"
 	"go.uber.org/zap"
 )
@@ -14,13 +13,8 @@ import (
 // the action it records. Item content never appears here — the server never
 // has it; detail is a short contextual string (encrypted at rest).
 func (r *Runtime) audit(req *bungo.Request, userID, action, entityType, entityID, detail string) {
-	id, idErr := uuid.NewV7()
-	if idErr != nil {
-		r.Log.Error("audit: generate id", zap.Error(idErr))
-		return
-	}
 	entry := &models.AuditLog{
-		ID:         id.String(),
+		ID:         newUUID(),
 		UserID:     userID,
 		Action:     action,
 		EntityType: entityType,

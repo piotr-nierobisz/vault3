@@ -16,7 +16,6 @@ import (
 	"vault3/internal/database"
 	"vault3/internal/models"
 
-	"github.com/google/uuid"
 	bungo "github.com/piotr-nierobisz/BunGo"
 	"go.uber.org/zap"
 )
@@ -32,13 +31,6 @@ var emailPattern = regexp.MustCompile(`^[^@\s]+@[^@\s]+\.[^@\s]+$`)
 // timeNow indirection keeps token expiries stubbable in tests.
 var timeNow = time.Now
 
-// newUUID returns a fresh UUIDv7 string; generation cannot realistically
-// fail (it panics only if the OS entropy source is broken, which no request
-// should limp past).
-func newUUID() string {
-	return uuid.Must(uuid.NewV7()).String()
-}
-
 // hashAuthKey derives the storage hash (Argon2id) for the client-derived auth
 // key. See internal/crypto/password.go for why it is not bcrypt.
 func hashAuthKey(authKey string) (string, error) {
@@ -53,14 +45,13 @@ func hashAuthKey(authKey string) (string, error) {
 // register API re-checks the platform gate, and the page passes the gate
 // state so the view can show a closed notice instead of a dead form.
 func (r *Runtime) JoinPage(req *bungo.Request) (map[string]any, error) {
-	siteKey, _ := r.turnstileKeys()
 	return r.PageData(map[string]any{
 		"PageTitle":        "Register | Vault3",
 		"PageDescription":  "Create a Vault3 account. Your Master Password and Secret Phrase never leave your device.",
 		"CanonicalURL":     config.SITE_URL + config.JoinPath,
 		"RegistrationOpen": r.PublicRegistrationEnabled(req.Context),
 		"KdfCosts":         defaultKdfCosts(),
-		"TurnstileSiteKey": siteKey,
+		"TurnstileSiteKey": r.Integrations.Turnstile.SiteKey(),
 	}), nil
 }
 
@@ -151,8 +142,8 @@ func (r *Runtime) RegisterAPI(req *bungo.Request) (bungo.APIResponse, error) {
 		return bungo.APIResponse{}, hashErr
 	}
 
-	userID := uuid.Must(uuid.NewV7()).String()
-	vaultID := uuid.Must(uuid.NewV7()).String()
+	userID := newUUID()
+	vaultID := newUUID()
 	prefs, _ := json.Marshal(models.DefaultNotificationPrefs())
 
 	transactionErr := WithTransaction(r, req.Context, func(txRt *Runtime) error {
@@ -189,7 +180,7 @@ func (r *Runtime) RegisterAPI(req *bungo.Request) (bungo.APIResponse, error) {
 			return insertVaultErr
 		}
 		return database.InsertVaultAccess(req.Context, txRt.GetDb(), &txRt.Builder, &models.VaultAccess{
-			ID:         uuid.Must(uuid.NewV7()).String(),
+			ID:         newUUID(),
 			VaultID:    vaultID,
 			UserID:     userID,
 			Role:       models.RoleOwner,
