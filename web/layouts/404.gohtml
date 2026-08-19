@@ -1,0 +1,26 @@
+{{define "content"}}
+{{/* The not-found page, registered at bungo.NotFoundPath in cmd/vault3/main.go
+     and served with a real HTTP 404 for any unmatched path. It renders the
+     public surface — same canvas, header and footer as the marketing pages —
+     because a mistyped URL is most often reached by someone who is not signed
+     in, and the header adapts on its own when they are. */}}
+<div class="min-h-screen flex flex-col overflow-x-hidden">
+    <div class="site-canvas" aria-hidden="true">
+        <div class="glow-orb glow-orb-a" style="--orb:var(--accent-glow);width:52vw;height:52vw;top:-24vw;right:-14vw"></div>
+        <div class="glow-orb glow-orb-b" style="--orb:var(--accent-2-glow);width:44vw;height:44vw;bottom:-22vw;left:-14vw"></div>
+    </div>
+    {{template "publicHeader" .}}
+    <div class="flex-1 px-6 py-24">
+        <div class="max-w-xl mx-auto text-center">
+            <p class="text-sm font-mono tracking-widest text-muted-foreground mb-4">404</p>
+            <h1 class="text-4xl font-extrabold tracking-tighter mb-3">Nothing <span class="text-gradient">here.</span></h1>
+            <p class="text-muted-foreground mb-10">That page does not exist, or it moved. Your vault is unaffected — nothing about this page can reach it.</p>
+            <div class="flex flex-wrap gap-3 justify-center">
+                {{if .Viewer}}<a href="/app" class="btn btn-primary btn-lg">Open your vault</a>{{else}}<a href="/" class="btn btn-primary btn-lg">Back to home</a>{{end}}
+                <a href="/features" class="btn btn-ghost btn-lg">See features</a>
+            </div>
+        </div>
+    </div>
+    {{template "siteFooter" .}}
+</div>
+{{end}}

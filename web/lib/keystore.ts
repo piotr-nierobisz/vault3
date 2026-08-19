@@ -161,7 +161,7 @@ export function forgetIdentity(): void {
 // ── Per-tab client id (change-signal origin) ────────────────────────────────
 
 // clientID identifies THIS tab on mutating requests (X-Vault3-Client) so the
-// /events stream can tell it apart from every other tab and device.
+// change-signal socket can tell it apart from every other tab and device.
 export function clientID(): string {
   let id = sessionStorage.getItem(CLIENT_KEY);
   if (!id) {

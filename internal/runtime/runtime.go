@@ -12,6 +12,7 @@ import (
 
 	"github.com/Masterminds/squirrel"
 	_ "github.com/lib/pq"
+	bungo "github.com/piotr-nierobisz/BunGo"
 	"go.uber.org/zap"
 )
 
@@ -31,10 +32,12 @@ type Runtime struct {
 	// shape data for templates. Populated once at startup; restart to pick
 	// up reference edits.
 	Lookups *view.Lookups
-	// Signals is the in-process change-signal hub behind /events: mutations
+	// Signals is the WebSocket hub behind the change-signal route: mutations
 	// publish the user's new revision and every other connected client is
-	// told to refresh. Nil in the worker process (no HTTP clients to tell).
-	Signals *SignalHub
+	// told to refresh. Owned by BunGo and handed over by main.go when it
+	// registers the route, so it stays nil in the worker process (no HTTP
+	// clients to tell) and until the web process has registered its routes.
+	Signals *bungo.WebSocketHub
 }
 
 // Start bootstraps the runtime for the web process: it owns the dev schema
@@ -101,7 +104,6 @@ func start(syncSchema bool) *Runtime {
 		TX:      nil,
 		Cipher:  cipher,
 		Lookups: lookups,
-		Signals: NewSignalHub(),
 	}
 }
 

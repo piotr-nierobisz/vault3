@@ -99,13 +99,35 @@ func (r *Runtime) ContactPage(req *bungo.Request) (map[string]any, error) {
 	}), nil
 }
 
+// NotFoundPage renders the custom 404, registered at bungo.NotFoundPath so
+// BunGo serves it — with a real 404 status — for every unmatched path instead
+// of letting the request fall through to the landing page on 200. It carries
+// the viewer layers like any other public page, so a signed-in visitor who
+// mistypes a URL still gets the app header and a way back into the vault.
+//
+// NoIndex is on: a crawler that reaches a dead URL should drop it, not file
+// the error page under it.
+func (r *Runtime) NotFoundPage(req *bungo.Request) (map[string]any, error) {
+	return r.PageData(map[string]any{
+		"PageTitle":       "Page not found | Vault3",
+		"PageDescription": "That page does not exist.",
+		"NoIndex":         true,
+		"Viewer":          r.Viewer(req),
+	}), nil
+}
+
 // --- Authentication ---
 
+// The Turnstile site key is public by design — it is what the widget is
+// rendered with — so it travels in the page payload like any other view
+// setting. The secret half never leaves the server (turnstile.go).
 func (r *Runtime) LoginPage(_ *bungo.Request) (map[string]any, error) {
+	siteKey, _ := r.turnstileKeys()
 	return r.PageData(map[string]any{
-		"PageTitle":    "Login | Vault3",
-		"CanonicalURL": config.SITE_URL + "/login",
-		"NoIndex":      true,
+		"PageTitle":        "Login | Vault3",
+		"CanonicalURL":     config.SITE_URL + config.LoginPath,
+		"NoIndex":          true,
+		"TurnstileSiteKey": siteKey,
 	}), nil
 }
 

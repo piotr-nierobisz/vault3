@@ -24,7 +24,7 @@ Anything touching keys, blobs or auth reads [security.md](docs/security.md) **fi
 ## Repository map
 
 ```text
-cmd/vault3/           Web server entry (BunGo handler + middleware + /events SSE)
+cmd/vault3/           Web server entry (BunGo handler + thin request-fixup wrapper)
 cmd/scheduler/        Background job scheduler entry (see backend.md)
 internal/             Go domain: runtime, config, crypto, database, models, view, jobs
 internal/wasm/argon2/ Argon2id KDF kernel, compiled to WebAssembly (security.md)
@@ -34,7 +34,7 @@ scripts/              build-wasm.sh (reproducible build), verify-wasm.mjs (known
 docs/                 product.md, security.md, backend.md, frontend.md, bungo.md
 ```
 
-Stack: **Go + BunGo + PostgreSQL + custom session auth + client-side WebCrypto and an Argon2id wasm module + Mailgun (email, keys empty in dev)**. React/Tailwind ship inside BunGo with no npm toolchain. No other third parties, by design.
+Stack: **Go + BunGo + PostgreSQL + custom session auth + client-side WebCrypto and an Argon2id wasm module + Mailgun (email, keys empty in dev) + Cloudflare Turnstile (bot check on `/login` and `/join` only)**. React/Tailwind ship inside BunGo with no npm toolchain. No other third parties, by design; adding one is a [security.md](docs/security.md) decision.
 
 Every primitive is symmetric or hash-based; there is deliberately **no asymmetric cryptography anywhere**, which is what makes it post-quantum with no migration path to maintain. Adding some is a security-model decision — read [docs/security.md](docs/security.md) first.
 
@@ -44,7 +44,7 @@ Every primitive is symmetric or hash-based; there is deliberately **no asymmetri
 
 `./start.sh` brings up Docker containers for Postgres, the `bungo dev` server, and the job scheduler (`VAULT3_RUN_SCHEDULER=0` to skip), reading ports and credentials from `.env`. `./stop.sh` tears it down (`--wipe` drops the data volume).
 
-It refuses to boot unless every `REQUIRED_ENV_VARS` entry (parsed live from `internal/config/constants.go`) is present. The Mailgun keys are deliberately **not** required: email degrades to a logged skip while they are empty.
+It refuses to boot unless every `REQUIRED_ENV_VARS` entry (parsed live from `internal/config/constants.go`) is present. The Mailgun keys are deliberately **not** required: email degrades to a logged skip while they are empty. Nor is the Turnstile pair, which is read in production only — dev uses Cloudflare's always-pass test keys.
 
 The repo is bind-mounted and watched, so every save hot-rebuilds and reloads (Go, React, templates, CSS). To verify a change: curl `http://localhost:$PORT_INT` (default 3403) and read `.vault3.log` (gitignored, truncated per restart).
 

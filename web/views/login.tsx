@@ -5,7 +5,8 @@ import { postJSON } from "../lib/api";
 import { deriveKeys, validateSecretPhrase, type DerivationStage } from "../lib/crypto";
 import { DerivationProgress } from "../components/ui/derivation-progress";
 import { saveKeys, rememberIdentity, loadIdentity, forgetIdentity } from "../lib/keystore";
-import type { AuthParamsResponse, LoginResponse, LoginState, LoginStep } from "../types/login";
+import { Turnstile } from "../components/auth/turnstile";
+import type { AuthParamsResponse, LoginPageData, LoginResponse, LoginState, LoginStep } from "../types/login";
 
 // The unlock form. Flow:
 //   1. POST /auth/params → this account's KDF salt + iterations
@@ -15,8 +16,15 @@ import type { AuthParamsResponse, LoginResponse, LoginState, LoginStep } from ".
 //
 // A remembered identity (this device) prefigures email + Secret Phrase, so
 // routine unlocks are just the Master Password.
+//
+// Every /auth/login POST also carries a Turnstile token, checked by the
+// require_human layer before the handler runs. A token is spent by the
+// attempt whatever its outcome — including the two-factor challenge, which is
+// a second POST — so `challenge` is bumped on every non-success branch to
+// mint a new one.
 
 function LoginForm() {
+  const data = useBungoData() as LoginPageData;
   const remembered = loadIdentity();
   const [email, setEmail] = useState(remembered?.email ?? "");
   const [password, setPassword] = useState("");
@@ -27,6 +35,8 @@ function LoginForm() {
   const [state, setState] = useState<LoginState>({ kind: "idle" });
   const [shake, setShake] = useState(0);
   const [stage, setStage] = useState<DerivationStage | null>(null);
+  const [token, setToken] = useState("");
+  const [challenge, setChallenge] = useState(0);
 
   const busy = state.kind === "deriving" || state.kind === "submitting";
 
@@ -34,6 +44,12 @@ function LoginForm() {
     setState({ kind: "error", message, unverified });
     setStage(null);
     setShake((s) => s + 1);
+  };
+
+  // Drop the spent token and remount the widget for a fresh one.
+  const newChallenge = () => {
+    setToken("");
+    setChallenge((n) => n + 1);
   };
 
   const submit = async (e: React.FormEvent) => {
@@ -64,7 +80,14 @@ function LoginForm() {
         email: cleanEmail,
         authKey,
         code: code.trim(),
+        turnstileToken: token,
       });
+
+      // The token is single-use and this attempt spent it. Anything but the
+      // redirect below leaves the user on a form that needs a new one.
+      if (!login.ok || login.data?.twoFactorRequired) {
+        newChallenge();
+      }
 
       if (login.data?.twoFactorRequired) {
         setStep("twofactor");
@@ -91,6 +114,9 @@ function LoginForm() {
       setState({ kind: "success" });
       window.location.assign(login.data?.redirectTo ?? "/app");
     } catch {
+      // The request may have reached the server before the connection went;
+      // assume the token is gone rather than retry with one already spent.
+      newChallenge();
       fail("Network error. Please try again shortly.");
     }
   };
@@ -212,10 +238,22 @@ function LoginForm() {
 
       <DerivationProgress stage={stage} />
 
+      {/* Keyed on `challenge`: a remount is how a spent token is replaced. The
+          prefix is load-bearing — the ErrorBanner above is a sibling keyed on
+          its own counter, and two siblings that share a key make React drop
+          one of them from its delete list, leaving a stale banner in the form
+          for the rest of the page's life. */}
+      <Turnstile
+        key={`turnstile-${challenge}`}
+        siteKey={data.TurnstileSiteKey}
+        onToken={setToken}
+        className="space-y-1.5"
+      />
+
       <div className="flex items-center gap-4 pt-1">
         <button
           type="submit"
-          disabled={busy || (step === "twofactor" && code.trim().length !== 6)}
+          disabled={busy || !token || (step === "twofactor" && code.trim().length !== 6)}
           className="btn btn-primary btn-lg flex-1"
         >
           {state.kind === "deriving"

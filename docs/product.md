@@ -45,7 +45,7 @@ Explanatory prose on the public pages is the exception and uses **encrypt / decr
 - No editable roles beyond owner/viewer: shared-vault members are read-only; there is no "editor" role yet.
 - No payments or subscriptions.
 - No browser extension or desktop clients yet.
-- No third-party integrations beyond Mailgun for email. No analytics, no trackers — this is a product feature and marketing copy relies on it.
+- No third-party integrations beyond Mailgun for email and Cloudflare Turnstile for the bot check on `/login` and `/join`. No analytics, no trackers — this is a product feature and marketing copy relies on it.
 
 ## Copy rules
 

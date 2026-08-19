@@ -32,10 +32,27 @@ const (
 	// cannot distinguish "wrong password" from "wrong Secret Phrase" from "no
 	// such account".
 	GenericLoginError = "Those details don't match an account. Check your email, Master Password and Secret Phrase, then try again."
+
+	// SessionExpiredError is the body of the 401 an API caller receives when
+	// its session is missing or expired. The client turns this into the
+	// "signed out" state rather than a generic failure banner.
+	SessionExpiredError = "Your session has expired. Please sign in again."
 )
 
 // Default redirect after a successful sign-in.
 const DefaultPostLoginRedirect = "/app"
+
+// LoginPath is where the require_auth security layer sends a browser whose
+// session is missing or expired. Stated once here because the redirect target
+// and the route registration in cmd/vault3/main.go must not drift apart.
+const LoginPath = "/login"
+
+// JoinPath is the self-signup page. Stated here for the same reason as
+// LoginPath, plus one of its own: these two paths are the only documents
+// served the widened Turnstile CSP (internal/runtime/middleware.go), and a
+// path that drifts from its route registration would drop the allowance on
+// the floor — leaving a page that cannot load the widget it requires.
+const JoinPath = "/join"
 
 // Zero-knowledge key derivation -----------------------------------------
 //
@@ -95,6 +112,45 @@ const (
 // Emailed single-use tokens are stored hashed (SHA-512) and time-limited.
 const (
 	EmailVerificationTokenTTL = 24 * time.Hour
+)
+
+// Bot check (Cloudflare Turnstile) ---------------------------------------
+//
+// Sign-in and registration are the only two endpoints anyone on the internet
+// can call without an account, which makes them the two worth automating:
+// credential stuffing against one, mass signup against the other. Turnstile
+// gates both, and nothing else — see RequireHuman in
+// internal/runtime/turnstile.go and the challengedAPI() helper that attaches
+// it in cmd/vault3/main.go.
+//
+// This is the one third party the browser talks to, and it is confined to the
+// two pages that need it: the CSP allowance naming TurnstileOrigin is served
+// on LoginPath and JoinPath only (internal/runtime/middleware.go), so /app —
+// where a vault is actually open — still admits code from this origin alone.
+const (
+	// The per-deployment key pair, read only in production
+	// (turnstileKeys in internal/runtime/turnstile.go).
+	TurnstileSiteKeyEnv   = "TURNSTILE_SITE_KEY_STRING"
+	TurnstileSecretKeyEnv = "TURNSTILE_SECRET_KEY_STRING"
+
+	// Cloudflare's published always-pass test pair, used everywhere else. Dev
+	// therefore runs the real widget, the real token round-trip and the real
+	// siteverify call — the whole path, minus the production secret sitting on
+	// a laptop. The counterparts, if you need to watch a refusal:
+	// 2x00000000000000000000AB always blocks, 3x00000000000000000000FF forces
+	// an interactive challenge.
+	TurnstileTestSiteKey   = "1x00000000000000000000AA"
+	TurnstileTestSecretKey = "1x0000000000000000000000000000000AA"
+
+	// TurnstileOrigin is the host the widget's script and iframe come from —
+	// named once because the CSP directive and the script URL must agree.
+	TurnstileOrigin    = "https://challenges.cloudflare.com"
+	TurnstileVerifyURL = TurnstileOrigin + "/turnstile/v0/siteverify"
+
+	// TurnstileFailedError is what a rejected challenge says. It names the
+	// check rather than the caller: a real person whose token lapsed while
+	// the form sat open sees this too, and the fix for both is the same.
+	TurnstileFailedError = "That human check didn't pass. Please try again."
 )
 
 // Platform settings (vault3_platform_setting keys) -----------------------

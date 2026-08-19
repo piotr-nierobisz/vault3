@@ -2,11 +2,6 @@ package runtime
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
-	"net/http"
-	"sync"
-	"time"
 
 	"vault3/internal/database"
 
@@ -22,18 +17,18 @@ import (
 //     transaction as each mutation (database.BumpUserRevision), so a rolled
 //     back change never signals anyone and a delivered signal always has
 //     committed data to fetch.
-//   - SignalHub — an in-process registry of subscriber channels per user.
-//   - /events — a Server-Sent Events endpoint (native net/http, mounted by
-//     main.go next to the BunGo mux, because BunGo responses cannot stream)
-//     that pushes {revision, origin} events.
+//   - ChangeSignalPath — a BunGo WebSocket route. Each connection subscribes
+//     to its own user's topic and receives {revision, origin} frames; BunGo
+//     owns the upgrade, keepalive and teardown, so nothing here touches
+//     net/http.
 //   - X-Vault3-Client — a per-tab id the client sends with mutations and
 //     matches against event origins, so the tab that made the change skips
 //     the redundant refetch while every other tab refreshes.
 //
 // The hub is process-local, which is correct for the single-web-container
 // deployment. If the web tier ever scales horizontally, put a Postgres
-// LISTEN/NOTIFY (or Redis) broadcaster behind the same Publish/Subscribe
-// surface — no caller changes.
+// LISTEN/NOTIFY (or Redis) broadcaster in front of the hub's Publish call —
+// no caller changes.
 
 // ChangeSignal is one published change event.
 type ChangeSignal struct {
@@ -45,53 +40,61 @@ type ChangeSignal struct {
 // back as the event origin.
 const ClientIDHeader = "X-Vault3-Client"
 
-// SignalHub fans ChangeSignals out to each user's subscribers.
-type SignalHub struct {
-	mu   sync.Mutex
-	subs map[string]map[chan ChangeSignal]struct{}
+// ChangeSignalPath is the WebSocket route clients subscribe to. web/lib/sync.ts
+// dials the same path.
+const ChangeSignalPath = "/ws/changes"
+
+// signalMaxFrameBytes caps inbound frames. Clients never send anything on this
+// socket, so the limit only has to leave room for a control frame.
+const signalMaxFrameBytes = 1024
+
+// signalTopic is the hub topic carrying one user's signals.
+func signalTopic(userID string) string {
+	return "user:" + userID
 }
 
-func NewSignalHub() *SignalHub {
-	return &SignalHub{subs: make(map[string]map[chan ChangeSignal]struct{})}
-}
-
-// Subscribe registers a listener for one user's signals. The returned cancel
-// function must be called when the listener goes away; the channel is
-// buffered so a slow consumer drops intermediate signals rather than
-// blocking publishers (the newest revision is all a client needs).
-func (h *SignalHub) Subscribe(userID string) (<-chan ChangeSignal, func()) {
-	ch := make(chan ChangeSignal, 8)
-	h.mu.Lock()
-	if h.subs[userID] == nil {
-		h.subs[userID] = make(map[chan ChangeSignal]struct{})
+// ChangeSignalRoute is the WebSocket route definition main.go registers. It
+// carries require_auth rather than resolving the session itself, so the rules
+// admitting a listener cannot drift from the ones guarding every other
+// authenticated route — the layer runs before the upgrade, so an unauthorized
+// client gets a plain 401 and never opens a socket.
+//
+// Cross-site WebSocket hijacking is the attack this must not be open to:
+// browsers attach the session cookie to a cross-origin ws:// handshake and no
+// CORS preflight stands in the way. BunGo's default origin policy (same host,
+// absent Origin allowed for non-browser clients) is exactly the check that
+// closes it, and is deliberately left unoverridden here.
+func (r *Runtime) ChangeSignalRoute() bungo.WebSocketRoute {
+	return bungo.WebSocketRoute{
+		Path:           ChangeSignalPath,
+		SecurityLayer:  []string{"require_auth"},
+		MaxMessageSize: signalMaxFrameBytes,
+		OnConnect:      r.subscribeToChanges,
 	}
-	h.subs[userID][ch] = struct{}{}
-	h.mu.Unlock()
-
-	cancel := func() {
-		h.mu.Lock()
-		if set, ok := h.subs[userID]; ok {
-			delete(set, ch)
-			if len(set) == 0 {
-				delete(h.subs, userID)
-			}
-		}
-		h.mu.Unlock()
-	}
-	return ch, cancel
 }
 
-// Publish delivers a signal to every subscriber of the user. Non-blocking:
-// a full buffer means that subscriber is behind and will catch up from the
-// next signal (or the heartbeat revision check).
-func (h *SignalHub) Publish(userID string, signal ChangeSignal) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	for ch := range h.subs[userID] {
-		select {
-		case ch <- signal:
-		default:
-		}
+// subscribeToChanges runs once per accepted connection: it joins the connection
+// to its user's topic and sends the current revision, so a client that
+// reconnects after a dropped socket can tell whether it missed a change while
+// away.
+func (r *Runtime) subscribeToChanges(conn *bungo.WebSocketConn) {
+	req := conn.Request()
+	user := CurrentUser(req)
+	if user == nil || r.Signals == nil {
+		// require_auth makes this unreachable; closing beats a silent socket.
+		_ = conn.Close()
+		return
+	}
+
+	r.Signals.Subscribe(conn, signalTopic(user.ID))
+
+	revision, revisionErr := database.SelectUserRevision(req.Context, r.GetDb(), &r.Builder, user.ID)
+	if revisionErr != nil {
+		r.Log.Warn("change signal: initial revision lookup failed", zap.Error(revisionErr))
+		return
+	}
+	if sendErr := conn.SendJSON(ChangeSignal{Revision: revision}); sendErr != nil {
+		r.Log.Warn("change signal: initial send failed", zap.Error(sendErr))
 	}
 }
 
@@ -237,94 +240,19 @@ func (r *Runtime) PublishChanges(req *bungo.Request, revisions map[string]int64)
 	}
 }
 
-// PublishChange fans out a committed revision, tagging the originating
-// client (from the request's X-Vault3-Client header) so it can skip its own
-// echo. Call only after the transaction that bumped the revision commits.
+// PublishChange fans out a committed revision to the user's connected clients,
+// tagging the originating client (from the request's X-Vault3-Client header) so
+// it can skip its own echo. Call only after the transaction that bumped the
+// revision commits.
 func (r *Runtime) PublishChange(req *bungo.Request, userID string, revision int64) {
 	if r.Signals == nil {
 		return
 	}
-	r.Signals.Publish(userID, ChangeSignal{
+	publishErr := r.Signals.PublishJSON(signalTopic(userID), ChangeSignal{
 		Revision: revision,
 		Origin:   req.Headers[ClientIDHeader],
 	})
-}
-
-// EventsHandler is the SSE endpoint, mounted at /events by main.go on the
-// native mux (outside BunGo, which cannot stream). It authenticates exactly
-// like require_auth — session cookie, live user — then holds the connection
-// open, pushing one "change" event per published signal and a comment
-// heartbeat to defeat idle proxies. The initial event carries the current
-// revision so a reconnecting client can detect anything it missed.
-func (r *Runtime) EventsHandler() http.HandlerFunc {
-	return func(w http.ResponseWriter, httpReq *http.Request) {
-		flusher, ok := w.(http.Flusher)
-		if !ok {
-			http.Error(w, "streaming unsupported", http.StatusInternalServerError)
-			return
-		}
-
-		// Reuse the bungo-shaped session resolution so the auth rules can
-		// never drift from require_auth.
-		breq := &bungo.Request{
-			Context:  httpReq.Context(),
-			Headers:  map[string]string{"Cookie": httpReq.Header.Get("Cookie")},
-			Internal: map[string]any{},
-		}
-		session, user := r.resolveSession(breq)
-		if user == nil {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
-			return
-		}
-
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.Header().Set("Cache-Control", "no-store")
-		w.Header().Set("X-Accel-Buffering", "no")
-		w.WriteHeader(http.StatusOK)
-
-		signals, cancel := r.Signals.Subscribe(user.ID)
-		defer cancel()
-
-		writeEvent := func(signal ChangeSignal) bool {
-			payload, marshalErr := json.Marshal(signal)
-			if marshalErr != nil {
-				return false
-			}
-			if _, writeErr := fmt.Fprintf(w, "event: change\ndata: %s\n\n", payload); writeErr != nil {
-				return false
-			}
-			flusher.Flush()
-			return true
-		}
-
-		// Opening event: the current revision, so the client can compare
-		// against what it last saw and refetch if it missed anything while
-		// disconnected.
-		revision, revisionErr := database.SelectUserRevision(httpReq.Context(), r.GetDb(), &r.Builder, user.ID)
-		if revisionErr != nil {
-			r.Log.Warn("events: initial revision lookup failed", zap.Error(revisionErr))
-		} else if !writeEvent(ChangeSignal{Revision: revision}) {
-			return
-		}
-
-		heartbeat := time.NewTicker(25 * time.Second)
-		defer heartbeat.Stop()
-
-		r.Log.Debug("events: client connected", zap.String("user_id", user.ID), zap.String("session_id", session.ID))
-		for {
-			select {
-			case <-httpReq.Context().Done():
-				return
-			case signal := <-signals:
-				if !writeEvent(signal) {
-					return
-				}
-			case <-heartbeat.C:
-				if _, writeErr := fmt.Fprint(w, ": ping\n\n"); writeErr != nil {
-					return
-				}
-				flusher.Flush()
-			}
-		}
+	if publishErr != nil {
+		r.Log.Warn("change signal: publish failed", zap.String("user_id", userID), zap.Error(publishErr))
 	}
 }

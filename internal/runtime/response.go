@@ -47,6 +47,35 @@ type (
 	}
 )
 
+// NoStore wraps an API handler so its response carries Cache-Control: no-store.
+// The api()/adminAPI() helpers in cmd/vault3/main.go apply it to every
+// authenticated endpoint, which is the only reason it is safe to state once:
+// an endpoint cannot opt out by forgetting a line, because it never opted in.
+//
+// What this is protecting: authenticated API responses carry vault ciphertext,
+// item metadata, session lists and audit rows. A shared or forensic machine
+// should not be able to recover any of that from a browser's disk cache after
+// the user signs out, and "no browser would cache a POST anyway" is not a rule
+// worth betting a password manager on — GET /items alone would be enough.
+//
+// A handler that sets its own Cache-Control wins: the map is only written into
+// when the key is absent.
+func NoStore(handler func(*bungo.Request) (bungo.APIResponse, error)) func(*bungo.Request) (bungo.APIResponse, error) {
+	return func(req *bungo.Request) (bungo.APIResponse, error) {
+		resp, err := handler(req)
+		if err != nil {
+			return resp, err
+		}
+		if resp.Headers == nil {
+			resp.Headers = make(map[string]string, 1)
+		}
+		if _, stated := resp.Headers["Cache-Control"]; !stated {
+			resp.Headers["Cache-Control"] = "no-store"
+		}
+		return resp, nil
+	}
+}
+
 // apiError builds a JSON error response in the standard {"message": …} shape
 // every API handler returns. Centralised here so handlers express failures
 // as apiError(400, "…") rather than re-declaring the bungo.APIResponse

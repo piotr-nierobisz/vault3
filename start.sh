@@ -38,7 +38,7 @@ GO_VOLUME="${VAULT3_GO_VOLUME:-vault3-gocache}"       # GOPATH: modules + bungo
 BUILD_VOLUME="${VAULT3_BUILD_VOLUME:-vault3-gobuild}" # go build cache
 PG_IMAGE="${VAULT3_PG_IMAGE:-postgres:16-alpine}"
 GO_IMAGE="${VAULT3_GO_IMAGE:-golang:1.25}"
-BUNGO_VERSION="${VAULT3_BUNGO_VERSION:-v0.4.0}"       # matches go.mod
+BUNGO_VERSION="${VAULT3_BUNGO_VERSION:-v0.5.2}"       # matches go.mod
 DEV_WS_PORT=35730                                     # bungo live-reload socket
 
 # ── Preflight ────────────────────────────────────────────────────────────────

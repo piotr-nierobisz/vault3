@@ -105,7 +105,8 @@ Sessions: 512-bit opaque tokens, stored only as SHA-512 hashes, HttpOnly/SameSit
 
 - **sessionStorage** holds the unlocked keys per tab (survives BunGo full-page navigations, dies with the tab). An inactivity auto-lock (default 15 min) and the Lock button wipe it; locking never waits on the network.
 - **localStorage** remembers email + Secret Phrase on a trusted device (the 1Password pattern), so routine unlocks need only the Master Password. Clearing it detaches the device.
-- XSS is the residual risk this accepts, mitigated by the strict CSP, no third-party scripts, and React's escaping. An attacker who can run script in the page can use the keys while it is unlocked — true of every web-based vault; the design goal is that *the server* is never such an attacker.
+- XSS is the residual risk this accepts, mitigated by the strict CSP, React's escaping, and a script surface that is same-origin everywhere a vault is open. An attacker who can run script in the page can use the keys while it is unlocked — true of every web-based vault; the design goal is that *the server* is never such an attacker.
+- The Turnstile widget never loads on `/app`, but `/login` is where the encryption key is derived, so Cloudflare is a trusted script origin for that one page. That is the cost of the bot check, and the reason its CSP allowance is scoped to two documents rather than to the site.
 
 ## There is no recovery
 
@@ -171,7 +172,8 @@ Derivation runs in a **Web Worker, one per derivation**: the main thread stays r
 ## Transport and abuse
 
 - Middleware (in `internal/runtime/middleware.go`, wrapped around the BunGo handler by `cmd/vault3/main.go`) sets CSP, frame denial, nosniff, referrer policy, HSTS in production.
-- The CSP names no third-party host in any directive, and must not grow one: every dependency is compiled in or self-hosted, so a CDN allowance would only ever serve as a script source and exfiltration channel for an injected payload.
+- The CSP names **one** third-party host — `https://challenges.cloudflare.com`, in `script-src` and `frame-src` — and only in the variant policy served on `/login` and `/join`, for the Turnstile widget. Every other page, `/app` above all, keeps the policy that names nobody, and `connect-src` stays `'self'` everywhere. **No second host may enter any directive**: a CDN allowance is a standing script source and exfiltration channel for an injected payload, so anything proposed after Turnstile needs the same accounting — what it buys, on which paths, and what a payload could do with the allowance.
+- **The bot check** (`require_human`, `internal/runtime/turnstile.go`) gates `POST /auth/login` and `POST /auth/register` and nothing else. It proves a browser and probably a person; it is not a credential and changes no downstream check. Tokens are single-use and verified server-side, and verification **fails closed** — a refused token and an unreachable siteverify both refuse the request, because a check an attacker can switch off by disrupting one outbound call is not a check.
 - State-changing requests are rejected when `Sec-Fetch-Site`/`Origin` show another site — defence in depth behind the cookie's `SameSite=Lax`. Requests with neither header are not browser-driven and cannot carry ambient cookies, so they pass.
 - The production session cookie is `__Host-` prefixed (browser-enforced Secure + `Path=/` + no `Domain`), so no sibling subdomain or plain-http origin can plant or overwrite it. Dev keeps the bare name because `Secure` is impossible over plain HTTP.
 - Per-IP throttling of the auth endpoints is the **reverse proxy's** job, not the app's: an in-process counter keyed on the socket address collapses to a single platform-wide bucket once traffic arrives via a proxy. Do not reintroduce it in Go.

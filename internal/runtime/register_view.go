@@ -53,12 +53,14 @@ func hashAuthKey(authKey string) (string, error) {
 // register API re-checks the platform gate, and the page passes the gate
 // state so the view can show a closed notice instead of a dead form.
 func (r *Runtime) JoinPage(req *bungo.Request) (map[string]any, error) {
+	siteKey, _ := r.turnstileKeys()
 	return r.PageData(map[string]any{
 		"PageTitle":        "Register | Vault3",
 		"PageDescription":  "Create a Vault3 account. Your Master Password and Secret Phrase never leave your device.",
-		"CanonicalURL":     config.SITE_URL + "/join",
+		"CanonicalURL":     config.SITE_URL + config.JoinPath,
 		"RegistrationOpen": r.PublicRegistrationEnabled(req.Context),
 		"KdfCosts":         defaultKdfCosts(),
+		"TurnstileSiteKey": siteKey,
 	}), nil
 }
 

@@ -11,7 +11,8 @@ Read [security.md](./security.md) **first** before touching `web/lib/crypto.ts` 
 Vault3 does **not** use a separate Node/Vite app. React is compiled by BunGo (embedded esbuild) and served by the Go binary.
 
 - **No** npm, `package.json`, `node_modules`, or Vite dev server.
-- **Zero third-party client dependencies, and the CSP names no third-party host.** A CDN allowance in `script-src`/`connect-src` is a standing script source and exfiltration channel for a page that holds unlocked keys. Adding a remote dependency means deliberately re-opening that hole, in the same change.
+- **Zero third-party client dependencies.** A CDN allowance in `script-src`/`connect-src` is a standing script source and exfiltration channel for a page that holds unlocked keys. Adding a remote dependency means deliberately re-opening that hole, in the same change.
+- **One third-party script, on two pages.** The Turnstile widget (`components/auth/turnstile.tsx`) loads Cloudflare's `api.js` on `/login` and `/join`; the CSP allowance for it is served on exactly those two documents (`internal/runtime/middleware.go`). Read [security.md](./security.md) before extending it to any other page or host.
 - BunGo injects view scripts and `window.__BUNGO_DATA__` automatically — see [bungo.md](./bungo.md).
 
 ## Type checking
@@ -32,7 +33,7 @@ Vault3 does **not** use a separate Node/Vite app. React is compiled by BunGo (em
 | Styling | theme.css design tokens + local Tailwind Play runtime (`web/static/tailwind.js`) |
 | Components | shadcn/ui-inspired local primitives (no shadcn CLI or npm) |
 | Data fetching | `web/lib/api.ts` (`postJSON`/`getJSON`) |
-| Live updates | `web/lib/sync.ts` (EventSource on `/events`) |
+| Live updates | `web/lib/sync.ts` (WebSocket on `/ws/changes`) |
 
 ## `web/` layout
 
@@ -71,7 +72,7 @@ Conventions the tree encodes:
 - **Long derivations report progress.** `deriveKeys` takes an optional `ProgressCallback` and every unlock path passes it to `<DerivationProgress>`. A KDF that occupies the main thread for a second reads as a broken page; the fix is to say what is happening, not to weaken the KDF.
 - `lib/wordlist.ts` — the 2048-word Secret Phrase list. Append-only in spirit: existing phrases must keep validating forever.
 - `lib/keystore.ts` — sessionStorage keys per tab, localStorage remembered identity, auto-lock, and the per-tab `clientID()` the api layer sends as `X-Vault3-Client`.
-- `lib/sync.ts` — subscribes to `/events`, ignores this tab's own echoes, hands the new revision to the view for refetch.
+- `lib/sync.ts` — holds a WebSocket to `/ws/changes`, ignores this tab's own echoes, hands the new revision to the view for refetch. It also owns reconnection, which `EventSource` used to do for free: capped jittered backoff, plus an immediate retry when a backgrounded tab becomes visible again, since returning to the tab is exactly when a stale vault is about to be read.
 - `lib/generator.ts` — password/passphrase generation with uniform CSPRNG sampling. `enabledClasses`/`classify` are the single source of truth for the letters/digits/symbols split, so the toggles, the entropy estimate and the colour-coded preview can never disagree.
 - `lib/totp.ts` — RFC 6238 codes for seeds stored on items, computed in the browser and **only** there. Read the two-kinds-of-TOTP table in [security.md](./security.md) before touching it; the account 2FA secret is server-side and does not belong here.
 - `lib/motion.ts` — the shared brand-motion primitives the server-rendered public pages enhance themselves with (`initScrollReveal`, `scrambleInto`, `randomB64`). Everything there is garnish and no-ops under `prefers-reduced-motion`; a public page must read correctly with JS disabled.

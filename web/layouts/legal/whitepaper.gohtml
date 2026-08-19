@@ -401,7 +401,7 @@
                             <div class="lg:flex lg:items-center lg:gap-8">
                                 <div class="lg:w-[42%]">
                                     <h3 class="font-semibold mb-1.5">The connection itself</h3>
-                                    <p class="text-sm text-muted-foreground leading-relaxed">Everything travels over TLS, and your browser is instructed to refuse anything less. The page may load code from this origin only: no content delivery network, no third-party script, and no permitted destination for an injected payload to send to. Repeated sign-in attempts are rate-limited, and the responses are uniform, including on whether an email address is registered.</p>
+                                    <p class="text-sm text-muted-foreground leading-relaxed">Everything travels over TLS, and your browser is instructed to refuse anything less. The vault may load code from this origin only: no content delivery network, no third-party script, and no permitted destination for an injected payload to send to. The sign-in and sign-up pages carry one narrow exception — Cloudflare's bot check, allowed to run there and nowhere else. Repeated sign-in attempts are rate-limited, and the responses are uniform, including on whether an email address is registered.</p>
                                 </div>
                                 <div class="fig term mt-5 lg:mt-0 lg:flex-1" aria-hidden="true">
                                     <p class="term-prompt mb-1.5">$ curl -sI https://vault3.com</p>
@@ -510,11 +510,11 @@
                         </div>
                         <div class="panel p-6 scroll-reveal-child">
                             <h3 class="font-semibold mb-2">The code arrives from us each visit</h3>
-                            <p class="text-sm text-muted-foreground leading-relaxed">This is a web application, so the JavaScript doing the encrypting is served by the same people who hold the ciphertext. The mitigations are real — a strict policy that allows code from nobody else, no third-party scripts at all, and public source — but a browser extension or desktop client with pinned code would be stronger, and that is on the roadmap rather than shipped.</p>
+                            <p class="text-sm text-muted-foreground leading-relaxed">This is a web application, so the JavaScript doing the encrypting is served by the same people who hold the ciphertext. The mitigations are real — a strict policy that allows code from nobody else wherever your vault is open, and public source — but a browser extension or desktop client with pinned code would be stronger, and that is on the roadmap rather than shipped.</p>
                         </div>
                         <div class="panel p-6 scroll-reveal-child">
                             <h3 class="font-semibold mb-2">Unlocked keys live in the tab</h3>
-                            <p class="text-sm text-muted-foreground leading-relaxed">While a vault is open its keys sit in that tab's session storage, and a device set to remember its Secret Phrase keeps that in local storage too. Cross-site scripting is the residual risk this accepts, held down by a policy that admits code from no other origin and by having no third-party scripts at all. Anything already executing as you, in your browser, can use what you have unlocked, which is the boundary of every web vault, this one included.</p>
+                            <p class="text-sm text-muted-foreground leading-relaxed">While a vault is open its keys sit in that tab's session storage, and a device set to remember its Secret Phrase keeps that in local storage too. Cross-site scripting is the residual risk this accepts, held down by a policy that admits code from no other origin on every page where a vault is open. Anything already executing as you, in your browser, can use what you have unlocked, which is the boundary of every web vault, this one included.</p>
                         </div>
                         <div class="panel p-6 scroll-reveal-child">
                             <h3 class="font-semibold mb-2">One place a quantum adversary still has purchase</h3>

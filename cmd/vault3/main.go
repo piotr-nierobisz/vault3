@@ -48,7 +48,33 @@ func main() {
 		Handler: rt.RequireAdmin,
 	})
 
+	// require_human is the Cloudflare Turnstile bot check. It stands alone —
+	// it authorises nobody and pairs with no other layer — and guards the two
+	// endpoints anyone can reach without an account: sign-in and registration.
+	// See internal/runtime/turnstile.go.
+	srv.Security(bungo.SecurityLayer{
+		Name:    "require_human",
+		Handler: rt.RequireHuman,
+	})
+
 	srv.SetDefaultLayout("base.gohtml")
+
+	// Transport-security headers on every response BunGo writes — pages, APIs,
+	// static files and the WebSocket handshake alike. Stated once here rather
+	// than in a wrapper, so a listener assembled without the wrapper cannot
+	// serve the app bare-headed. See runtime.SecurityHeaders for each directive.
+	srv.SetResponseHeaders(rt.SecurityHeaders())
+
+	// In production, serve compiled views from content-hashed
+	// /_bungo/<view>.<hash>.js URLs so browsers cache them for a year and pick
+	// up a new bundle the moment its content changes. Left off in dev, where
+	// inline bundles are what the live-reload loop rebuilds.
+	srv.SetAssetOptimization(rt.Config.MustBool("PRODUCTION_BOOL"))
+
+	// Crawler files have to answer at the site root, not under /static/, so
+	// they are aliased onto the files that already live in web/static.
+	srv.StaticAlias("/robots.txt", "robots.txt")
+	srv.StaticAlias("/sitemap.xml", "sitemap.xml")
 
 	authLayers := []string{"require_auth", "load_viewer"}
 	// viewerLayers never rejects, but gives a public page a .Viewer so a
@@ -71,18 +97,46 @@ func main() {
 	// word that is not there in a name you are already reading. It also
 	// makes the entire public surface auditable in one command:
 	//
-	//	grep -n 'openAPI\|viewerPage\|anonPage' cmd/vault3/main.go
+	//	grep -n 'openAPI\|challengedAPI\|viewerPage\|anonPage' cmd/vault3/main.go
+
+	// checkOrigin returns the CSRF hook for a registration, or nil for the
+	// read-only methods that cannot be a CSRF target. BunGo runs it before the
+	// security layers and answers 403 on refusal, so the rejection never
+	// reaches a handler — and because it is attached here, in the four helpers
+	// every route goes through, a new endpoint cannot be registered without it.
+	checkOrigin := func(method string) func(*bungo.Request) bool {
+		switch method {
+		case "GET", "HEAD", "OPTIONS":
+			return nil
+		}
+		return rt.SameOriginWrite
+	}
 
 	api := func(method, path string, handler func(*bungo.Request) (bungo.APIResponse, error)) {
 		srv.Api(bungo.ApiRoute{
 			Path: path, Version: "v1", Method: method,
-			SecurityLayer: authLayers, Handler: handler,
+			CheckOrigin:   checkOrigin(method),
+			SecurityLayer: authLayers, Handler: runtime.NoStore(handler),
 		})
 	}
 	openAPI := func(method, path string, handler func(*bungo.Request) (bungo.APIResponse, error)) {
 		srv.Api(bungo.ApiRoute{
 			Path: path, Version: "v1", Method: method,
-			Handler: handler,
+			CheckOrigin: checkOrigin(method),
+			Handler:     runtime.NoStore(handler),
+		})
+	}
+	// challengedAPI: public, but behind the Turnstile bot check. It is an
+	// eighth named helper rather than a layer list at two call sites for the
+	// reason the others exist — the requirement is a word in the name, so an
+	// endpoint that loses the check loses a word rather than a line. Reserved
+	// for the endpoints an attacker can automate without an account; an
+	// authenticated endpoint has a session to throttle instead.
+	challengedAPI := func(method, path string, handler func(*bungo.Request) (bungo.APIResponse, error)) {
+		srv.Api(bungo.ApiRoute{
+			Path: path, Version: "v1", Method: method,
+			CheckOrigin:   checkOrigin(method),
+			SecurityLayer: []string{"require_human"}, Handler: runtime.NoStore(handler),
 		})
 	}
 	page := func(path, template, view string, handler func(*bungo.Request) (map[string]any, error)) {
@@ -112,7 +166,8 @@ func main() {
 	adminAPI := func(method, path string, handler func(*bungo.Request) (bungo.APIResponse, error)) {
 		srv.Api(bungo.ApiRoute{
 			Path: path, Version: "v1", Method: method,
-			SecurityLayer: adminLayers, Handler: handler,
+			CheckOrigin:   checkOrigin(method),
+			SecurityLayer: adminLayers, Handler: runtime.NoStore(handler),
 		})
 	}
 	adminPage := func(path, template, view string, handler func(*bungo.Request) (map[string]any, error)) {
@@ -131,20 +186,23 @@ func main() {
 
 	// --- Authentication ---
 
-	anonPage("/login", "login.gohtml", "login.tsx", rt.LoginPage)
+	anonPage(config.LoginPath, "login.gohtml", "login.tsx", rt.LoginPage)
 
 	// The pre-login KDF parameter exchange: public by necessity and
-	// enumeration-safe (decoy parameters for unknown emails).
+	// enumeration-safe (decoy parameters for unknown emails). It stays
+	// unchallenged on purpose — a Turnstile token is single-use, so spending
+	// one here would leave none for the login it precedes, and this endpoint
+	// answers every email identically anyway.
 	openAPI("POST", "/auth/params", rt.AuthParamsAPI)
-	openAPI("POST", "/auth/login", rt.LoginAPI)
+	challengedAPI("POST", "/auth/login", rt.LoginAPI)
 	// Logout reads the cookie itself and is idempotent, so it needs no layer.
 	openAPI("POST", "/auth/logout", rt.LogoutAPI)
 
 	// Onboarding: /join runs the whole crypto ceremony client-side and the
 	// register API persists the resulting bundle. The page is public; the
 	// API re-checks the public_registration_enabled platform gate.
-	anonPage("/join", "join.gohtml", "join.tsx", rt.JoinPage)
-	openAPI("POST", "/auth/register", rt.RegisterAPI)
+	anonPage(config.JoinPath, "join.gohtml", "join.tsx", rt.JoinPage)
+	challengedAPI("POST", "/auth/register", rt.RegisterAPI)
 
 	// Email verification: /verify-email redeems the emailed single-use token
 	// (?token=…) or requests a fresh link. The verify API is authenticated
@@ -201,8 +259,12 @@ func main() {
 	openAPI("POST", "/share/open", rt.OpenShareAPI)
 	anonPage("/share", "share.gohtml", "share.tsx", rt.SharePage)
 
-	// Change-signal fallback: /events (SSE) is mounted on the outer mux
-	// below; this is the poll/reconnect endpoint.
+	// Change signal: the WebSocket route every signed-in client subscribes to
+	// (see internal/runtime/signal.go). Registration hands back the hub the
+	// commit helpers publish through, so the runtime gets it here rather than
+	// building one of its own. /sync/revision is the poll fallback.
+	rt.Signals = srv.WebSocket(rt.ChangeSignalRoute())
+
 	api("GET", "/sync/revision", rt.SyncRevisionAPI)
 
 	// --- Settings and account ---
@@ -256,6 +318,13 @@ func main() {
 	// /security and /whitepaper are the same argument at two depths — the
 	// overview a visitor arrives for, and the construction behind it.
 
+	// The custom not-found page. Registered at BunGo's sentinel path rather
+	// than a URL of its own, so every unmatched path renders it with a real
+	// 404 instead of falling through to the landing page on 200 — which is
+	// what the "/" subtree root would otherwise do, and what search engines
+	// were being told to index.
+	viewerPage(bungo.NotFoundPath, "404.gohtml", "", rt.NotFoundPage)
+
 	viewerPage("/security", "legal/security.gohtml", "security.ts", rt.SecurityPage)
 	viewerPage("/whitepaper", "legal/whitepaper.gohtml", "whitepaper.ts", rt.WhitepaperPage)
 	viewerPage("/legal/terms", "legal/terms.gohtml", "", rt.LegalTermsPage)
@@ -263,23 +332,21 @@ func main() {
 	viewerPage("/legal/cookies", "legal/cookies.gohtml", "", rt.LegalCookiesPage)
 
 	// BunGo compiles views and builds its route mux through the engine's
-	// public CreateHandler; the runtime middleware then wraps it with the
-	// transport hygiene BunGo has no hooks for (security headers,
-	// cross-origin rejection, socket-IP injection), and the SSE change-signal
-	// endpoint mounts alongside — BunGo responses cannot stream. srv.Serve
-	// would do none of that, so the listener is assembled here instead.
+	// public CreateHandler. Security headers and cross-origin rejection are
+	// BunGo's own now (SetResponseHeaders above, CheckOrigin per route), so the
+	// only thing left in the wrapper is what bungo.Request structurally cannot
+	// carry: the socket address, which the dev stack has no proxy to turn into
+	// a forwarding header. srv.Serve would skip that one fixup, so the listener
+	// is still assembled here. Everything the app serves — pages, APIs, static
+	// aliases and the change-signal socket — is inside the BunGo handler.
 	handler, handlerErr := engineInstance.CreateHandler(srv)
 	if handlerErr != nil {
 		rt.Log.Fatal("failed to build handler", zap.Error(handlerErr))
 	}
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("/events", rt.EventsHandler())
-	mux.Handle("/", handler)
-
 	port := rt.Config.MustInt("PORT_INT")
 	rt.Log.Info("Vault3 starting", zap.Int("port", port))
-	if serveErr := http.ListenAndServe(fmt.Sprintf(":%d", port), rt.WrapHandler(mux)); serveErr != nil {
+	if serveErr := http.ListenAndServe(fmt.Sprintf(":%d", port), rt.WrapHandler(handler)); serveErr != nil {
 		rt.Log.Fatal("server stopped", zap.Error(serveErr))
 	}
 }

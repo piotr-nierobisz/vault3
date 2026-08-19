@@ -6,6 +6,7 @@ import { ErrorBanner } from "../components/ui/error-banner";
 import { Loading } from "../components/ui/loading";
 import { StatusPanel } from "../components/ui/status-panel";
 import { PhraseGrid } from "../components/auth/phrase-grid";
+import { Turnstile } from "../components/auth/turnstile";
 import { StrengthMeter, estimateStrength } from "../components/auth/strength-meter";
 import { downloadKitHTML, downloadKitText } from "../components/auth/emergency-kit";
 import { postJSON } from "../lib/api";
@@ -20,6 +21,11 @@ import type { JoinPageData, JoinStep, RegisterResponse } from "../types/join";
 //   3. sealing  — derive keys, generate the vault key, register
 // Everything cryptographic happens on-device; the server receives the
 // finished ciphertext bundle.
+//
+// The Turnstile check sits on step 2, beside the button that commits: the
+// token it produces is spent by /auth/register (require_human layer), and a
+// token minted on step 1 would have lapsed long before someone finished
+// saving their Emergency Kit.
 
 // The three steps, with the label kept on one line: below sm the row has
 // no room to spare, and a wrapped "Secret Phrase" makes the rail taller
@@ -57,6 +63,8 @@ function JoinWizard() {
   // the shake; re-setting an identical message alone re-renders nothing.
   const [attempt, setAttempt] = useState(0);
   const [stage, setStage] = useState<DerivationStage | null>(null);
+  const [token, setToken] = useState("");
+  const [challenge, setChallenge] = useState(0);
 
   if (!data.RegistrationOpen) {
     return (
@@ -93,6 +101,12 @@ function JoinWizard() {
     setStep("phrase");
   };
 
+  // Drop the spent token and remount the widget for a fresh one.
+  const newChallenge = () => {
+    setToken("");
+    setChallenge((n) => n + 1);
+  };
+
   const register = async () => {
     setError("");
     setStep("sealing");
@@ -103,9 +117,13 @@ function JoinWizard() {
       const res = await postJSON<RegisterResponse>("/api/v1/auth/register", {
         email: cleanEmail,
         displayName: name.trim(),
+        turnstileToken: token,
         ...bundle.request,
       });
       if (!res.ok) {
+        // The attempt spent the token, whichever step the failure sends the
+        // user back to.
+        newChallenge();
         setError(res.data?.message ?? "We couldn't create your vault. Please try again.");
         setStep(res.data?.field === "email" ? "account" : "phrase");
         return;
@@ -117,6 +135,9 @@ function JoinWizard() {
       setStep("done");
       window.setTimeout(() => window.location.assign(res.data?.redirectTo ?? "/app"), 1400);
     } catch {
+      // The request may have reached the server before the connection went;
+      // assume the token is gone rather than retry with one already spent.
+      newChallenge();
       setError("Network error. Please try again shortly.");
       setStep("phrase");
     }
@@ -199,9 +220,20 @@ function JoinWizard() {
             </span>
           </label>
 
+          {/* Keyed on `challenge`: a remount is how a spent token is replaced.
+              The prefix keeps the key distinct from any sibling keyed on a
+              counter of its own — two siblings sharing a key is how a stale
+              node survives a re-render. */}
+          <Turnstile
+            key={`turnstile-${challenge}`}
+            siteKey={data.TurnstileSiteKey}
+            onToken={setToken}
+            className="space-y-1.5"
+          />
+
           <div className="flex items-center gap-3">
             <button type="button" onClick={() => setStep("account")} className="btn btn-ghost">Back</button>
-            <button type="button" onClick={register} disabled={!savedKit} className="btn btn-primary btn-lg flex-1">
+            <button type="button" onClick={register} disabled={!savedKit || !token} className="btn btn-primary btn-lg flex-1">
               Seal my vault
             </button>
           </div>

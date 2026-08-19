@@ -27,13 +27,13 @@ import (
 // into req.Internal so downstream layers and handlers can pull them without
 // re-querying.
 //
-// BunGo security layers can only return bool — false yields HTTP 401. There
-// is no built-in redirect path, so unauthenticated browsers see the 401
-// rather than being bounced to /login.
-func (r *Runtime) RequireAuth(req *bungo.Request) bool {
+// A rejection is shaped to the caller (see authChallenge): a browser
+// navigating to a page is bounced to /login, while a fetch() from the app
+// gets the JSON 401 its error handling already understands.
+func (r *Runtime) RequireAuth(req *bungo.Request) (bool, *bungo.APIResponse) {
 	session, user := r.resolveSession(req)
 	if user == nil {
-		return false
+		return false, authChallenge(req)
 	}
 
 	req.Internal[config.SessionInternalKey] = session
@@ -42,7 +42,42 @@ func (r *Runtime) RequireAuth(req *bungo.Request) bool {
 	if touchErr := database.TouchSessionLastSeen(req.Context, r.GetDb(), &r.Builder, session.ID); touchErr != nil {
 		r.Log.Warn("require_auth: touch last seen failed", zap.Error(touchErr))
 	}
-	return true
+	return true, nil
+}
+
+// isDocumentRequest reports whether the request is a browser navigating to a
+// page, as opposed to a script calling the API. Sec-Fetch-Dest is the precise
+// signal and every engine this app supports sends it; the Accept sniff is the
+// fallback for a client that does not, and errs toward the JSON answer, which
+// is the safe way to be wrong — a stray redirect inside fetch() is followed
+// silently and surfaces as an HTML body where JSON was expected, whereas an
+// unexpected 401 on a navigation is at least legible.
+func isDocumentRequest(req *bungo.Request) bool {
+	if dest := req.Headers["Sec-Fetch-Dest"]; dest != "" {
+		return dest == "document"
+	}
+	return strings.Contains(req.Headers["Accept"], "text/html")
+}
+
+// authChallenge builds the rejection an unauthenticated caller receives.
+// Browsers land on /login; API callers get the standard {"message": …} 401.
+//
+// The redirect carries no return path. Every authenticated surface in this app
+// is behind the client-side unlock ceremony anyway, so a signed-in visitor
+// resumes at the vault rather than the URL they were refused — and a
+// ?next= parameter is an open-redirect footgun that would have to be
+// validated on the way back out for no gain here.
+func authChallenge(req *bungo.Request) *bungo.APIResponse {
+	if isDocumentRequest(req) {
+		return &bungo.APIResponse{
+			StatusCode: 302,
+			Headers:    map[string]string{"Location": config.LoginPath},
+		}
+	}
+	return &bungo.APIResponse{
+		StatusCode: 401,
+		Body:       map[string]string{"message": config.SessionExpiredError},
+	}
 }
 
 // OptionalAuth is the security-layer handler for otherwise public pages that
@@ -52,13 +87,13 @@ func (r *Runtime) RequireAuth(req *bungo.Request) bool {
 // but always returns true, so anonymous visitors are never rejected. Unlike
 // require_auth it does not touch the session's last-seen: a public page view
 // is not meaningful app activity. Chain load_viewer after it.
-func (r *Runtime) OptionalAuth(req *bungo.Request) bool {
+func (r *Runtime) OptionalAuth(req *bungo.Request) (bool, *bungo.APIResponse) {
 	session, user := r.resolveSession(req)
 	if user != nil {
 		req.Internal[config.SessionInternalKey] = session
 		req.Internal[config.UserInternalKey] = user
 	}
-	return true
+	return true, nil
 }
 
 // RequireAdmin is the security-layer handler gating the management console.
@@ -66,17 +101,38 @@ func (r *Runtime) OptionalAuth(req *bungo.Request) bool {
 // costs no query and cannot disagree with view.UserSummary.IsAdmin.
 //
 // Chain it AFTER require_auth: on its own it would reject every request,
-// because an anonymous one has no user to check. Like every BunGo layer it
-// can only answer bool, so a signed-in non-admin gets 401 rather than 403 —
-// which is the better answer here anyway. The console's existence is not
-// something a curious account should be able to confirm by the status code
-// it gets back.
-func (r *Runtime) RequireAdmin(req *bungo.Request) bool {
+// because an anonymous one has no user to check.
+//
+// A signed-in non-admin is answered 404, not 403 — the console's existence is
+// not something a curious account should be able to confirm by the status code
+// it gets back. That used to be a happy accident of BunGo only being able to
+// say 401; now that unmatched paths render a real 404 (bungo.NotFoundPath), 401
+// would be the tell instead, because a nonexistent path answers differently.
+// So the refusal is stated deliberately, and it matches what probing
+// /app/no-such-thing returns.
+func (r *Runtime) RequireAdmin(req *bungo.Request) (bool, *bungo.APIResponse) {
 	user := CurrentUser(req)
 	if user == nil || user.Admin == nil {
-		return false
+		return false, notFoundChallenge(req)
 	}
-	return true
+	return true, nil
+}
+
+// notFoundChallenge is the "this path does not exist" answer, shaped to the
+// caller the same way authChallenge is. Its job is to be indistinguishable
+// from what an unregistered path returns.
+func notFoundChallenge(req *bungo.Request) *bungo.APIResponse {
+	if isDocumentRequest(req) {
+		return &bungo.APIResponse{
+			StatusCode: 404,
+			Headers:    map[string]string{"Content-Type": "text/html; charset=utf-8"},
+			Body:       nil,
+		}
+	}
+	return &bungo.APIResponse{
+		StatusCode: 404,
+		Body:       map[string]string{"message": "Not Found"},
+	}
 }
 
 // resolveSession validates the request's session cookie and loads the active
@@ -335,7 +391,8 @@ func (r *Runtime) LogoutAPI(req *bungo.Request) (bungo.APIResponse, error) {
 }
 
 // SyncRevisionAPI handles GET /api/v1/sync/revision: the polling/reconnect
-// fallback for the /events stream. Returns the user's current revision.
+// fallback for the change-signal socket (ChangeSignalPath). Returns the user's
+// current revision.
 func (r *Runtime) SyncRevisionAPI(req *bungo.Request) (bungo.APIResponse, error) {
 	user := CurrentUser(req)
 	revision, revisionErr := database.SelectUserRevision(req.Context, r.GetDb(), &r.Builder, user.ID)
@@ -438,9 +495,9 @@ func CurrentSession(req *bungo.Request) *models.Session {
 // summary per request. Chain it after require_auth (or optional_auth) — it
 // always returns true, because a nil summary is a valid state the handler
 // renders its own branch for.
-func (r *Runtime) LoadViewer(req *bungo.Request) bool {
+func (r *Runtime) LoadViewer(req *bungo.Request) (bool, *bungo.APIResponse) {
 	req.Internal[config.ViewerInternalKey] = view.NewUserSummary(CurrentUser(req))
-	return true
+	return true, nil
 }
 
 // Viewer returns the view.UserSummary the load_viewer layer stashed. As a

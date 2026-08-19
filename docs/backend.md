@@ -18,7 +18,7 @@ Read [security.md](./security.md) **first** before touching auth, keys or blobs.
 | Auth | Custom session auth over a client-derived auth key (Argon2id), TOTP 2FA (`github.com/pquerna/otp`) |
 | Server field crypto | `internal/crypto` (AES-256-GCM under `SERVER_ENCRYPTION_KEY_STRING`) |
 | Email | Mailgun REST API (keys empty in dev; delivery degrades to logged skips) |
-| Change signal | In-process SSE hub (`/events`) + per-user revision counter |
+| Change signal | BunGo WebSocket route (`/ws/changes`) + per-user revision counter |
 
 No other third parties — deliberately.
 
@@ -37,7 +37,7 @@ All application dependencies live in a single `Runtime` struct in `internal/runt
 - `Config` — parsed environment config
 - `Cipher` — the server-side `*crypto.FieldCipher` (operational fields only; vault data never touches it)
 - `Lookups` — `*view.Lookups`: in-memory snapshot of reference tables (item categories) loaded once at startup
-- `Signals` — the `*SignalHub` behind `/events` (nil in the worker process)
+- `Signals` — the `*bungo.WebSocketHub` behind `/ws/changes`, handed back by `srv.WebSocket` at registration (nil in the worker process)
 
 **Rules**
 
@@ -46,17 +46,25 @@ All application dependencies live in a single `Runtime` struct in `internal/runt
 - Do not add defensive nil checks for `*Runtime` in every function; assume it is valid after startup.
 - Page handlers, API handlers, and security-layer handlers that need app dependencies are methods on `*Runtime`.
 
-Handler shapes, all taking `*bungo.Request`: page handlers return `(map[string]any, error)`, API handlers `(bungo.APIResponse, error)`, security layers a bare `bool`.
+Handler shapes, all taking `*bungo.Request`: page handlers return `(map[string]any, error)`, API handlers `(bungo.APIResponse, error)`, security layers `(bool, *bungo.APIResponse)` — `(true, nil)` to pass, `(false, nil)` for a default 401, or a response to shape the refusal.
+
+### Security layers shape their own refusals
+
+`RequireAuth` answers by caller: a browser navigation (`Sec-Fetch-Dest: document`, falling back to an `Accept: text/html` sniff) gets **302 to `/login`**, everything else gets the JSON **401**. Precedence matters — a `fetch()` sets `Sec-Fetch-Dest: empty` even when it asks for HTML, so scripts never receive a redirect they would silently follow into an unparseable body.
+
+`RequireAdmin` answers **404**, not 403 or 401. That used to be a side effect of BunGo only being able to say 401; now that unmatched paths render a real not-found page, a 401 on the console path would be the tell that the path exists. The refusal is stated deliberately so probing `/app/v3-mgmt` is indistinguishable from probing `/app/anything-else`.
 
 ### The custom listener (cmd/vault3/main.go)
 
-`srv.Serve` is **not** used. main.go builds the handler through the engine's public `CreateHandler`, mounts the native `/events` SSE endpoint beside it, and wraps everything in `rt.WrapHandler` — security headers (CSP, HSTS, frame denial), rejection of cross-origin state-changing requests, and socket-IP injection so `ClientIP` works without a proxy. All of it uses only BunGo's public API; the framework is unmodified.
+`srv.Serve` is **not** used. main.go builds the handler through the engine's public `CreateHandler` and wraps it in `rt.WrapHandler` before `http.ListenAndServe`. All of it uses only BunGo's public API; the framework is unmodified.
+
+The wrapper is deliberately thin. Security headers are `srv.SetResponseHeaders` (so they land on static files and the WebSocket handshake too, not just handler responses) and cross-origin rejection is `ApiRoute.CheckOrigin`, attached by the `api` helpers to every state-changing route. What remains in the wrapper is the one thing the framework structurally cannot do: `bungo.Request` carries headers rather than the connection, so the socket address and `Host` are copied into headers (`X-Real-Ip`, `X-Vault3-Host`) before BunGo translates the request. Both are `Set`, never `Add`, so a client cannot forge either.
 
 Rate limiting is **not** in the app. Per-IP throttling of the auth endpoints belongs to the production reverse proxy, which sees the real client address; an in-process counter keyed on the socket address collapses to one platform-wide bucket the moment traffic arrives through a proxy. Do not reintroduce it in Go.
 
 #### Route registration is secure by default
 
-Routes are registered through seven closures defined at the top of main.go, never by writing a `bungo.ApiRoute`/`PageRoute` literal inline:
+Routes are registered through eight closures defined at the top of main.go, never by writing a `bungo.ApiRoute`/`PageRoute` literal inline:
 
 | Helper | Layers | Use for |
 |--------|--------|---------|
@@ -65,10 +73,11 @@ Routes are registered through seven closures defined at the top of main.go, neve
 | `adminAPI(method, path, handler)` | + `require_admin` | the management console's endpoints |
 | `adminPage(...)` | + `require_admin` | the management console page |
 | `openAPI(method, path, handler)` | none | the deliberately public API surface |
+| `challengedAPI(method, path, handler)` | `require_human` | public endpoints behind the bot check (`/auth/login`, `/auth/register`) |
 | `viewerPage(...)` | `optional_auth` + `load_viewer` | public pages that adapt when signed in |
 | `anonPage(...)` | none | pre-sign-in pages and the share viewer |
 
-The inversion is the point: authentication is the default, and going public costs a visible word in the name. In a flat list of ~50 routes a missing `SecurityLayer:` field is invisible in review and silently ships an unauthenticated endpoint over the vault. It also keeps the public surface auditable by grepping `main.go` for the three public helper names — and the privileged surface auditable by grepping for the two admin ones.
+The inversion is the point: authentication is the default, and going public costs a visible word in the name. In a flat list of ~50 routes a missing `SecurityLayer:` field is invisible in review and silently ships an unauthenticated endpoint over the vault. It also keeps the public surface auditable by grepping `main.go` for the four public helper names — and the privileged surface auditable by grepping for the two admin ones.
 
 If a route needs a layer combination none of these covers, add another named helper rather than a struct literal.
 
@@ -138,11 +147,12 @@ PORT_INT=3403
 POSTGRES_DSN_STRING=postgres://...
 SERVER_ENCRYPTION_KEY_STRING=<base64 32 bytes>
 SUPPORT_EMAIL_STRING=hello@vault3.com
+TURNSTILE_SITE_KEY_STRING= / TURNSTILE_SECRET_KEY_STRING=                       # production only; see Bot check
 MAILGUN_API_KEY_STRING= / MAILGUN_DOMAIN_STRING= / MAILGUN_FROM_EMAIL_STRING=   # optional; see Email
 ADMIN_BOOTSTRAP_EMAIL_STRING=                                                   # optional; see The admin console
 ```
 
-`PRODUCTION_BOOL` affects cookie Secure, HSTS, log format, and whether `SyncDatabaseSchema` runs. Secrets are read with `MustString` and listed in `REQUIRED_ENV_VARS`, with **two deliberate exceptions** read through `LookupString`: the Mailgun trio, so a dev stack boots with the keys blank, and `ADMIN_BOOTSTRAP_EMAIL_STRING`, which a stack needs exactly once.
+`PRODUCTION_BOOL` affects cookie Secure, HSTS, log format, whether `SyncDatabaseSchema` runs, and which Turnstile keys are used. Secrets are read with `MustString` and listed in `REQUIRED_ENV_VARS`, with **two deliberate exceptions** read through `LookupString`: the Mailgun trio, so a dev stack boots with the keys blank, and `ADMIN_BOOTSTRAP_EMAIL_STRING`, which a stack needs exactly once.
 
 ---
 
@@ -186,7 +196,11 @@ The ordering is not stylistic. Bumping inside the transaction is what makes a ro
 
 Registration is the sole handler using a bare `WithTransaction`: it creates the user, so there is no prior revision to bump.
 
-Clients send a per-tab id in `X-Vault3-Client`; the event echoes it as `origin` so the originating tab skips its own refetch. `GET /api/v1/sync/revision` is the reconnect/poll fallback. The hub is in-process — if the web tier ever scales horizontally, put Postgres LISTEN/NOTIFY behind the same Publish/Subscribe surface.
+The transport is a **BunGo WebSocket route** at `/ws/changes`, registered in main.go with `srv.WebSocket(rt.ChangeSignalRoute())`, which returns the hub the commit helpers publish through — that is where `Runtime.Signals` comes from. Each connection subscribes to its own `user:<id>` topic in `OnConnect` and is sent the current revision immediately, so a client that reconnects after a dropped socket can tell whether it missed a change while away. BunGo owns the upgrade, keepalive and teardown; nothing in `signal.go` touches `net/http`.
+
+The route carries `require_auth` rather than resolving the session itself, so the rules admitting a listener cannot drift from the ones guarding every other authenticated route — the layer runs *before* the upgrade, so a rejected client never opens a socket. BunGo's default same-host origin policy is deliberately **not** overridden: browsers attach the session cookie to a cross-origin `ws://` handshake with no CORS preflight in the way, and that default is the check closing cross-site WebSocket hijacking.
+
+Clients send a per-tab id in `X-Vault3-Client`; the signal echoes it as `origin` so the originating tab skips its own refetch. `GET /api/v1/sync/revision` is the reconnect/poll fallback. The client half is `web/lib/sync.ts`, which owns reconnection (capped jittered backoff, plus an immediate retry when a backgrounded tab becomes visible) because a WebSocket, unlike `EventSource`, does not reconnect itself. The hub is in-process — if the web tier ever scales horizontally, put Postgres LISTEN/NOTIFY behind the same Publish/Subscribe surface.
 
 ### Hub composite getters
 
@@ -222,6 +236,7 @@ The full model is in [security.md](./security.md). Backend-relevant rules:
 | 2FA | TOTP secrets FieldCipher-encrypted; pending secret promoted on verify; a valid code required to disable |
 | Email verification | Enforced at login only when the `email_verification_required` platform setting is on (off in dev where email cannot send) |
 | CSRF | Cross-origin state-changing requests rejected in middleware via `Sec-Fetch-Site`/`Origin`, behind the cookie's `SameSite=Lax` |
+| Bot check | Cloudflare Turnstile via the `require_human` layer on `/auth/login` and `/auth/register` (`challengedAPI`). Single-use tokens, verified server-side, **fail closed**. Not a credential and not a factor — it changes no downstream check. Dev uses Cloudflare's always-pass test keys |
 | Throttling | Not in the app — the production reverse proxy owns per-IP limits |
 | Role strings | `models.RoleOwner` / `RoleMember` / `VaultKind*` / `WrapAlgoMUK`, never bare literals |
 | Platform admin | A `vault3_admin` row, checked by `require_admin`. Grants operator powers over accounts and platform gates — never over vault contents, which no key on the server can open |

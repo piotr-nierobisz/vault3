@@ -51,9 +51,10 @@
             <p>One honest caveat: where your vault is concerned, all we can act on is locked text. We can delete it; we cannot read it, correct it or disclose it — by design, nobody but you can. You are also free to complain to your data protection authority, which in the UK is the Information Commissioner's Office.</p>
 
             <h2>7. Who else touches your data</h2>
-            <p>One company, for one job:</p>
+            <p>Two companies, each for one job:</p>
             <ul>
                 <li><strong>Mailgun</strong> — sends our email, and only the necessary kind: address verification and security alerts. They handle your email address for that and nothing else.</li>
+                <li><strong>Cloudflare Turnstile</strong> — the "confirm you're human" check on the sign-in and sign-up forms, which is what stops those two pages being hammered by scripts. It runs on those pages only, never inside your vault, and it sees your IP address and browser characteristics for the moment it takes to decide. It is not an analytics or advertising product: it does not track you across sites and sets no cookie on this one.</li>
             </ul>
             <p>There is nothing else plugged in. We do not sell personal data, we do not share it for advertising, and we never will.</p>
 

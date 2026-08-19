@@ -1,5 +1,8 @@
 export type LoginPageData = {
   PageTitle: string;
+  // Public half of the Turnstile pair; the secret half never leaves the
+  // server. Cloudflare's always-pass test key outside production.
+  TurnstileSiteKey: string;
 };
 
 export type AuthParamsResponse = {
