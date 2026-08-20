@@ -268,8 +268,8 @@ const (
 // email, and external link should reference these — do not hardcode the URL or
 // brand copy elsewhere.
 const (
-	SITE_URL = "http://localhost:3403"
-	//SITE_URL           = "https://vault3.com" // TODO: Change this in production
+	//SITE_URL = "http://localhost:3403"
+	SITE_URL           = "https://vault3.com"
 	SITE_NAME          = "Vault3"
 	SITE_TAGLINE       = "Vault3. Your secrets, sealed."
 	SITE_DESCRIPTION   = "Vault3 is a zero-knowledge password manager. Everything you store is encrypted on your device before it reaches us — we could not read your vault if we tried."
